@@ -1,0 +1,53 @@
+[package]
+name = "imx-preview"
+version = "0.1.0"
+edition = "2021"
+license = "ImageMagick"
+publish = false
+
+[workspace]
+members = [
+  "crates/core",
+  "crates/codecs/farbfeld",
+  "crates/codecs/ppm",
+  "crates/codecs/qoi",
+  "crates/cli",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "ImageMagick"
+publish = false
+
+[workspace.dependencies]
+imx-core = { path = "crates/core" }
+imx-codec-farbfeld = { path = "crates/codecs/farbfeld" }
+imx-codec-ppm = { path = "crates/codecs/ppm" }
+imx-codec-qoi = { path = "crates/codecs/qoi" }
+
+[dependencies]
+imx-core = { workspace = true }
+imx-codec-farbfeld = { workspace = true }
+imx-codec-ppm = { workspace = true }
+imx-codec-qoi = { workspace = true }
+
+[dev-dependencies]
+libc = "0.2"
+
+[[test]]
+name = "differential"
+path = "tests/differential/mod.rs"
+
+[[test]]
+name = "malformed"
+path = "tests/malformed/mod.rs"
+
+[[test]]
+name = "fuzz_smoke"
+path = "tests/malformed/fuzz_smoke.rs"
+
+[[bench]]
+name = "throughput"
+path = "benches/throughput.rs"
+harness = false

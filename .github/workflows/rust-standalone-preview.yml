@@ -1,0 +1,92 @@
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/rust-standalone-preview.yml'
+      - '**/*.rs'
+      - '**/Cargo.toml'
+      - 'Cargo.lock'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'README.md'
+      - 'COMPATIBILITY.md'
+      - 'RELEASE_NOTES.md'
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+name: Rust Standalone Preview
+jobs:
+  preview:
+    name: Developer preview gates
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Prepare Rust toolchain
+        run: |
+          set -euo pipefail
+          rustc --version
+          cargo --version
+          rustup component add clippy rustfmt
+
+      - name: Install ImageMagick oracle build dependencies
+        run: |
+          set -euo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+          sudo apt-get update -y
+          sudo apt-get install -y autoconf automake gcc g++ git libtool make pkg-config
+
+      - name: Build ImageMagick oracle for differential tests
+        run: |
+          set -euo pipefail
+          git clone --depth=1 https://github.com/ImageMagick/ImageMagick.git target/imagemagick-oracle
+          cd target/imagemagick-oracle
+          ./configure --without-perl --without-magick-plus-plus --without-modules
+          make -j2 utilities/magick
+
+      - name: Run standalone release gates
+        run: |
+          set -euo pipefail
+          IMAGEMAGICK_MAGICK="$GITHUB_WORKSPACE/target/imagemagick-oracle/utilities/magick" \
+            IMX_REQUIRE_ORACLE=1 \
+            IMX_BENCH_ITERATIONS=3 \
+            bash scripts/ci.sh
+
+      - name: Generate benchmark evidence
+        run: |
+          set -euo pipefail
+          IMAGEMAGICK_MAGICK="$GITHUB_WORKSPACE/target/imagemagick-oracle/utilities/magick" \
+            IMX_BENCH_ITERATIONS=3 \
+            bash scripts/bench-release.sh
+
+      - name: Package standalone preview
+        run: |
+          set -euo pipefail
+          bash scripts/package-release.sh
+
+      - name: Verify standalone binary does not link ImageMagick
+        run: |
+          set -euo pipefail
+          ldd target/debug/imx
+          ldd target/release/imx
+          ! ldd target/debug/imx | grep -E 'Magick(Core|Wand)|ImageMagick'
+          ! ldd target/release/imx | grep -E 'Magick(Core|Wand)|ImageMagick'
+
+      - name: Upload standalone preview evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-standalone-preview-evidence
+          path: |
+            target/generated-fixtures
+            target/release-bench-*
+            target/release-artifacts

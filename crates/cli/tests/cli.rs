@@ -1,0 +1,226 @@
+use std::fs;
+use std::fs::File;
+use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use imx_core::{Image, PixelFormat};
+
+fn temp_dir(name: &str) -> std::path::PathBuf {
+    let mut dir = std::env::temp_dir();
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    dir.push(format!("imx_cli_{name}_{nanos}"));
+    fs::create_dir_all(&dir).unwrap();
+    dir
+}
+
+fn imx() -> &'static str {
+    env!("CARGO_BIN_EXE_imx")
+}
+
+#[test]
+fn identifies_farbfeld_qoi_and_ppm() {
+    let dir = temp_dir("identify");
+    let ff = dir.join("input.ff");
+    let qoi = dir.join("input.qoi");
+    let ppm = dir.join("input.ppm");
+    let image = Image::new(
+        1,
+        1,
+        PixelFormat::Rgba16Be,
+        vec![0xff, 0xff, 0, 0, 0, 0, 0xff, 0xff],
+    )
+    .unwrap();
+    fs::write(&ff, imx_codec_farbfeld::encode(&image).unwrap()).unwrap();
+    fs::write(
+        &qoi,
+        imx_codec_qoi::encode_image(&image, imx_codec_qoi::QOI_SRGB).unwrap(),
+    )
+    .unwrap();
+    fs::write(&ppm, imx_codec_ppm::encode(&image).unwrap()).unwrap();
+
+    let output = Command::new(imx())
+        .args(["identify", ff.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap().trim(),
+        "format=FARBFELD width=1 height=1 channels=RGBA depth=16"
+    );
+
+    let output = Command::new(imx())
+        .args(["identify", qoi.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap().trim(),
+        "format=QOI width=1 height=1 channels=RGBA depth=8"
+    );
+
+    let output = Command::new(imx())
+        .args(["identify", ppm.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap().trim(),
+        "format=PPM width=1 height=1 channels=RGB depth=8"
+    );
+}
+
+#[test]
+fn transcodes_farbfeld_to_qoi_and_back() {
+    let dir = temp_dir("transcode");
+    let input_ff = dir.join("input.ff");
+    let output_qoi = dir.join("output.qoi");
+    let roundtrip_ff = dir.join("roundtrip.ff");
+    let image = Image::new(
+        2,
+        1,
+        PixelFormat::Rgba16Be,
+        vec![
+            0x00, 0x00, 0x80, 0x80, 0xff, 0xff, 0xff, 0xff, 0x12, 0x12, 0x34, 0x34, 0x56, 0x56,
+            0x78, 0x78,
+        ],
+    )
+    .unwrap();
+    fs::write(&input_ff, imx_codec_farbfeld::encode(&image).unwrap()).unwrap();
+
+    let output = Command::new(imx())
+        .args([input_ff.to_str().unwrap(), output_qoi.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        imx_codec_qoi::decode(&fs::read(&output_qoi).unwrap())
+            .unwrap()
+            .channels,
+        4
+    );
+
+    let output = Command::new(imx())
+        .args([output_qoi.to_str().unwrap(), roundtrip_ff.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(fs::read(input_ff).unwrap(), fs::read(roundtrip_ff).unwrap());
+}
+
+#[test]
+fn transcodes_ppm_to_farbfeld_and_farbfeld_to_ppm() {
+    let dir = temp_dir("ppm_transcode");
+    let input_ppm = dir.join("input.ppm");
+    let output_ff = dir.join("output.ff");
+    let roundtrip_ppm = dir.join("roundtrip.ppm");
+    let image = Image::new(2, 1, PixelFormat::Rgb8, vec![255, 0, 0, 0, 128, 255]).unwrap();
+    fs::write(&input_ppm, imx_codec_ppm::encode(&image).unwrap()).unwrap();
+
+    let output = Command::new(imx())
+        .args([input_ppm.to_str().unwrap(), output_ff.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let output = Command::new(imx())
+        .args([output_ff.to_str().unwrap(), roundtrip_ppm.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        fs::read(input_ppm).unwrap(),
+        fs::read(roundtrip_ppm).unwrap()
+    );
+}
+
+#[test]
+fn help_and_version_are_available() {
+    for flag in ["--help", "--version"] {
+        let output = Command::new(imx()).arg(flag).output().unwrap();
+        assert!(
+            output.status.success(),
+            "{flag} failed with stderr={}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(!output.stdout.is_empty());
+    }
+}
+
+#[test]
+fn malformed_input_exits_nonzero_with_error_prefix() {
+    let dir = temp_dir("malformed");
+    let bad = dir.join("bad.qoi");
+    fs::write(&bad, b"qoif\0\0\0\x01\0\0\0\x01\x02\0").unwrap();
+    let output = Command::new(imx())
+        .args(["identify", bad.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).starts_with("error: "));
+}
+
+#[test]
+fn failed_transcode_does_not_leave_output_file() {
+    let dir = temp_dir("no_partial_output");
+    let bad = dir.join("bad.ppm");
+    let output_path = dir.join("out.ff");
+    fs::write(&bad, b"P6\n2 1\n255\n\xff\x00\x00").unwrap();
+
+    let output = Command::new(imx())
+        .args([bad.to_str().unwrap(), output_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).starts_with("error: "));
+    assert!(!output_path.exists());
+}
+
+#[test]
+fn same_input_and_output_path_is_rejected() {
+    let dir = temp_dir("same_path");
+    let input = dir.join("input.ppm");
+    let image = Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap();
+    fs::write(&input, imx_codec_ppm::encode(&image).unwrap()).unwrap();
+
+    let output = Command::new(imx())
+        .args([input.to_str().unwrap(), input.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("must be different"));
+}
+
+#[test]
+fn oversized_input_is_rejected_before_reading() {
+    let dir = temp_dir("oversized");
+    let huge = dir.join("huge.ff");
+    let file = File::create(&huge).unwrap();
+    file.set_len((imx_core::MAX_PIXEL_BYTES as u64) + 1024 * 1024 + 1)
+        .unwrap();
+
+    let output = Command::new(imx())
+        .args(["identify", huge.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("input file too large"));
+}
