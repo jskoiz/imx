@@ -49,3 +49,6 @@ IMX_INSTALL_REPO_URL=https://github.com/jskoiz/imx.git ./scripts/verify-install.
 The GitHub Actions preview workflow uploads generated fixtures, fuzz results,
 fresh-install evidence, benchmark evidence, and packaged release archives.
 Tagged releases publish packaged archives automatically.
+
+Release packaging uses deterministic tar/gzip metadata and relative checksums,
+so CI can compare repeated packages from the same target payload.

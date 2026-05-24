@@ -114,6 +114,10 @@ Package a release archive:
 ./scripts/package-release.sh
 ```
 
+Release archives use deterministic tar/gzip metadata and a relative
+`SHA256SUMS` entry so repeated packaging of the same built payload is
+byte-for-byte comparable.
+
 Verify source installation from a fresh checkout:
 
 ```sh

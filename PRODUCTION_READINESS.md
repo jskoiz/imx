@@ -1,7 +1,7 @@
 # IMX v0.1.0 Production Readiness
 
-Status: in-progress hardening report for the standalone `jskoiz/imx` product
-repo.
+Status: v0.1.0 developer-preview hardening report for the standalone
+`jskoiz/imx` product repo.
 
 ## Release Automation
 
@@ -14,6 +14,10 @@ repo.
   artifacts, verify fresh-checkout installation, and upload evidence artifacts.
 - Tag pushes matching `v*` run the preview gates and then publish packaged
   archives to the matching GitHub Release.
+- Release archives are written with deterministic tar/gzip metadata, sorted
+  entries, fixed ownership, fixed mtimes, stable file modes, and relative
+  `SHA256SUMS` entries so repeated packaging of the same built payload is
+  byte-for-byte comparable.
 
 ## Local Verification
 
