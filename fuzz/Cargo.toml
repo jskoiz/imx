@@ -1,0 +1,34 @@
+[package]
+name = "imx-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+imx-codec-farbfeld = { path = "../crates/codecs/farbfeld" }
+imx-codec-ppm = { path = "../crates/codecs/ppm" }
+imx-codec-qoi = { path = "../crates/codecs/qoi" }
+libfuzzer-sys = "0.4"
+
+[[bin]]
+name = "farbfeld_decode"
+path = "fuzz_targets/farbfeld_decode.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "ppm_decode"
+path = "fuzz_targets/ppm_decode.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "qoi_decode"
+path = "fuzz_targets/qoi_decode.rs"
+test = false
+doc = false

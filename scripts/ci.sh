@@ -5,6 +5,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
 cargo fmt --all -- --check
+cargo fmt --manifest-path fuzz/Cargo.toml --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo tree --workspace --edges normal
 cargo test --workspace
@@ -15,6 +16,7 @@ rm -rf "$fixture_dir"
 cargo run -p imx-cli --bin imx-generate-fixtures -- "$fixture_dir"
 
 cargo test --test fuzz_smoke -- --nocapture
+IMX_FUZZ_MAX_TOTAL_TIME="${IMX_FUZZ_MAX_TOTAL_TIME:-2}" bash scripts/run-fuzz.sh
 IMX_BENCH_ITERATIONS="${IMX_BENCH_ITERATIONS:-5}" cargo bench --bench throughput
 
 if [[ "${IMX_REQUIRE_ORACLE:-0}" == "1" ]]; then

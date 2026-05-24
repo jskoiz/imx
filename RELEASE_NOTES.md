@@ -40,9 +40,12 @@ Use:
 
 ```sh
 IMAGEMAGICK_MAGICK=/path/to/magick IMX_REQUIRE_ORACLE=1 ./scripts/ci.sh
+IMX_FUZZ_MAX_TOTAL_TIME=5 ./scripts/run-fuzz.sh
 IMAGEMAGICK_MAGICK=/path/to/magick ./scripts/bench-release.sh
+IMX_INSTALL_REPO_URL=https://github.com/jskoiz/imx.git ./scripts/verify-install.sh
 ./scripts/package-release.sh
 ```
 
-The GitHub Actions preview workflow uploads generated fixtures, benchmark
-evidence, and packaged release archives.
+The GitHub Actions preview workflow uploads generated fixtures, fuzz results,
+fresh-install evidence, benchmark evidence, and packaged release archives.
+Tagged releases publish packaged archives automatically.

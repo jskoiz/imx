@@ -3,16 +3,20 @@ on:
   push:
     branches:
       - main
+    tags:
+      - 'v*'
     paths:
       - '.github/workflows/rust-standalone-preview.yml'
       - '**/*.rs'
       - '**/Cargo.toml'
       - 'Cargo.lock'
+      - 'fuzz/**'
       - 'scripts/**'
       - 'tests/**'
       - 'README.md'
       - 'COMPATIBILITY.md'
       - 'RELEASE_NOTES.md'
+      - 'PRODUCTION_READINESS.md'
   pull_request:
     branches:
       - main
@@ -27,7 +31,7 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
 
@@ -37,6 +41,7 @@ jobs:
           rustc --version
           cargo --version
           rustup component add clippy rustfmt
+          rustup toolchain install nightly --profile minimal
 
       - name: Install ImageMagick oracle build dependencies
         run: |
@@ -44,6 +49,11 @@ jobs:
           export DEBIAN_FRONTEND=noninteractive
           sudo apt-get update -y
           sudo apt-get install -y autoconf automake gcc g++ git libtool make pkg-config
+
+      - name: Install fuzz tooling
+        run: |
+          set -euo pipefail
+          cargo install cargo-fuzz --locked
 
       - name: Build ImageMagick oracle for differential tests
         run: |
@@ -56,9 +66,10 @@ jobs:
       - name: Run standalone release gates
         run: |
           set -euo pipefail
-          IMAGEMAGICK_MAGICK="$GITHUB_WORKSPACE/target/imagemagick-oracle/utilities/magick" \
+            IMAGEMAGICK_MAGICK="$GITHUB_WORKSPACE/target/imagemagick-oracle/utilities/magick" \
             IMX_REQUIRE_ORACLE=1 \
             IMX_BENCH_ITERATIONS=3 \
+            IMX_FUZZ_MAX_TOTAL_TIME=2 \
             bash scripts/ci.sh
 
       - name: Generate benchmark evidence
@@ -73,6 +84,13 @@ jobs:
           set -euo pipefail
           bash scripts/package-release.sh
 
+      - name: Verify fresh checkout install
+        run: |
+          set -euo pipefail
+          IMX_INSTALL_REPO_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" \
+            IMX_INSTALL_REVISION="$GITHUB_SHA" \
+            bash scripts/verify-install.sh
+
       - name: Verify standalone binary does not link ImageMagick
         run: |
           set -euo pipefail
@@ -83,10 +101,44 @@ jobs:
 
       - name: Upload standalone preview evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: rust-standalone-preview-evidence
           path: |
             target/generated-fixtures
+            target/fuzz-runs
+            target/install-verify
             target/release-bench-*
             target/release-artifacts
+
+  release:
+    name: Publish release artifacts
+    needs: preview
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Package standalone preview
+        run: |
+          set -euo pipefail
+          bash scripts/package-release.sh
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" target/release-artifacts/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" target/release-artifacts/* \
+              --title "IMX Developer Preview $GITHUB_REF_NAME" \
+              --notes-file RELEASE_NOTES.md \
+              --verify-tag
+          fi

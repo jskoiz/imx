@@ -20,6 +20,7 @@ cp "$root/target/release/imx" "$staging/"
 cp "$root/README.md" "$staging/"
 cp "$root/COMPATIBILITY.md" "$staging/"
 cp "$root/RELEASE_NOTES.md" "$staging/"
+cp "$root/PRODUCTION_READINESS.md" "$staging/"
 for doc in LICENSE NOTICE; do
   if [[ -f "$root/$doc" ]]; then
     cp "$root/$doc" "$staging/"

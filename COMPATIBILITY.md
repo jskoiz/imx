@@ -100,4 +100,4 @@ FARBFELD/QOI to PPM:
 - No PGM/PBM/PAM support yet.
 - No delegates, profiles, color management, resize/transform operations,
   MagickCore API, or MagickWand API.
-- No format beyond FARBFELD, QOI, and binary PPM.
+- No format beyond FARBFELD, QOI, and PPM.

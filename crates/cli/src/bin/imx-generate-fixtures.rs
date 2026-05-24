@@ -64,16 +64,29 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     let mut manifest = String::from("# IMX generated fixtures\n");
+    let mut manifest_json = String::from("{\n  \"schema_version\": 1,\n  \"fixtures\": [\n");
     for (name, bytes) in files {
         let path = output_dir.join(name);
         fs::write(&path, &bytes)?;
+        let hash = fnv64(&bytes);
         manifest.push_str(&format!(
             "{name} bytes={} fnv64={:016x}\n",
             bytes.len(),
-            fnv64(&bytes)
+            hash
+        ));
+        if !manifest_json.ends_with("[\n") {
+            manifest_json.push_str(",\n");
+        }
+        manifest_json.push_str(&format!(
+            "    {{ \"path\": \"{}\", \"bytes\": {}, \"fnv64\": \"{:016x}\" }}",
+            json_escape(name),
+            bytes.len(),
+            hash
         ));
     }
+    manifest_json.push_str("\n  ]\n}\n");
     fs::write(output_dir.join("manifest.txt"), manifest)?;
+    fs::write(output_dir.join("manifest.json"), manifest_json)?;
 
     Ok(())
 }
@@ -101,4 +114,8 @@ fn fnv64(bytes: &[u8]) -> u64 {
         hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
     }
     hash
+}
+
+fn json_escape(text: &str) -> String {
+    text.replace('\\', "\\\\").replace('"', "\\\"")
 }

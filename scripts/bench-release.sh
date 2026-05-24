@@ -65,4 +65,6 @@ else
   sha256sum "$out_dir"/*.{ff,qoi,ppm} >"$out_dir/output-sha256.txt" 2>/dev/null || true
 fi
 
+cargo run -p imx-cli --bin imx-summarize-bench -- "$out_dir"
+
 echo "$out_dir"
