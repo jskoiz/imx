@@ -1,10 +1,10 @@
 # IMX Compatibility Readiness
 
-Status: v0.7.0 is the current implementation-candidate source state. It carries
+Status: v0.7.0 is the current published production-candidate surface. It carries
 forward the v0.6.0 exact format-prefix surface and adds high-depth PPM support
-for the existing PPM codec only. The latest published production release and tap
-remain v0.6.0 until a future release goal cuts, publishes, and verifies v0.7.0
-assets from GitHub `SHA256SUMS`. Hosted release proof is Linux-only. Automatic
+for the existing PPM codec only. Release and tap support are claimed only for the
+Linux archive targets present in the published v0.7.0 GitHub `SHA256SUMS` and
+verified by release/tap smoke. Hosted release proof is Linux-only. Automatic
 hosted macOS/iOS GitHub Actions remain disabled; macOS proof is local/manual
 only unless explicitly approved in the current turn.
 
@@ -25,13 +25,12 @@ only unless explicitly approved in the current turn.
   preserves 16-bit samples when writing FARBFELD/PGM16/PPM16, and quantizes only
   for inherently 8-bit or bilevel destinations.
 - Published v0.4.0 release targets are Linux x86_64, macOS arm64, and macOS
-  x86_64. The v0.6.0 hosted release targets are Linux x86_64 and Linux arm64
-  only, without hosted macOS/iOS Actions. No v0.7.0 release archive or tap claim
-  exists until a later publication goal records it.
+  x86_64. The v0.7.0 hosted release targets are Linux x86_64 and Linux arm64
+  only, without hosted macOS/iOS Actions.
 - ImageMagick remains an oracle for tests and benchmarks only; shipped binaries
   must not link to ImageMagick, MagickCore, MagickWand, delegates, modules,
   `policy.xml`, or ImageMagick's build system.
-- v0.6.0 distribution artifacts are the Linux x86_64 and Linux arm64 release
+- v0.7.0 distribution artifacts are the Linux x86_64 and Linux arm64 release
   tarballs, aggregate `SHA256SUMS`, generated `imx.rb`,
   `CONFORMANCE_REPORT.md`, and `conformance-summary.json`. Hosted tag
   automation is Linux-only unless a macOS run is explicitly approved in the
@@ -46,9 +45,9 @@ only unless explicitly approved in the current turn.
 | Fuzz smoke | `scripts/run-fuzz.sh` | `target/fuzz-runs/*/summary.json` | FARBFELD, QOI, and PNM identify/decode with retained crash artifacts | required before tag |
 | Scheduled fuzz | `.github/workflows/rust-fuzz-scheduled.yml` | `scheduled-fuzz-evidence` artifact | longer cargo-fuzz run with artifact retention | required CI lane |
 | Bench/RSS thresholds | `scripts/bench-release.sh` | `target/release-bench-*/threshold-summary.json` | throughput and process/library RSS sanity budgets | required before tag |
-| Bench regression | `scripts/bench-regression.sh` | `target/bench-regression-*/regression-report.json` | current candidate vs v0.5.0 throughput/RSS baseline; new v0.7.0 metrics without a baseline are warnings, RSS growth is enforced where a baseline exists | required before tag |
+| Bench regression | `scripts/bench-regression.sh` | `target/bench-regression-*/regression-report.json` | v0.7.0 vs v0.5.0 throughput/RSS baseline; new v0.7.0 metrics without a baseline are warnings, RSS growth is enforced where a baseline exists | required before tag |
 | Source install verify | `scripts/verify-install.sh` | `target/install-verify/install-summary.json` | fresh checkout install plus supported identify/transcode/prefix/PPM16 smoke | required before tag |
-| Package/SHA/no-link | `scripts/package-release.sh` plus hosted Linux workflow; local macOS or explicitly approved manual evidence for macOS targets | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive smoke, exact-prefix smoke, PPM16 smoke, no ImageMagick linkage for each claimed platform; v0.6.0 hosted automation prepares Linux x86_64 and Linux arm64 release artifacts | required before publishing that platform archive |
+| Package/SHA/no-link | `scripts/package-release.sh` plus hosted Linux workflow; local macOS or explicitly approved manual evidence for macOS targets | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive smoke, exact-prefix smoke, PPM16 smoke, no ImageMagick linkage for each claimed platform; v0.7.0 hosted automation prepares Linux x86_64 and Linux arm64 release artifacts | required before publishing that platform archive |
 | Published archive smoke | `scripts/verify-release-archive.sh` | `target/release-archive-smoke/<target>/summary.json` | downloads the selected GitHub release archive, verifies that archive against aggregate SHA256SUMS, no-link, identify/transcode/same-format/prefix smoke; hosted CI covers Linux only | required after release publish |
 | Homebrew tap smoke | `brew install jskoiz/imx/imx` and `brew test jskoiz/imx/imx` | `jskoiz/homebrew-imx` Linux formula/archive workflow plus local macOS or explicitly approved manual terminal output | formula URL/SHA fetch, binary version check, PPM identify, PPM-to-QOI smoke, exact-prefix smoke, and FARBFELD/QOI/PBM/PGM/PPM same-format rewrite smoke; local/manual Homebrew install proof for tap claims | required for tap claim; no hosted macOS tap smoke is claimed |
 | Conformance report | `scripts/generate-conformance-report.sh` | `CONFORMANCE_REPORT.md`, `conformance-summary.json` | generated from CI evidence and attached to the release | required release asset |
@@ -144,10 +143,10 @@ IMX_VERSION=v0.7.0 IMX_RELEASE_TARGET=<target> \
 - FARBFELD/PPM16/PGM16 to QOI is lossy for non-8-bit-representable 16-bit
   samples.
 - Color to PGM/PBM is lossy and ignores alpha.
-- No Windows, crates.io, Homebrew/core, or v0.7.0 published release/tap claim is
-  made by this candidate. Linux arm64 is claimed only for published v0.6.0
-  archives and tap blocks verified from release `SHA256SUMS`; Homebrew support
-  is tap-only through `jskoiz/imx`.
+- No Windows, crates.io, Homebrew/core, or unverified macOS v0.7.0 package is
+  claimed. Linux arm64 is claimed only for published v0.7.0 archives and tap
+  blocks verified from release `SHA256SUMS`; Homebrew support is tap-only
+  through `jskoiz/imx`.
 
 ## Safety Wins
 
@@ -170,7 +169,7 @@ IMX_VERSION=v0.7.0 IMX_RELEASE_TARGET=<target> \
 
 ## Next Smallest Milestone
 
-After the high-depth PPM candidate is verified and committed, the next production
-step is a bounded v0.7.0 release/tap publication pass from the committed source
-state. PNG, JPEG, TIFF, delegates, MagickCore, MagickWand, and full ImageMagick
-CLI compatibility remain too broad for the next milestone.
+After the v0.7.0 release/tap publication, the next compatibility slice should
+remain bounded to one tested behavior with oracle evidence. PNG, JPEG, TIFF,
+delegates, MagickCore, MagickWand, and full ImageMagick CLI compatibility remain
+too broad for the next milestone.

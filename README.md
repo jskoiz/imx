@@ -1,24 +1,23 @@
 # IMX Developer Preview
 
 IMX is a standalone Rust image tool built one ImageMagick-compatible slice at a
-time. The current source tree is the `v0.7.0` implementation candidate: it
-supports deterministic identify, cross-format transcode, same-format rewrite,
-exact uppercase format-prefix workflows, and high-depth PPM for the existing
+time. The current published developer-preview release is `v0.7.0`: it supports
+deterministic identify, cross-format transcode, same-format rewrite, exact
+uppercase format-prefix workflows, and high-depth PPM for the existing
 FARBFELD, QOI, and Netpbm PBM/PGM/PPM surface through the `imx` binary.
 
 IMX is not an ImageMagick fork and does not link to MagickCore, MagickWand,
 delegates, modules, `policy.xml`, or ImageMagick's build system. ImageMagick is
 used only as an external oracle in compatibility tests and benchmarks.
 
-The v0.7.0 candidate adds PPM `maxval` 256..65535 support for existing `P3` and
+The v0.7.0 release adds PPM `maxval` 256..65535 support for existing `P3` and
 `P6` PPM only. It does not add PNG/JPEG/TIFF/PAM/PFM/BMP, stdin/stdout
 streaming, a `magick` alias, full ImageMagick CLI parsing, delegates,
 MagickCore, or MagickWand.
 
 ## Install
 
-The latest published tap/release remains v0.6.0 until a v0.7.0 release is cut.
-Install the published v0.6.0 tap release:
+Install the published v0.7.0 tap release:
 
 ```sh
 brew tap jskoiz/imx
@@ -27,41 +26,41 @@ imx --version
 ```
 
 This uses the `jskoiz/homebrew-imx` tap formula generated from each published
-release's `SHA256SUMS`. For v0.6.0, tap support is limited to archive targets
-present in the published v0.6.0 release and verified by tap smoke. It is not a
+release's `SHA256SUMS`. For v0.7.0, tap support is limited to archive targets
+present in the published v0.7.0 release and verified by tap smoke. It is not a
 Homebrew/core formula.
 
 Hosted GitHub Actions for the tap are Linux-only; macOS install proof must be
 run locally or manually after explicit approval.
 
-Install the published v0.6.0 release archive directly:
+Install the published v0.7.0 release archive directly:
 
 ```sh
-IMX_VERSION=v0.6.0
+IMX_VERSION=v0.7.0
 curl -fsSL "https://raw.githubusercontent.com/jskoiz/imx/${IMX_VERSION}/scripts/install.sh" | sh
 ```
 
 The installer verifies the published `SHA256SUMS`, installs `imx`, asserts the
 installed version, and runs a small identify/transcode smoke test. Hosted
-v0.6.0 tag automation publishes Linux archives for:
+v0.7.0 tag automation publishes Linux archives for:
 
-- `imx-preview-0.6.0-x86_64-unknown-linux-gnu.tar.gz`
-- `imx-preview-0.6.0-aarch64-unknown-linux-gnu.tar.gz`
+- `imx-preview-0.7.0-x86_64-unknown-linux-gnu.tar.gz`
+- `imx-preview-0.7.0-aarch64-unknown-linux-gnu.tar.gz`
 
-macOS v0.6.0 archives or tap blocks require recorded local/manual proof before
+macOS v0.7.0 archives or tap blocks require recorded local/manual proof before
 being claimed. No Windows, crates.io, Homebrew/core, or package-manager
-distribution beyond the `jskoiz/imx` tap is claimed. The v0.6.0 release URL is:
+distribution beyond the `jskoiz/imx` tap is claimed. The v0.7.0 release URL is:
 
 ```text
-https://github.com/jskoiz/imx/releases/tag/v0.6.0
+https://github.com/jskoiz/imx/releases/tag/v0.7.0
 ```
 
 The release-attached `imx.rb` is the formula source used to update the
-`jskoiz/homebrew-imx` tap from the published `SHA256SUMS`. For v0.6.0, Linux
+`jskoiz/homebrew-imx` tap from the published `SHA256SUMS`. For v0.7.0, Linux
 x86_64 and Linux arm64 tap blocks are generated from the release checksums and
 verified by Linux-only tap smoke.
 
-Or install the current v0.7.0 candidate from source:
+Or install the current v0.7.0 source tree directly:
 
 ```sh
 git clone https://github.com/jskoiz/imx.git
@@ -212,17 +211,17 @@ IMX_INSTALL_REPO_URL=https://github.com/jskoiz/imx.git ./scripts/verify-install.
 Verify published Linux release archives after GitHub release publication:
 
 ```sh
-IMX_VERSION=v0.6.0 IMX_RELEASE_TARGET=x86_64-unknown-linux-gnu ./scripts/verify-release-archive.sh
+IMX_VERSION=v0.7.0 IMX_RELEASE_TARGET=x86_64-unknown-linux-gnu ./scripts/verify-release-archive.sh
 ```
 
-Verify the v0.6.0 Homebrew tap install smoke:
+Verify the v0.7.0 Homebrew tap install smoke:
 
 ```sh
 brew tap jskoiz/imx
 brew install imx
 brew test imx
 imx --version
-test "$(imx --version)" = "imx 0.6.0"
+test "$(imx --version)" = "imx 0.7.0"
 ```
 
 `brew test` verifies installation only. Compatibility remains covered by the

@@ -1,6 +1,6 @@
 # IMX Release Notes
 
-## IMX v0.7.0 High-Depth PPM Candidate
+## IMX v0.7.0 High-Depth PPM
 
 - Adds high-depth PPM support for the existing PPM codec only: uppercase `P3`
   and `P6` with `maxval` 256..65535 identify and decode as RGB16BE.
@@ -18,8 +18,10 @@
   no `magick` alias, no full ImageMagick CLI, no delegates, no MagickCore, no
   MagickWand, no crates.io, no Homebrew/core, no Windows, and no hosted macOS or
   iOS GitHub Actions.
-- v0.7.0 is an implementation candidate in this source tree until a future
-  release/tap publication goal cuts and verifies published assets.
+- Publishes Linux x86_64 and Linux arm64 release archives through Ubuntu-only
+  hosted automation, plus generated `SHA256SUMS`, `imx.rb`, and conformance
+  report assets. The Homebrew tap update is generated from the published v0.7.0
+  `SHA256SUMS` and remains tap-only, not Homebrew/core.
 
 ## IMX v0.6.0 Prefix Compatibility
 
@@ -104,8 +106,7 @@ imx <input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm> \
 - PBM comments, whitespace, and padding-bit values are not preserved.
 - PBM output is lossy thresholding from gray/color inputs.
 - v0.5.0/v0.6.0 PPM support was limited to RGB8 `P3`/`P6` with
-  `maxval <= 255`; the v0.7.0 candidate extends this to RGB16BE PPM for
-  `maxval` 256..65535.
+  `maxval <= 255`; v0.7.0 extends this to RGB16BE PPM for `maxval` 256..65535.
 - PGM supports `maxval <= 65535`; ImageMagick's nonstandard 32-bit PGM variants
   are intentionally out of scope.
 - P2 input is re-encoded as deterministic binary P5 output; source form,
@@ -119,8 +120,8 @@ imx <input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm> \
 - CLI input files larger than 513 MiB are rejected before reading.
 - Decoded pixel buffers larger than 512 MiB are rejected.
 - Homebrew support is tap-only; no Homebrew/core, crates.io, Windows, or
-  unverified macOS v0.6.0 package is claimed. Linux arm64 is claimed only for
-  published v0.6.0 archives and tap blocks verified from release `SHA256SUMS`.
+  unverified macOS v0.7.0 package is claimed. Linux arm64 is claimed only for
+  published v0.7.0 archives and tap blocks verified from release `SHA256SUMS`.
 - This is not a full ImageMagick CLI, MagickCore, or MagickWand replacement.
 
 ## Release Evidence
