@@ -1,6 +1,6 @@
 # IMX Release Notes
 
-## Unreleased v0.6.0 Prefix Compatibility
+## IMX v0.6.0 Prefix Compatibility
 
 - Adds exact uppercase `FARBFELD:`, `QOI:`, `PBM:`, `PGM:`, and `PPM:`
   prefixes for the existing identify and two-path transcode operands.
@@ -9,6 +9,13 @@
   prefixes, and prefixed same-path writes fail with `error: ...`.
 - Extends the ImageMagick oracle corpus with prefixed identify cases and a
   prefixed transcode ring across the existing FARBFELD/QOI/PBM/PGM/PPM surface.
+- Carries forward the v0.5.0 deterministic identify, cross-format transcode,
+  and same-format rewrite surface for FARBFELD, QOI, PBM, PGM, and PPM.
+- Publishes Linux x86_64 and Linux arm64 release archives through Ubuntu-only
+  hosted automation, plus generated `SHA256SUMS`, `imx.rb`, and conformance
+  report assets.
+- The Homebrew tap update is generated from the published v0.6.0 `SHA256SUMS`
+  and remains tap-only, not Homebrew/core.
 - Keeps the boundary unchanged: no new image formats, no stdin/stdout
   streaming, no full ImageMagick CLI, no delegates, no MagickCore, and no
   MagickWand.
@@ -89,8 +96,8 @@ imx <input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm> \
 - CLI input files larger than 513 MiB are rejected before reading.
 - Decoded pixel buffers larger than 512 MiB are rejected.
 - Homebrew support is tap-only; no Homebrew/core, crates.io, Windows, or
-  unverified macOS v0.5.0 package is claimed. Linux arm64 is claimed only for
-  published v0.5.0 archives and tap blocks verified from release `SHA256SUMS`.
+  unverified macOS v0.6.0 package is claimed. Linux arm64 is claimed only for
+  published v0.6.0 archives and tap blocks verified from release `SHA256SUMS`.
 - This is not a full ImageMagick CLI, MagickCore, or MagickWand replacement.
 
 ## Release Evidence
@@ -101,6 +108,7 @@ Use:
 IMAGEMAGICK_MAGICK=/path/to/magick IMX_REQUIRE_ORACLE=1 ./scripts/ci.sh
 IMX_FUZZ_MAX_TOTAL_TIME=5 ./scripts/run-fuzz.sh
 IMAGEMAGICK_MAGICK=/path/to/magick ./scripts/bench-release.sh
+IMAGEMAGICK_MAGICK=/path/to/magick IMX_BENCH_BASE_REF=v0.5.0 ./scripts/bench-regression.sh
 IMX_INSTALL_REPO_URL=https://github.com/jskoiz/imx.git ./scripts/verify-install.sh
 ./scripts/package-release.sh
 ```
@@ -111,4 +119,4 @@ regression reports, conformance reports, and packaged Linux release archives.
 Hosted macOS/iOS GitHub Actions are disabled after the v0.4.0 proof; macOS
 archive or tap proof must be run locally or manually after explicit approval.
 After publication, release archive smoke and Homebrew tap updates must be
-verified from the published v0.5.0 `SHA256SUMS`.
+verified from the published v0.6.0 `SHA256SUMS`.

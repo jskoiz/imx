@@ -95,7 +95,7 @@ jobs:
         run: |
           set -euo pipefail
             IMAGEMAGICK_MAGICK="$GITHUB_WORKSPACE/target/imagemagick-oracle/utilities/magick" \
-            IMX_BENCH_BASE_REF=v0.4.0 \
+            IMX_BENCH_BASE_REF=v0.5.0 \
             IMX_BENCH_ITERATIONS=10 \
             bash scripts/bench-regression.sh
 

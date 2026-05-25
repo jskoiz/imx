@@ -4,7 +4,7 @@ IMX releases generate a binary Homebrew formula from the release archive
 checksums:
 
 ```sh
-scripts/generate-homebrew-formula.sh v0.5.0 SHA256SUMS imx.rb
+scripts/generate-homebrew-formula.sh v0.6.0 SHA256SUMS imx.rb
 ```
 
 The generated formula is committed to the `jskoiz/homebrew-imx` tap only, not

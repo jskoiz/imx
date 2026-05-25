@@ -2,7 +2,7 @@
 set -eu
 
 repo="${IMX_REPO:-jskoiz/imx}"
-version="${IMX_VERSION:-v0.5.0}"
+version="${IMX_VERSION:-v0.6.0}"
 install_dir="${IMX_INSTALL_DIR:-$HOME/.local/bin}"
 run_smoke="${IMX_INSTALL_SMOKE:-1}"
 
@@ -89,16 +89,29 @@ if [ "$run_smoke" != "0" ] && [ "$run_smoke" != "false" ]; then
   "$install_dir/imx" identify "$smoke_dir/input.ppm" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/input.pgm" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/input.pbm" >/dev/null
+  "$install_dir/imx" identify "PPM:$smoke_dir/input.ppm" >/dev/null
+  "$install_dir/imx" identify "PGM:$smoke_dir/input.pgm" >/dev/null
+  "$install_dir/imx" identify "PBM:$smoke_dir/input.pbm" >/dev/null
   "$install_dir/imx" "$smoke_dir/input.ppm" "$smoke_dir/output.qoi"
   "$install_dir/imx" identify "$smoke_dir/output.qoi" >/dev/null
+  "$install_dir/imx" identify "QOI:$smoke_dir/output.qoi" >/dev/null
   "$install_dir/imx" "$smoke_dir/output.qoi" "$smoke_dir/output.ff"
   "$install_dir/imx" identify "$smoke_dir/output.ff" >/dev/null
+  "$install_dir/imx" identify "FARBFELD:$smoke_dir/output.ff" >/dev/null
   "$install_dir/imx" "$smoke_dir/output.ff" "$smoke_dir/output.pbm"
   "$install_dir/imx" "$smoke_dir/output.ff" "$smoke_dir/output.pgm"
   "$install_dir/imx" "$smoke_dir/output.ff" "$smoke_dir/output.ppm"
+  "$install_dir/imx" "PPM:$smoke_dir/input.ppm" "QOI:$smoke_dir/prefix-output.qoi"
+  "$install_dir/imx" "QOI:$smoke_dir/prefix-output.qoi" "FARBFELD:$smoke_dir/prefix-output.ff"
+  "$install_dir/imx" "FARBFELD:$smoke_dir/prefix-output.ff" "PBM:$smoke_dir/prefix-output.pbm"
+  "$install_dir/imx" "FARBFELD:$smoke_dir/prefix-output.ff" "PGM:$smoke_dir/prefix-output.pgm"
+  "$install_dir/imx" "FARBFELD:$smoke_dir/prefix-output.ff" "PPM:$smoke_dir/prefix-output.ppm"
   "$install_dir/imx" identify "$smoke_dir/output.pbm" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/output.pgm" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/output.ppm" >/dev/null
+  "$install_dir/imx" identify "PBM:$smoke_dir/prefix-output.pbm" >/dev/null
+  "$install_dir/imx" identify "PGM:$smoke_dir/prefix-output.pgm" >/dev/null
+  "$install_dir/imx" identify "PPM:$smoke_dir/prefix-output.ppm" >/dev/null
   "$install_dir/imx" "$smoke_dir/output.ff" "$smoke_dir/rewrite.ff"
   "$install_dir/imx" "$smoke_dir/output.qoi" "$smoke_dir/rewrite.qoi"
   "$install_dir/imx" "$smoke_dir/input.pbm" "$smoke_dir/rewrite.pbm"

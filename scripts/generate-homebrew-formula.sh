@@ -19,6 +19,15 @@ else
   formula_version="$version"
 fi
 
+prefix_smoke=0
+if [[ "$formula_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+  major="${BASH_REMATCH[1]}"
+  minor="${BASH_REMATCH[2]}"
+  if ((major > 0 || minor >= 6)); then
+    prefix_smoke=1
+  fi
+fi
+
 checksum_for() {
   local archive="$1"
   awk -v archive="$archive" '$2 == archive { print $1 }' "$checksums"
@@ -124,6 +133,18 @@ cat <<'EOF'
     assert_match "format=PPM width=2 height=1 channels=RGB depth=8", shell_output("#{bin/"imx"} identify input.ppm")
     system bin/"imx", "input.ppm", "output.qoi"
     assert_match "format=QOI width=2 height=1 channels=RGBA depth=8", shell_output("#{bin/"imx"} identify output.qoi")
+EOF
+
+if [[ "$prefix_smoke" == 1 ]]; then
+  cat <<'EOF'
+    assert_match "format=PPM width=2 height=1 channels=RGB depth=8", shell_output("#{bin/"imx"} identify PPM:input.ppm")
+    assert_match "format=QOI width=2 height=1 channels=RGBA depth=8", shell_output("#{bin/"imx"} identify QOI:output.qoi")
+    system bin/"imx", "PPM:input.ppm", "FARBFELD:prefix-output.ff"
+    assert_match "format=FARBFELD width=2 height=1 channels=RGBA depth=16", shell_output("#{bin/"imx"} identify FARBFELD:prefix-output.ff")
+EOF
+fi
+
+cat <<'EOF'
     system bin/"imx", "input.ppm", "rewrite.ppm"
     assert_match "format=PPM width=2 height=1 channels=RGB depth=8", shell_output("#{bin/"imx"} identify rewrite.ppm")
   end

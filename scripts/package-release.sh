@@ -161,10 +161,20 @@ printf 'P1\n2 1\n0 1\n' >"$verify_dir/input.pbm"
 run_packaged_binary identify "$verify_dir/input.ppm" >/dev/null
 run_packaged_binary identify "$verify_dir/input.pgm" >/dev/null
 run_packaged_binary identify "$verify_dir/input.pbm" >/dev/null
+run_packaged_binary identify "PPM:$verify_dir/input.ppm" >/dev/null
+run_packaged_binary identify "PGM:$verify_dir/input.pgm" >/dev/null
+run_packaged_binary identify "PBM:$verify_dir/input.pbm" >/dev/null
 run_packaged_binary "$verify_dir/input.ppm" "$verify_dir/output.ff"
 run_packaged_binary identify "$verify_dir/output.ff" >/dev/null
+run_packaged_binary identify "FARBFELD:$verify_dir/output.ff" >/dev/null
 run_packaged_binary "$verify_dir/output.ff" "$verify_dir/output.qoi"
 run_packaged_binary identify "$verify_dir/output.qoi" >/dev/null
+run_packaged_binary identify "QOI:$verify_dir/output.qoi" >/dev/null
+run_packaged_binary "PPM:$verify_dir/input.ppm" "FARBFELD:$verify_dir/prefix-output.ff"
+run_packaged_binary "FARBFELD:$verify_dir/prefix-output.ff" "QOI:$verify_dir/prefix-output.qoi"
+run_packaged_binary "FARBFELD:$verify_dir/prefix-output.ff" "PBM:$verify_dir/prefix-output.pbm"
+run_packaged_binary "FARBFELD:$verify_dir/prefix-output.ff" "PGM:$verify_dir/prefix-output.pgm"
+run_packaged_binary "FARBFELD:$verify_dir/prefix-output.ff" "PPM:$verify_dir/prefix-output.ppm"
 run_packaged_binary "$verify_dir/output.ff" "$verify_dir/rewrite.ff"
 run_packaged_binary "$verify_dir/output.qoi" "$verify_dir/rewrite.qoi"
 run_packaged_binary "$verify_dir/input.pbm" "$verify_dir/rewrite.pbm"
@@ -175,6 +185,10 @@ run_packaged_binary identify "$verify_dir/rewrite.qoi" >/dev/null
 run_packaged_binary identify "$verify_dir/rewrite.pbm" >/dev/null
 run_packaged_binary identify "$verify_dir/rewrite.pgm" >/dev/null
 run_packaged_binary identify "$verify_dir/rewrite.ppm" >/dev/null
+run_packaged_binary identify "QOI:$verify_dir/prefix-output.qoi" >/dev/null
+run_packaged_binary identify "PBM:$verify_dir/prefix-output.pbm" >/dev/null
+run_packaged_binary identify "PGM:$verify_dir/prefix-output.pgm" >/dev/null
+run_packaged_binary identify "PPM:$verify_dir/prefix-output.ppm" >/dev/null
 
 if command -v shasum >/dev/null 2>&1; then
   (cd "$artifact_dir" && shasum -a 256 "$archive_name" >SHA256SUMS)

@@ -1,22 +1,23 @@
 # IMX Developer Preview
 
 IMX is a standalone Rust image tool built one ImageMagick-compatible slice at a
-time. The `v0.5.0` release supports deterministic identify,
-cross-format transcode, and same-format rewrite workflows across FARBFELD, QOI,
-and Netpbm PBM/PGM/PPM through the `imx` binary.
+time. The `v0.6.0` release target supports deterministic identify,
+cross-format transcode, same-format rewrite, and exact uppercase format-prefix
+workflows across FARBFELD, QOI, and Netpbm PBM/PGM/PPM through the `imx`
+binary.
 
 IMX is not an ImageMagick fork and does not link to MagickCore, MagickWand,
 delegates, modules, `policy.xml`, or ImageMagick's build system. ImageMagick is
 used only as an external oracle in compatibility tests and benchmarks.
 
-The current unreleased v0.6.0 development slice adds exact uppercase
-ImageMagick-style format prefixes for the existing FARBFELD/QOI/PBM/PGM/PPM
-formats only. The latest published release remains v0.5.0 until a future tag is
-created explicitly.
+The v0.6.0 prefix slice adds exact uppercase ImageMagick-style format prefixes
+for the existing FARBFELD/QOI/PBM/PGM/PPM formats only. It does not add new
+formats, stdin/stdout streaming, a `magick` alias, full ImageMagick CLI parsing,
+delegates, MagickCore, or MagickWand.
 
 ## Install
 
-After the tap formula is updated from the published release checksums, install
+After the tap formula is updated from the published v0.6.0 checksums, install
 the latest tap release:
 
 ```sh
@@ -26,34 +27,33 @@ imx --version
 ```
 
 This uses the `jskoiz/homebrew-imx` tap formula generated from each published
-release's `SHA256SUMS`. For v0.5.0, tap support is limited to archive targets
-present in the published v0.5.0 release and verified by tap smoke. It is not a
+release's `SHA256SUMS`. For v0.6.0, tap support is limited to archive targets
+present in the published v0.6.0 release and verified by tap smoke. It is not a
 Homebrew/core formula.
 
 Hosted GitHub Actions for the tap are Linux-only; macOS install proof must be
 run locally or manually after explicit approval.
 
-After v0.5.0 release assets are published, install a release archive directly:
+After v0.6.0 release assets are published, install a release archive directly:
 
 ```sh
-IMX_VERSION=v0.5.0
+IMX_VERSION=v0.6.0
 curl -fsSL "https://raw.githubusercontent.com/jskoiz/imx/${IMX_VERSION}/scripts/install.sh" | sh
 ```
 
 The installer verifies the published `SHA256SUMS`, installs `imx`, asserts the
 installed version, and runs a small identify/transcode smoke test. Hosted
-v0.5.0 tag automation publishes Linux archives for:
+v0.6.0 tag automation publishes Linux archives for:
 
-- `imx-preview-0.5.0-x86_64-unknown-linux-gnu.tar.gz`
-- `imx-preview-0.5.0-aarch64-unknown-linux-gnu.tar.gz`
+- `imx-preview-0.6.0-x86_64-unknown-linux-gnu.tar.gz`
+- `imx-preview-0.6.0-aarch64-unknown-linux-gnu.tar.gz`
 
-macOS v0.5.0 archives or tap blocks require recorded local/manual proof before
+macOS v0.6.0 archives or tap blocks require recorded local/manual proof before
 being claimed. No Windows, crates.io, Homebrew/core, or package-manager
-distribution beyond the `jskoiz/imx` tap is claimed. The v0.5.0 release URL will
-be:
+distribution beyond the `jskoiz/imx` tap is claimed. The v0.6.0 release URL is:
 
 ```text
-https://github.com/jskoiz/imx/releases/tag/v0.5.0
+https://github.com/jskoiz/imx/releases/tag/v0.6.0
 ```
 
 The release-attached `imx.rb` is the formula source used to update the
@@ -63,7 +63,7 @@ smoke pass. Linux arm64 tap support requires a published
 release's `SHA256SUMS`, plus Linux-only tap smoke verification of the formula
 entry.
 
-Or install v0.5.0 from source:
+Or install v0.6.0 from source:
 
 ```sh
 git clone https://github.com/jskoiz/imx.git
@@ -180,10 +180,10 @@ Generate machine-readable benchmark evidence:
 IMAGEMAGICK_MAGICK=/path/to/magick ./scripts/bench-release.sh
 ```
 
-Compare current benchmark/RSS evidence against the v0.4.0 baseline:
+Compare current benchmark/RSS evidence against the v0.5.0 baseline:
 
 ```sh
-IMAGEMAGICK_MAGICK=/path/to/magick IMX_BENCH_BASE_REF=v0.4.0 ./scripts/bench-regression.sh
+IMAGEMAGICK_MAGICK=/path/to/magick IMX_BENCH_BASE_REF=v0.5.0 ./scripts/bench-regression.sh
 ```
 
 Package a release archive:
@@ -192,7 +192,7 @@ Package a release archive:
 ./scripts/package-release.sh
 ```
 
-For v0.5.0 and later tags, hosted Linux release automation packages
+For v0.6.0 and later tags, hosted Linux release automation packages
 `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu` archives. The Linux
 arm64 archive uses the Rust cross target, QEMU smoke, architecture checks, and
 `readelf` linkage checks. Linux arm64 is not claimed for the already-published
@@ -211,17 +211,17 @@ IMX_INSTALL_REPO_URL=https://github.com/jskoiz/imx.git ./scripts/verify-install.
 Verify published Linux release archives after GitHub release publication:
 
 ```sh
-IMX_VERSION=v0.5.0 IMX_RELEASE_TARGET=x86_64-unknown-linux-gnu ./scripts/verify-release-archive.sh
+IMX_VERSION=v0.6.0 IMX_RELEASE_TARGET=x86_64-unknown-linux-gnu ./scripts/verify-release-archive.sh
 ```
 
-Verify the v0.5.0 Homebrew tap install smoke after the tap update lands:
+Verify the v0.6.0 Homebrew tap install smoke after the tap update lands:
 
 ```sh
 brew tap jskoiz/imx
 brew install imx
 brew test imx
 imx --version
-test "$(imx --version)" = "imx 0.5.0"
+test "$(imx --version)" = "imx 0.6.0"
 ```
 
 `brew test` verifies installation only. Compatibility remains covered by the
@@ -262,7 +262,7 @@ targets are present in that release's `SHA256SUMS`. Tap updates are handled in
 See [COMPATIBILITY.md](COMPATIBILITY.md) for the exact behavior contract and
 [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) for current release evidence,
 known gaps, and the next adoption milestone.
-The v0.5.0 release checklist is tracked in
-[docs/v0.5.0-release-ready.md](docs/v0.5.0-release-ready.md), and the next
-bounded compatibility recommendation is tracked in
+The v0.6.0 release checklist is tracked in
+[docs/v0.6.0-release-ready.md](docs/v0.6.0-release-ready.md), and the bounded
+prefix compatibility contract is tracked in
 [docs/v0.6.0-compatibility-recommendation.md](docs/v0.6.0-compatibility-recommendation.md).
