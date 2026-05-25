@@ -139,6 +139,64 @@ fn pgm_rejects_malformed_inputs() {
 }
 
 #[test]
+fn pbm_rejects_malformed_inputs() {
+    assert!(imx_codec_pnm::decode_pbm(b"P1\n1 1\n1").is_ok());
+    assert!(imx_codec_pnm::decode_pbm(b"P4\n1 1\n\x80").is_ok());
+    assert_eq!(
+        imx_codec_pnm::decode_pbm(b"P2\n1 1\n255\n255"),
+        Err(ImageError::InvalidHeader("PBM"))
+    );
+    assert_eq!(
+        imx_codec_pnm::decode_pbm(b"P1\n2 1\n0 2\n"),
+        Err(ImageError::InvalidHeader("PBM"))
+    );
+    assert_eq!(
+        imx_codec_pnm::decode_pbm(b"P1\n2 1\n0 x\n"),
+        Err(ImageError::InvalidHeader("PBM"))
+    );
+    assert_eq!(
+        imx_codec_pnm::decode_pbm(b"P1\n1 1\n255\n"),
+        Err(ImageError::InvalidHeader("PBM"))
+    );
+    assert!(matches!(
+        imx_codec_pnm::decode_pbm(b"P1\n2 1\n0\n"),
+        Err(ImageError::UnexpectedEof { .. })
+    ));
+    assert!(matches!(
+        imx_codec_pnm::decode_pbm(b"P4\n1 1\n"),
+        Err(ImageError::UnexpectedEof { .. })
+    ));
+    assert!(matches!(
+        imx_codec_pnm::decode_pbm(b"P4\n9 2\n\x80\x00\x80"),
+        Err(ImageError::UnexpectedEof { .. })
+    ));
+    assert_eq!(
+        imx_codec_pnm::decode_pbm(b"P4\n1 1\x80"),
+        Err(ImageError::InvalidHeader("PBM"))
+    );
+    assert_eq!(
+        imx_codec_pnm::decode_pbm(b"P1\n0 1\n0\n"),
+        Err(ImageError::InvalidDimensions)
+    );
+    assert_eq!(
+        imx_codec_pnm::decode_pbm(b"P1\n1 0\n0\n"),
+        Err(ImageError::InvalidDimensions)
+    );
+    assert!(matches!(
+        imx_codec_pnm::decode_pbm(b"P1\n# unterminated comment"),
+        Err(ImageError::UnexpectedEof { .. })
+    ));
+    assert!(matches!(
+        imx_codec_pnm::decode_pbm(b"P1\n4294967296 1\n0\n"),
+        Err(ImageError::InvalidHeader("PBM"))
+    ));
+    assert!(matches!(
+        imx_codec_pnm::decode_pbm(b"P4\n4294967295 4294967295\n"),
+        Err(ImageError::LengthOverflow) | Err(ImageError::ImageTooLarge { .. })
+    ));
+}
+
+#[test]
 fn shared_pixel_buffers_reject_wrong_lengths() {
     assert!(matches!(
         Image::new(2, 2, PixelFormat::Rgba16Be, vec![0; 31]),
@@ -169,6 +227,10 @@ fn excessive_dimensions_fail_before_allocation() {
     ));
     assert!(matches!(
         imx_codec_pnm::decode_pgm_header(b"P5\n100000 100000\n255\n"),
+        Err(ImageError::ImageTooLarge { .. })
+    ));
+    assert!(matches!(
+        imx_codec_pnm::decode_pbm_header(b"P4\n100000 100000\n"),
         Err(ImageError::ImageTooLarge { .. })
     ));
 }

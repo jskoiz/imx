@@ -22,6 +22,9 @@ fn decode_fuzz_smoke_does_not_panic_or_allocate_unboundedly() {
         let ppm = std::panic::catch_unwind(|| imx_codec_pnm::decode_ppm(&bytes));
         assert!(ppm.is_ok(), "PPM decode panicked at len {len}");
 
+        let pbm = std::panic::catch_unwind(|| imx_codec_pnm::decode_pbm(&bytes));
+        assert!(pbm.is_ok(), "PBM decode panicked at len {len}");
+
         let pgm = std::panic::catch_unwind(|| imx_codec_pnm::decode_pgm(&bytes));
         assert!(pgm.is_ok(), "PGM decode panicked at len {len}");
     }
@@ -52,6 +55,16 @@ fn structured_truncation_fuzz_smoke_does_not_panic() {
         for len in 0..pgm.len() {
             let result = std::panic::catch_unwind(|| imx_codec_pnm::decode_pgm(&pgm[..len]));
             assert!(result.is_ok(), "PGM truncation panicked at len {len}");
+        }
+    }
+
+    for pbm in [
+        b"P1\n4 2\n0110\n1001\n".as_slice(),
+        b"P4\n9 2\n\xaa\x80\x55\x00".as_slice(),
+    ] {
+        for len in 0..pbm.len() {
+            let result = std::panic::catch_unwind(|| imx_codec_pnm::decode_pbm(&pbm[..len]));
+            assert!(result.is_ok(), "PBM truncation panicked at len {len}");
         }
     }
 }

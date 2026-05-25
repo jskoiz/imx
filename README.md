@@ -1,8 +1,9 @@
 # IMX Developer Preview
 
 IMX is a standalone Rust image tool built one ImageMagick-compatible slice at a
-time. The current `v0.2.0` preview supports FARBFELD, QOI, PPM, and PGM
-identify/transcode workflows through the `imx` binary.
+time. The current `v0.3.0` preview supports deterministic identify and
+transcode workflows across FARBFELD, QOI, and Netpbm PBM/PGM/PPM through the
+`imx` binary.
 
 IMX is not an ImageMagick fork and does not link to MagickCore, MagickWand,
 delegates, modules, `policy.xml`, or ImageMagick's build system. ImageMagick is
@@ -10,10 +11,16 @@ used only as an external oracle in compatibility tests and benchmarks.
 
 ## Install
 
-Download the Linux release archive from:
+Install the latest v0.3.0 release archive for Linux or macOS:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/jskoiz/imx/v0.3.0/scripts/install.sh | sh
+```
+
+Release archives are published at:
 
 ```text
-https://github.com/jskoiz/imx/releases/tag/v0.2.0
+https://github.com/jskoiz/imx/releases/tag/v0.3.0
 ```
 
 Or install from source:
@@ -33,28 +40,18 @@ checkout in CI.
 ```sh
 imx --help
 imx --version
-imx identify input.ff
-imx identify input.qoi
-imx identify input.ppm
-imx identify input.pgm
-imx input.ff output.qoi
-imx input.ff output.ppm
-imx input.ff output.pgm
-imx input.qoi output.ff
-imx input.qoi output.ppm
-imx input.qoi output.pgm
-imx input.ppm output.ff
-imx input.ppm output.qoi
-imx input.ppm output.pgm
-imx input.pgm output.ff
-imx input.pgm output.qoi
-imx input.pgm output.ppm
+imx identify <input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm>
+imx <input.ff|input.farbfeld> <output.qoi|output.pbm|output.pgm|output.ppm>
+imx input.qoi <output.ff|output.farbfeld|output.pbm|output.pgm|output.ppm>
+imx input.pbm <output.ff|output.farbfeld|output.qoi|output.pgm|output.ppm>
+imx input.pgm <output.ff|output.farbfeld|output.qoi|output.pbm|output.ppm>
+imx input.ppm <output.ff|output.farbfeld|output.qoi|output.pbm|output.pgm>
 ```
 
 Successful `identify` prints one stable key-value line:
 
 ```text
-format=<FORMAT> width=<WIDTH> height=<HEIGHT> channels=<GRAY|RGB|RGBA> depth=<8|16>
+format=<FORMAT> width=<WIDTH> height=<HEIGHT> channels=<GRAY|RGB|RGBA> depth=<1|8|16>
 ```
 
 Successful transcodes are silent and write the output file. Data and IO
@@ -64,24 +61,29 @@ failures exit `1`; unsupported command shapes exit `2`.
 
 - FARBFELD: RGBA16BE identify/decode/encode.
 - QOI: RGB8/RGBA8 identify/decode/encode.
-- PPM: ASCII `P3` and binary `P6` RGB8 decode; deterministic binary `P6`
+- PBM: ASCII `P1` and binary `P4` bilevel decode; deterministic binary `P4`
   encode.
 - PGM: ASCII `P2` and binary `P5` GRAY8/GRAY16BE decode; deterministic binary
   `P5` encode.
+- PPM: ASCII `P3` and binary `P6` RGB8 decode; deterministic binary `P6`
+  encode.
 
 Known lossy paths:
 
 - FARBFELD to QOI/PPM quantizes 16-bit samples to 8-bit.
+- FARBFELD/QOI/PPM/PGM to PBM uses Rec.709 luma where needed, then thresholds
+  `<128` or `<32768` to black and all higher values to white.
 - FARBFELD to PGM converts RGBA16BE to GRAY16BE using Rec.709 luma and ignores
   alpha.
-- QOI/PPM/PGM to FARBFELD expands 8-bit samples to 16-bit by byte replication
-  and adds opaque alpha where needed.
-- Any output to PPM drops alpha and any output to PGM drops color/alpha.
+- QOI/PBM/PGM/PPM to FARBFELD expands 8-bit samples to 16-bit by byte
+  replication and adds opaque alpha where needed.
+- Any output to PPM drops alpha; any output to PGM drops color/alpha; any
+  output to PBM drops color, alpha, and grayscale precision.
 
-Unsupported by design in `v0.2.0`: full ImageMagick CLI parsing, same-format
+Unsupported by design in `v0.3.0`: full ImageMagick CLI parsing, same-format
 rewrites, stdin/stdout streaming, format prefixes such as `QOI:out.qoi`,
 delegates, profiles, color management, resizing/transforms, MagickCore,
-MagickWand, PBM, PAM, PFM, high-depth PPM, PNG, and BMP.
+MagickWand, PAM, PFM, high-depth PPM, PNG, BMP, and other image formats.
 
 ## Safety Posture
 
@@ -92,7 +94,7 @@ MagickWand, PBM, PAM, PFM, high-depth PPM, PNG, and BMP.
 - Output writes use a temp file plus rename, and malformed input does not leave
   the requested output behind.
 - Fuzz targets cover FARBFELD, QOI, and PNM decode/identify entrypoints with
-  seeded FARBFELD/QOI/PPM/PGM corpora.
+  seeded FARBFELD/QOI/PBM/PGM/PPM corpora.
 
 ## Release Gates
 
@@ -126,8 +128,8 @@ Package a release archive:
 ./scripts/package-release.sh
 ```
 
-Release archives use deterministic tar/gzip metadata and a relative
-`SHA256SUMS` entry so repeated packaging of the same built payload is
+Release archives use deterministic tar/gzip metadata and aggregate
+`SHA256SUMS` entries so repeated packaging of the same built payload is
 byte-for-byte comparable.
 
 Verify source installation from a fresh checkout:
@@ -138,10 +140,10 @@ IMX_INSTALL_REPO_URL=https://github.com/jskoiz/imx.git ./scripts/verify-install.
 
 ## Evidence
 
-The CI workflow builds ImageMagick as an external oracle, runs the release
-gates, runs fuzz targets, verifies install from a fresh checkout, packages IMX,
-checks that debug/release binaries do not link ImageMagick, and uploads release
-evidence.
+The CI workflow builds ImageMagick as an external oracle, runs release gates,
+runs fuzz targets, verifies install from a fresh checkout, packages Linux and
+macOS release archives, checks that binaries do not link ImageMagick, and
+uploads release evidence.
 
 Benchmark runs emit:
 

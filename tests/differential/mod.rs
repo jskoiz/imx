@@ -99,6 +99,26 @@ fn rgba16be_fixture() -> Image {
     .unwrap()
 }
 
+fn pbm_ascii_fixture() -> &'static [u8] {
+    b"P1\n# pbm 1=black 0=white\n5 3\n01010\n10101\n00110\n"
+}
+
+fn pbm_binary_fixture() -> &'static [u8] {
+    b"P4\n10 2\n\x55\x40\xcc\x80"
+}
+
+fn magick_to_gray8(magick: &Path, format_name: &str, input: &Path, output: &Path) -> Output {
+    run_magick(
+        magick,
+        &[
+            format!("{format_name}:{}", input.display()),
+            "-depth".to_string(),
+            "8".to_string(),
+            format!("GRAY:{}", output.display()),
+        ],
+    )
+}
+
 #[test]
 fn imagemagick_oracle_decodes_standalone_farbfeld_to_expected_raw_rgba() {
     let Some(magick) = require_or_skip(magick_command(), "ImageMagick oracle") else {
@@ -390,6 +410,181 @@ fn standalone_ascii_ppm_decode_matches_imagemagick_decoded_pixels() {
         return;
     }
     assert_eq!(fs::read(rust_rgb).unwrap(), fs::read(im_rgb).unwrap());
+}
+
+#[test]
+fn standalone_ascii_and_binary_pbm_decode_match_imagemagick_decoded_pixels() {
+    let Some(magick) = require_or_skip(magick_command(), "ImageMagick oracle") else {
+        return;
+    };
+    let Some(standalone) = require_or_skip(standalone_imx_command(), "standalone imx binary")
+    else {
+        return;
+    };
+    let dir = temp_dir("pbm_decode");
+    let ascii_pbm = dir.join("ascii.pbm");
+    let binary_pbm = dir.join("binary.pbm");
+    let ascii_ff = dir.join("ascii.ff");
+    let binary_ff = dir.join("binary.ff");
+    let im_ascii = dir.join("im-ascii.gray");
+    let rust_ascii = dir.join("rust-ascii.gray");
+    let im_binary = dir.join("im-binary.gray");
+    let rust_binary = dir.join("rust-binary.gray");
+    fs::write(&ascii_pbm, pbm_ascii_fixture()).unwrap();
+    fs::write(&binary_pbm, pbm_binary_fixture()).unwrap();
+
+    for (input, output) in [(&ascii_pbm, &ascii_ff), (&binary_pbm, &binary_ff)] {
+        let result = run_magick(
+            &standalone,
+            &[input.display().to_string(), output.display().to_string()],
+        );
+        assert!(
+            result.status.success(),
+            "standalone PBM->FARBFELD failed for {}\nstdout:\n{}\nstderr:\n{}",
+            input.display(),
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+
+    let im = magick_to_gray8(&magick, "PBM", &ascii_pbm, &im_ascii);
+    let rust = magick_to_gray8(&magick, "FARBFELD", &ascii_ff, &rust_ascii);
+    if !assert_success_or_skip(&im, "ImageMagick P1 PBM decode")
+        || !assert_success_or_skip(&rust, "ImageMagick FARBFELD decode")
+    {
+        return;
+    }
+    assert_eq!(fs::read(rust_ascii).unwrap(), fs::read(im_ascii).unwrap());
+
+    let im = magick_to_gray8(&magick, "PBM", &binary_pbm, &im_binary);
+    let rust = magick_to_gray8(&magick, "FARBFELD", &binary_ff, &rust_binary);
+    if !assert_success_or_skip(&im, "ImageMagick P4 PBM decode")
+        || !assert_success_or_skip(&rust, "ImageMagick FARBFELD decode")
+    {
+        return;
+    }
+    assert_eq!(fs::read(rust_binary).unwrap(), fs::read(im_binary).unwrap());
+}
+
+#[test]
+fn standalone_pbm_transcodes_match_imagemagick_decoded_pixels() {
+    let Some(magick) = require_or_skip(magick_command(), "ImageMagick oracle") else {
+        return;
+    };
+    let Some(standalone) = require_or_skip(standalone_imx_command(), "standalone imx binary")
+    else {
+        return;
+    };
+    let dir = temp_dir("pbm_transcodes");
+    let input_pbm = dir.join("input.pbm");
+    let output_ff = dir.join("output.ff");
+    let output_qoi = dir.join("output.qoi");
+    let output_ppm = dir.join("output.ppm");
+    let output_pgm = dir.join("output.pgm");
+    let im_gray = dir.join("im.gray");
+    let ff_gray = dir.join("ff.gray");
+    let qoi_gray = dir.join("qoi.gray");
+    let ppm_gray = dir.join("ppm.gray");
+    let pgm_gray = dir.join("pgm.gray");
+    fs::write(&input_pbm, pbm_binary_fixture()).unwrap();
+
+    for output in [&output_ff, &output_qoi, &output_ppm, &output_pgm] {
+        let result = run_magick(
+            &standalone,
+            &[
+                input_pbm.display().to_string(),
+                output.display().to_string(),
+            ],
+        );
+        assert!(
+            result.status.success(),
+            "standalone PBM transcode failed for {}\nstdout:\n{}\nstderr:\n{}",
+            output.display(),
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+
+    let im = magick_to_gray8(&magick, "PBM", &input_pbm, &im_gray);
+    let ff = magick_to_gray8(&magick, "FARBFELD", &output_ff, &ff_gray);
+    let qoi = magick_to_gray8(&magick, "QOI", &output_qoi, &qoi_gray);
+    let ppm = magick_to_gray8(&magick, "PPM", &output_ppm, &ppm_gray);
+    let pgm = magick_to_gray8(&magick, "PGM", &output_pgm, &pgm_gray);
+    if !assert_success_or_skip(&im, "ImageMagick PBM decode")
+        || !assert_success_or_skip(&ff, "ImageMagick FARBFELD decode")
+        || !assert_success_or_skip(&qoi, "ImageMagick QOI decode")
+        || !assert_success_or_skip(&ppm, "ImageMagick PPM decode")
+        || !assert_success_or_skip(&pgm, "ImageMagick PGM decode")
+    {
+        return;
+    }
+
+    let expected = fs::read(im_gray).unwrap();
+    assert_eq!(fs::read(ff_gray).unwrap(), expected);
+    assert_eq!(fs::read(qoi_gray).unwrap(), expected);
+    assert_eq!(fs::read(ppm_gray).unwrap(), expected);
+    assert_eq!(fs::read(pgm_gray).unwrap(), expected);
+}
+
+#[test]
+fn standalone_farbfeld_to_pbm_thresholds_like_imagemagick_decoded_pixels() {
+    let Some(magick) = require_or_skip(magick_command(), "ImageMagick oracle") else {
+        return;
+    };
+    let Some(standalone) = require_or_skip(standalone_imx_command(), "standalone imx binary")
+    else {
+        return;
+    };
+    let dir = temp_dir("ff_to_pbm_threshold");
+    let input_ff = dir.join("input.ff");
+    let output_pbm = dir.join("output.pbm");
+    let im_pbm = dir.join("im.pbm");
+    let im_gray = dir.join("im.gray");
+    let rust_gray = dir.join("rust.gray");
+    let image = Image::new(
+        4,
+        1,
+        PixelFormat::Rgba16Be,
+        vec![
+            0, 0, 0, 0, 0, 0, 0xff, 0xff, 0x7f, 0xff, 0x7f, 0xff, 0x7f, 0xff, 0xff, 0xff, 0x80,
+            0x00, 0x80, 0x00, 0x80, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+            0xff,
+        ],
+    )
+    .unwrap();
+    fs::write(&input_ff, imx_codec_farbfeld::encode(&image).unwrap()).unwrap();
+
+    let standalone_result = run_magick(
+        &standalone,
+        &[
+            input_ff.display().to_string(),
+            output_pbm.display().to_string(),
+        ],
+    );
+    assert!(
+        standalone_result.status.success(),
+        "standalone FARBFELD->PBM failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&standalone_result.stdout),
+        String::from_utf8_lossy(&standalone_result.stderr)
+    );
+    assert_eq!(fs::read(&output_pbm).unwrap(), b"P4\n4 1\n\xc0");
+
+    let im_encode = run_magick(
+        &magick,
+        &[
+            format!("FARBFELD:{}", input_ff.display()),
+            format!("PBM:{}", im_pbm.display()),
+        ],
+    );
+    let im = magick_to_gray8(&magick, "PBM", &im_pbm, &im_gray);
+    let rust = magick_to_gray8(&magick, "PBM", &output_pbm, &rust_gray);
+    if !assert_success_or_skip(&im_encode, "ImageMagick FARBFELD->PBM encode")
+        || !assert_success_or_skip(&im, "ImageMagick PBM decode")
+        || !assert_success_or_skip(&rust, "ImageMagick PBM decode")
+    {
+        return;
+    }
+    assert_eq!(fs::read(rust_gray).unwrap(), fs::read(im_gray).unwrap());
 }
 
 #[test]
@@ -791,6 +986,35 @@ fn supported_identify_fields_match_imagemagick_oracle_when_available() {
     assert_eq!(
         String::from_utf8_lossy(&standalone_result.stdout).trim(),
         "format=PPM width=2 height=2 channels=RGB depth=8"
+    );
+
+    let pbm = dir.join("input.pbm");
+    fs::write(&pbm, pbm_binary_fixture()).unwrap();
+    let result = run_magick(
+        &magick,
+        &[
+            "identify".to_string(),
+            "-format".to_string(),
+            "%m %w %h %[colorspace] %[depth]".to_string(),
+            pbm.display().to_string(),
+        ],
+    );
+    if !assert_success_or_skip(&result, "ImageMagick PBM identify") {
+        return;
+    }
+    let stdout = String::from_utf8_lossy(&result.stdout);
+    assert!(stdout.contains("PBM"));
+    assert!(stdout.contains("10 2"));
+    assert!(stdout.contains("Gray"));
+
+    let standalone_result = run_magick(
+        &standalone,
+        &["identify".to_string(), pbm.display().to_string()],
+    );
+    assert!(standalone_result.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&standalone_result.stdout).trim(),
+        "format=PBM width=10 height=2 channels=GRAY depth=1"
     );
 
     let pgm = dir.join("input.pgm");

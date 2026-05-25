@@ -22,10 +22,13 @@ git clone "$repo_url" "$checkout" >/dev/null
   cargo run -p imx-cli --bin imx-generate-fixtures -- "$fixture_dir" >/dev/null
   "$install_root/bin/imx" identify "$fixture_dir/gradient-64.ff"
   "$install_root/bin/imx" identify "$fixture_dir/gradient-64.qoi"
+  "$install_root/bin/imx" identify "$fixture_dir/gradient-64.pbm"
   "$install_root/bin/imx" identify "$fixture_dir/gradient-64.ppm"
   "$install_root/bin/imx" identify "$fixture_dir/gradient-64.pgm"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.ff" "$work_dir/gradient.qoi"
+  "$install_root/bin/imx" "$fixture_dir/gradient-64.ff" "$work_dir/gradient.pbm"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.ff" "$work_dir/gradient.pgm"
+  "$install_root/bin/imx" "$fixture_dir/gradient-64.pbm" "$work_dir/pbm-gradient.ff"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.ppm" "$work_dir/gradient.ff"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.pgm" "$work_dir/pgm-gradient.ff"
 )

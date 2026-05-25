@@ -66,7 +66,7 @@ jobs:
       - name: Run standalone release gates
         run: |
           set -euo pipefail
-            IMAGEMAGICK_MAGICK="$GITHUB_WORKSPACE/target/imagemagick-oracle/utilities/magick" \
+          IMAGEMAGICK_MAGICK="$GITHUB_WORKSPACE/target/imagemagick-oracle/utilities/magick" \
             IMX_REQUIRE_ORACLE=1 \
             IMX_BENCH_ITERATIONS=3 \
             IMX_FUZZ_MAX_TOTAL_TIME=2 \
@@ -111,9 +111,55 @@ jobs:
             target/release-bench-*
             target/release-artifacts
 
+  package:
+    name: Package release artifact (${{ matrix.name }})
+    needs: preview
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - name: macos-aarch64
+            runner: macos-15
+            target: aarch64-apple-darwin
+          - name: macos-x86_64
+            runner: macos-15-intel
+            target: x86_64-apple-darwin
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Package standalone preview
+        run: |
+          set -euo pipefail
+          IMX_EXPECTED_TARGET="${{ matrix.target }}" bash scripts/package-release.sh
+
+      - name: Verify standalone binary does not link ImageMagick
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            otool -L target/release/imx
+            ! otool -L target/release/imx | grep -E 'Magick(Core|Wand)|ImageMagick'
+          else
+            ldd target/release/imx
+            ! ldd target/release/imx | grep -E 'Magick(Core|Wand)|ImageMagick'
+          fi
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-artifacts-${{ matrix.name }}
+          path: target/release-artifacts/*.tar.gz
+
   release:
     name: Publish release artifacts
-    needs: preview
+    needs: package
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     permissions:
@@ -124,10 +170,18 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Package standalone preview
+      - name: Download packaged release artifacts
+        uses: actions/download-artifact@v7
+        with:
+          pattern: release-artifacts-*
+          path: target/release-upload
+          merge-multiple: true
+
+      - name: Generate aggregate checksums
         run: |
           set -euo pipefail
-          bash scripts/package-release.sh
+          cd target/release-upload
+          shasum -a 256 *.tar.gz > SHA256SUMS
 
       - name: Publish GitHub release
         env:
@@ -139,9 +193,9 @@ jobs:
               --target "$GITHUB_SHA" \
               --title "IMX Developer Preview $GITHUB_REF_NAME" \
               --notes-file RELEASE_NOTES.md
-            gh release upload "$GITHUB_REF_NAME" target/release-artifacts/* --clobber
+            gh release upload "$GITHUB_REF_NAME" target/release-upload/* --clobber
           else
-            gh release create "$GITHUB_REF_NAME" target/release-artifacts/* \
+            gh release create "$GITHUB_REF_NAME" target/release-upload/* \
               --title "IMX Developer Preview $GITHUB_REF_NAME" \
               --notes-file RELEASE_NOTES.md \
               --target "$GITHUB_SHA" \

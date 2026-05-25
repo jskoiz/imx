@@ -4,6 +4,8 @@ use imx_core::{
 
 pub const P2_MAGIC: &[u8; 2] = b"P2";
 pub const P3_MAGIC: &[u8; 2] = b"P3";
+pub const P1_MAGIC: &[u8; 2] = b"P1";
+pub const P4_MAGIC: &[u8; 2] = b"P4";
 pub const P5_MAGIC: &[u8; 2] = b"P5";
 pub const P6_MAGIC: &[u8; 2] = b"P6";
 
@@ -18,13 +20,19 @@ pub struct PnmHeader {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PnmEncoding {
+    AsciiP1,
     AsciiP2,
     AsciiP3,
+    BinaryP4,
     BinaryP5,
     BinaryP6,
 }
 
 impl PnmEncoding {
+    fn is_pbm(self) -> bool {
+        matches!(self, Self::AsciiP1 | Self::BinaryP4)
+    }
+
     fn is_pgm(self) -> bool {
         matches!(self, Self::AsciiP2 | Self::BinaryP5)
     }
@@ -34,11 +42,12 @@ impl PnmEncoding {
     }
 
     fn is_binary(self) -> bool {
-        matches!(self, Self::BinaryP5 | Self::BinaryP6)
+        matches!(self, Self::BinaryP4 | Self::BinaryP5 | Self::BinaryP6)
     }
 
     fn samples_per_pixel(self) -> usize {
         match self {
+            Self::AsciiP1 | Self::BinaryP4 => 1,
             Self::AsciiP2 | Self::BinaryP5 => 1,
             Self::AsciiP3 | Self::BinaryP6 => 3,
         }
@@ -49,6 +58,16 @@ impl PnmEncoding {
 enum SampleOutput {
     U8,
     U16Be,
+}
+
+pub fn identify_pbm(input: &[u8]) -> Result<Identify, ImageError> {
+    let header = decode_pbm_header(input)?;
+    Ok(Identify {
+        format: Format::Pbm,
+        width: header.width,
+        height: header.height,
+        pixel_format: PixelFormat::Bilevel,
+    })
 }
 
 pub fn identify_ppm(input: &[u8]) -> Result<Identify, ImageError> {
@@ -69,6 +88,15 @@ pub fn identify_pgm(input: &[u8]) -> Result<Identify, ImageError> {
         height: header.height,
         pixel_format: pgm_pixel_format(header.max_value),
     })
+}
+
+pub fn decode_pbm_header(input: &[u8]) -> Result<PnmHeader, ImageError> {
+    let header = decode_header(input, "PBM")?;
+    if !header.encoding.is_pbm() {
+        return Err(ImageError::InvalidHeader("PBM"));
+    }
+    let _ = pixel_len(header.width, header.height, 1)?;
+    Ok(header)
 }
 
 pub fn decode_ppm_header(input: &[u8]) -> Result<PnmHeader, ImageError> {
@@ -100,8 +128,10 @@ pub fn decode_pgm_header(input: &[u8]) -> Result<PnmHeader, ImageError> {
 pub fn decode_header(input: &[u8], format_name: &'static str) -> Result<PnmHeader, ImageError> {
     let mut parser = Parser::new(input);
     let encoding = match parser.next_token()? {
+        magic if magic == P1_MAGIC => PnmEncoding::AsciiP1,
         magic if magic == P2_MAGIC => PnmEncoding::AsciiP2,
         magic if magic == P3_MAGIC => PnmEncoding::AsciiP3,
+        magic if magic == P4_MAGIC => PnmEncoding::BinaryP4,
         magic if magic == P5_MAGIC => PnmEncoding::BinaryP5,
         magic if magic == P6_MAGIC => PnmEncoding::BinaryP6,
         _ => return Err(ImageError::InvalidHeader(format_name)),
@@ -109,8 +139,12 @@ pub fn decode_header(input: &[u8], format_name: &'static str) -> Result<PnmHeade
 
     let width = parse_u32(parser.next_token()?, format_name)?;
     let height = parse_u32(parser.next_token()?, format_name)?;
-    let max_value = parse_u32(parser.next_token()?, format_name)?;
-    if max_value == 0 || max_value > 65_535 {
+    let max_value = if encoding.is_pbm() {
+        1
+    } else {
+        parse_u32(parser.next_token()?, format_name)?
+    };
+    if !encoding.is_pbm() && (max_value == 0 || max_value > 65_535) {
         return Err(ImageError::InvalidMaxValue {
             format: format_name,
             max_value,
@@ -128,6 +162,18 @@ pub fn decode_header(input: &[u8], format_name: &'static str) -> Result<PnmHeade
         max_value,
         raster_offset: parser.offset(),
     })
+}
+
+pub fn decode_pbm(input: &[u8]) -> Result<Image, ImageError> {
+    let header = decode_pbm_header(input)?;
+    let sample_count = sample_count(header)?;
+    let payload_len = pixel_len(header.width, header.height, 1)?;
+    let pixels = match header.encoding {
+        PnmEncoding::AsciiP1 => decode_ascii_pbm(input, header, sample_count, payload_len)?,
+        PnmEncoding::BinaryP4 => decode_binary_pbm(input, header, payload_len)?,
+        _ => return Err(ImageError::InvalidHeader("PBM")),
+    };
+    Image::new(header.width, header.height, PixelFormat::Bilevel, pixels)
 }
 
 pub fn decode_ppm(input: &[u8]) -> Result<Image, ImageError> {
@@ -159,6 +205,34 @@ pub fn decode_pgm(input: &[u8]) -> Result<Image, ImageError> {
     Image::new(header.width, header.height, pixel_format, pixels)
 }
 
+pub fn encode_pbm(image: &Image) -> Result<Vec<u8>, ImageError> {
+    let bilevel = image.to_bilevel()?;
+    let row_bytes = pbm_row_bytes(bilevel.width())?;
+    let rows = usize::try_from(bilevel.height()).map_err(|_| ImageError::LengthOverflow)?;
+    let payload_len = row_bytes
+        .checked_mul(rows)
+        .ok_or(ImageError::LengthOverflow)?;
+    let header = format!("P4\n{} {}\n", bilevel.width(), bilevel.height());
+    let capacity = header
+        .len()
+        .checked_add(payload_len)
+        .ok_or(ImageError::LengthOverflow)?;
+    let mut out = try_vec_with_capacity(capacity)?;
+    out.extend_from_slice(header.as_bytes());
+    out.resize(header.len() + payload_len, 0);
+
+    let width = usize::try_from(bilevel.width()).map_err(|_| ImageError::LengthOverflow)?;
+    for (index, pixel) in bilevel.pixels().iter().enumerate() {
+        if *pixel < 128 {
+            let y = index / width;
+            let x = index % width;
+            let byte_offset = header.len() + y * row_bytes + x / 8;
+            out[byte_offset] |= 0x80 >> (x % 8);
+        }
+    }
+    Ok(out)
+}
+
 pub fn encode_ppm(image: &Image) -> Result<Vec<u8>, ImageError> {
     let rgb = image.to_rgb8()?;
     let payload_len = pixel_len(rgb.width(), rgb.height(), 3)?;
@@ -176,7 +250,7 @@ pub fn encode_ppm(image: &Image) -> Result<Vec<u8>, ImageError> {
 pub fn encode_pgm(image: &Image) -> Result<Vec<u8>, ImageError> {
     match image.pixel_format() {
         PixelFormat::Gray16Be | PixelFormat::Rgba16Be => encode_pgm16(&image.to_gray16be()?),
-        PixelFormat::Gray8 | PixelFormat::Rgb8 | PixelFormat::Rgba8 => {
+        PixelFormat::Bilevel | PixelFormat::Gray8 | PixelFormat::Rgb8 | PixelFormat::Rgba8 => {
             encode_pgm8(&image.to_gray8()?)
         }
     }
@@ -217,6 +291,7 @@ fn decode_raster(
     format_name: &'static str,
 ) -> Result<Vec<u8>, ImageError> {
     match header.encoding {
+        PnmEncoding::AsciiP1 | PnmEncoding::BinaryP4 => Err(ImageError::InvalidHeader(format_name)),
         PnmEncoding::AsciiP2 | PnmEncoding::AsciiP3 => decode_ascii_raster(
             input,
             header,
@@ -236,6 +311,68 @@ fn decode_raster(
     }
 }
 
+fn decode_ascii_pbm(
+    input: &[u8],
+    header: PnmHeader,
+    sample_count: usize,
+    payload_len: usize,
+) -> Result<Vec<u8>, ImageError> {
+    let mut parser = Parser {
+        input,
+        offset: header.raster_offset,
+    };
+    let mut pixels = try_vec_with_capacity(payload_len)?;
+    for index in 0..sample_count {
+        let bit = parser.next_pbm_bit().map_err(|err| match err {
+            ImageError::UnexpectedEof { actual, .. } => ImageError::UnexpectedEof {
+                expected: header.raster_offset + index + 1,
+                actual,
+            },
+            other => other,
+        })?;
+        match bit {
+            b'0' => pixels.push(255),
+            b'1' => pixels.push(0),
+            _ => return Err(ImageError::InvalidHeader("PBM")),
+        }
+    }
+    Ok(pixels)
+}
+
+fn decode_binary_pbm(
+    input: &[u8],
+    header: PnmHeader,
+    payload_len: usize,
+) -> Result<Vec<u8>, ImageError> {
+    let row_bytes = pbm_row_bytes(header.width)?;
+    let rows = usize::try_from(header.height).map_err(|_| ImageError::LengthOverflow)?;
+    let file_payload_len = row_bytes
+        .checked_mul(rows)
+        .ok_or(ImageError::LengthOverflow)?;
+    let expected_len = header
+        .raster_offset
+        .checked_add(file_payload_len)
+        .ok_or(ImageError::LengthOverflow)?;
+    if input.len() < expected_len {
+        return Err(ImageError::UnexpectedEof {
+            expected: expected_len,
+            actual: input.len(),
+        });
+    }
+
+    let width = usize::try_from(header.width).map_err(|_| ImageError::LengthOverflow)?;
+    let mut pixels = try_vec_with_capacity(payload_len)?;
+    let raster = &input[header.raster_offset..expected_len];
+    for row in raster.chunks_exact(row_bytes) {
+        for x in 0..width {
+            let byte = row[x / 8];
+            let bit = (byte >> (7 - (x % 8))) & 1;
+            pixels.push(if bit == 1 { 0 } else { 255 });
+        }
+    }
+    Ok(pixels)
+}
+
 fn parse_u32(token: &[u8], format_name: &'static str) -> Result<u32, ImageError> {
     if token.is_empty() || !token.iter().all(u8::is_ascii_digit) {
         return Err(ImageError::InvalidHeader(format_name));
@@ -249,6 +386,14 @@ fn sample_count(header: PnmHeader) -> Result<usize, ImageError> {
     pixel_count(header.width, header.height)?
         .checked_mul(header.encoding.samples_per_pixel())
         .ok_or(ImageError::LengthOverflow)
+}
+
+fn pbm_row_bytes(width: u32) -> Result<usize, ImageError> {
+    let width = usize::try_from(width).map_err(|_| ImageError::LengthOverflow)?;
+    width
+        .checked_add(7)
+        .ok_or(ImageError::LengthOverflow)
+        .map(|rounded| rounded / 8)
 }
 
 fn decode_ascii_raster(
@@ -395,6 +540,16 @@ impl<'a> Parser<'a> {
         Ok(&self.input[start..self.offset])
     }
 
+    fn next_pbm_bit(&mut self) -> Result<u8, ImageError> {
+        self.skip_whitespace_and_comments()?;
+        let bit = self.input[self.offset];
+        if bit != b'0' && bit != b'1' {
+            return Err(ImageError::InvalidHeader("PBM"));
+        }
+        self.offset += 1;
+        Ok(bit)
+    }
+
     fn skip_whitespace_and_comments(&mut self) -> Result<(), ImageError> {
         loop {
             while self.offset < self.input.len() && self.input[self.offset].is_ascii_whitespace() {
@@ -423,6 +578,22 @@ impl<'a> Parser<'a> {
     }
 
     fn consume_raster_separator(&mut self, format_name: &'static str) -> Result<(), ImageError> {
+        if self.offset >= self.input.len() {
+            return Err(ImageError::UnexpectedEof {
+                expected: self.offset + 1,
+                actual: self.input.len(),
+            });
+        }
+        while self.offset < self.input.len() && self.input[self.offset] == b'#' {
+            self.offset += 1;
+            while self.offset < self.input.len() {
+                let byte = self.input[self.offset];
+                if byte == b'\n' || byte == b'\r' {
+                    break;
+                }
+                self.offset += 1;
+            }
+        }
         if self.offset >= self.input.len() {
             return Err(ImageError::UnexpectedEof {
                 expected: self.offset + 1,
@@ -459,6 +630,36 @@ mod tests {
         assert_eq!(image.height(), 1);
         assert_eq!(image.pixel_format(), PixelFormat::Rgb8);
         assert_eq!(image.pixels(), &[0, 123, 255, 255, 0, 123]);
+    }
+
+    #[test]
+    fn decodes_ascii_pbm_with_comments() {
+        let pbm = b"P1\n# generated\n4 2\n0110\n1 # black\n0 0 1\n";
+        let image = decode_pbm(pbm).unwrap();
+        assert_eq!(image.width(), 4);
+        assert_eq!(image.height(), 2);
+        assert_eq!(image.pixel_format(), PixelFormat::Bilevel);
+        assert_eq!(image.pixels(), &[255, 0, 0, 255, 0, 255, 255, 0]);
+    }
+
+    #[test]
+    fn decodes_binary_pbm_msb_first_with_row_padding() {
+        let pbm = b"P4\n9 2\n\xaa\x80\x55\x00";
+        let image = decode_pbm(pbm).unwrap();
+        assert_eq!(image.width(), 9);
+        assert_eq!(image.height(), 2);
+        assert_eq!(image.pixel_format(), PixelFormat::Bilevel);
+        assert_eq!(
+            image.pixels(),
+            &[0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255]
+        );
+    }
+
+    #[test]
+    fn decodes_binary_pbm_with_comment_attached_to_dimensions() {
+        let pbm = b"P4\n4 1# attached comment\n\x90";
+        let image = decode_pbm(pbm).unwrap();
+        assert_eq!(image.pixels(), &[0, 255, 255, 0]);
     }
 
     #[test]
@@ -503,6 +704,27 @@ mod tests {
     fn encodes_deterministic_binary_ppm() {
         let image = Image::new(1, 1, PixelFormat::Rgb8, vec![1, 2, 3]).unwrap();
         assert_eq!(encode_ppm(&image).unwrap(), b"P6\n1 1\n255\n\x01\x02\x03");
+    }
+
+    #[test]
+    fn encodes_deterministic_binary_pbm_from_gray8() {
+        let image = Image::new(4, 1, PixelFormat::Gray8, vec![0, 127, 128, 255]).unwrap();
+        assert_eq!(encode_pbm(&image).unwrap(), b"P4\n4 1\n\xc0");
+    }
+
+    #[test]
+    fn encodes_deterministic_binary_pbm_from_rgba16be() {
+        let image = Image::new(
+            2,
+            1,
+            PixelFormat::Rgba16Be,
+            vec![
+                0x7f, 0xff, 0x7f, 0xff, 0x7f, 0xff, 0xff, 0xff, 0x80, 0x00, 0x80, 0x00, 0x80, 0x00,
+                0xff, 0xff,
+            ],
+        )
+        .unwrap();
+        assert_eq!(encode_pbm(&image).unwrap(), b"P4\n2 1\n\x80");
     }
 
     #[test]

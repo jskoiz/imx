@@ -29,6 +29,7 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let gradient_rgba8 = gradient.to_rgba8()?.into_pixels();
     let gradient_rgb8 = gradient.to_rgb8()?.into_pixels();
     let gradient_qoi = imx_codec_qoi::encode_image(&gradient, imx_codec_qoi::QOI_SRGB)?;
+    let gradient_pbm = imx_codec_pnm::encode_pbm(&gradient)?;
     let gradient_ppm = imx_codec_pnm::encode_ppm(&gradient)?;
     let gradient_pgm = imx_codec_pnm::encode_pgm(&gradient)?;
     let gradient_gray8 = gradient.to_gray8()?.into_pixels();
@@ -45,6 +46,26 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         ],
     )?;
     let quantization_ff = imx_codec_farbfeld::encode(&quantization)?;
+    let pbm_ascii = b"P1\n# pbm 1=black 0=white\n5 3\n01010\n10101\n00110\n".to_vec();
+    let pbm_ascii_gray = imx_codec_pnm::decode_pbm(&pbm_ascii)?
+        .to_gray8()?
+        .into_pixels();
+    let pbm_binary = b"P4\n10 2\n\x55\x40\xcc\x80".to_vec();
+    let pbm_binary_gray = imx_codec_pnm::decode_pbm(&pbm_binary)?
+        .to_gray8()?
+        .into_pixels();
+    let threshold = Image::new(
+        4,
+        1,
+        PixelFormat::Rgba16Be,
+        vec![
+            0, 0, 0, 0, 0, 0, 0xff, 0xff, 0x7f, 0xff, 0x7f, 0xff, 0x7f, 0xff, 0xff, 0xff, 0x80,
+            0x00, 0x80, 0x00, 0x80, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+            0xff,
+        ],
+    )?;
+    let threshold_ff = imx_codec_farbfeld::encode(&threshold)?;
+    let threshold_pbm = imx_codec_pnm::encode_pbm(&threshold)?;
 
     let qoi_rgba_pixels = [
         0, 255, 0, 255, 255, 0, 0, 128, 18, 52, 86, 120, 255, 255, 255, 0,
@@ -56,6 +77,7 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let files = [
         ("gradient-64.ff", gradient_ff),
         ("gradient-64.qoi", gradient_qoi),
+        ("gradient-64.pbm", gradient_pbm),
         ("gradient-64.ppm", gradient_ppm),
         ("gradient-64.pgm", gradient_pgm),
         ("gradient-64.rgba", gradient_rgba8),
@@ -63,6 +85,12 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         ("gradient-64.gray", gradient_gray8),
         ("gradient-64.rgba16be", gradient_rgba16be),
         ("quantization-2x2.ff", quantization_ff),
+        ("pbm-ascii-5x3.pbm", pbm_ascii),
+        ("pbm-ascii-5x3.gray", pbm_ascii_gray),
+        ("pbm-binary-10x2.pbm", pbm_binary),
+        ("pbm-binary-10x2.gray", pbm_binary_gray),
+        ("pbm-threshold-4x1.ff", threshold_ff),
+        ("pbm-threshold-4x1.pbm", threshold_pbm),
         ("qoi-rgba-2x2.qoi", qoi_rgba),
         ("qoi-rgb-2x2.qoi", qoi_rgb),
     ];

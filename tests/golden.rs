@@ -10,6 +10,7 @@ fn hex_fixture(text: &str) -> Vec<u8> {
 fn decodes_checked_in_golden_fixture_files() {
     let farbfeld = hex_fixture(include_str!("fixtures/farbfeld-1x1-red-half-alpha.hex"));
     let qoi = hex_fixture(include_str!("fixtures/qoi-1x1-red-half-alpha.hex"));
+    let pbm = hex_fixture(include_str!("fixtures/pbm-1x1-black.hex"));
     let ppm = hex_fixture(include_str!("fixtures/ppm-1x1-red.hex"));
     let pgm = hex_fixture(include_str!("fixtures/pgm-1x1-gray.hex"));
 
@@ -30,6 +31,13 @@ fn decodes_checked_in_golden_fixture_files() {
             .unwrap()
             .pixels(),
         &[0xff, 0x00, 0x00]
+    );
+    assert_eq!(imx_codec_pnm::decode_pbm(&pbm).unwrap().pixels(), &[0]);
+    assert_eq!(
+        imx_codec_pnm::decode_pbm(b"P1\n# black pixel\n1 1\n1")
+            .unwrap()
+            .pixels(),
+        &[0]
     );
     assert_eq!(imx_codec_pnm::decode_pgm(&pgm).unwrap().pixels(), &[0x80]);
     assert_eq!(
@@ -77,6 +85,8 @@ fn identify_metadata_is_stable_for_supported_fields() {
     .unwrap();
     let ff = imx_codec_farbfeld::encode(&image).unwrap();
     let qoi = imx_codec_qoi::encode_image(&image, imx_codec_qoi::QOI_SRGB).unwrap();
+    let black = Image::new(1, 1, PixelFormat::Bilevel, vec![0]).unwrap();
+    let pbm = imx_codec_pnm::encode_pbm(&black).unwrap();
     let ppm = imx_codec_pnm::encode_ppm(&image).unwrap();
     let gray = Image::new(1, 1, PixelFormat::Gray8, vec![0x80]).unwrap();
     let pgm = imx_codec_pnm::encode_pgm(&gray).unwrap();
@@ -88,6 +98,10 @@ fn identify_metadata_is_stable_for_supported_fields() {
     assert_eq!(
         imx_codec_qoi::identify(&qoi).unwrap().stable_line(),
         "format=QOI width=1 height=1 channels=RGBA depth=8"
+    );
+    assert_eq!(
+        imx_codec_pnm::identify_pbm(&pbm).unwrap().stable_line(),
+        "format=PBM width=1 height=1 channels=GRAY depth=1"
     );
     assert_eq!(
         imx_codec_pnm::identify_ppm(&ppm).unwrap().stable_line(),

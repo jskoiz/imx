@@ -39,12 +39,14 @@ fn main() {
     let image = fixture(256, 256);
     let ff = imx_codec_farbfeld::encode(&image).unwrap();
     let qoi = imx_codec_qoi::encode_image(&image, imx_codec_qoi::QOI_SRGB).unwrap();
+    let pbm = imx_codec_pnm::encode_pbm(&image).unwrap();
     let ppm = imx_codec_pnm::encode_ppm(&image).unwrap();
     let pgm = imx_codec_pnm::encode_pgm(&image).unwrap();
 
     println!("iterations={iterations}");
     println!("farbfeld_bytes={}", ff.len());
     println!("qoi_bytes={}", qoi.len());
+    println!("pbm_bytes={}", pbm.len());
     println!("ppm_bytes={}", ppm.len());
     println!("pgm_bytes={}", pgm.len());
 
@@ -65,6 +67,12 @@ fn main() {
     });
     time("ppm_encode", ppm.len(), iterations, || {
         black_box(imx_codec_pnm::encode_ppm(black_box(&image)).unwrap());
+    });
+    time("pbm_decode", pbm.len(), iterations, || {
+        black_box(imx_codec_pnm::decode_pbm(black_box(&pbm)).unwrap());
+    });
+    time("pbm_encode", pbm.len(), iterations, || {
+        black_box(imx_codec_pnm::encode_pbm(black_box(&image)).unwrap());
     });
     time("pgm_decode", pgm.len(), iterations, || {
         black_box(imx_codec_pnm::decode_pgm(black_box(&pgm)).unwrap());
@@ -89,6 +97,14 @@ fn main() {
     time("ff_to_ppm", ff.len(), iterations, || {
         let decoded = imx_codec_farbfeld::decode(black_box(&ff)).unwrap();
         black_box(imx_codec_pnm::encode_ppm(&decoded).unwrap());
+    });
+    time("pbm_to_ff", pbm.len(), iterations, || {
+        let decoded = imx_codec_pnm::decode_pbm(black_box(&pbm)).unwrap();
+        black_box(imx_codec_farbfeld::encode(&decoded).unwrap());
+    });
+    time("ff_to_pbm", ff.len(), iterations, || {
+        let decoded = imx_codec_farbfeld::decode(black_box(&ff)).unwrap();
+        black_box(imx_codec_pnm::encode_pbm(&decoded).unwrap());
     });
     time("pgm_to_ff", pgm.len(), iterations, || {
         let decoded = imx_codec_pnm::decode_pgm(black_box(&pgm)).unwrap();

@@ -10,6 +10,10 @@ if [[ -z "$version" ]]; then
   exit 1
 fi
 target="$(rustc -vV | sed -n 's/^host: //p')"
+if [[ -n "${IMX_EXPECTED_TARGET:-}" && "$target" != "$IMX_EXPECTED_TARGET" ]]; then
+  echo "error: expected Rust host target $IMX_EXPECTED_TARGET, got $target" >&2
+  exit 1
+fi
 artifact_dir="$root/target/release-artifacts"
 staging="$root/target/imx-preview-$version-$target"
 archive_name="imx-preview-$version-$target.tar.gz"
@@ -29,6 +33,8 @@ cp "$root/README.md" "$staging/"
 cp "$root/COMPATIBILITY.md" "$staging/"
 cp "$root/RELEASE_NOTES.md" "$staging/"
 cp "$root/PRODUCTION_READINESS.md" "$staging/"
+mkdir -p "$staging/scripts"
+cp "$root/scripts/install.sh" "$staging/scripts/"
 for doc in LICENSE NOTICE; do
   if [[ -f "$root/$doc" ]]; then
     cp "$root/$doc" "$staging/"

@@ -21,10 +21,11 @@ fn imx() -> &'static str {
 }
 
 #[test]
-fn identifies_farbfeld_qoi_ppm_and_pgm() {
+fn identifies_farbfeld_qoi_pbm_pgm_and_ppm() {
     let dir = temp_dir("identify");
     let ff = dir.join("input.ff");
     let qoi = dir.join("input.qoi");
+    let pbm = dir.join("input.pbm");
     let ppm = dir.join("input.ppm");
     let pgm = dir.join("input.pgm");
     let image = Image::new(
@@ -41,6 +42,12 @@ fn identifies_farbfeld_qoi_ppm_and_pgm() {
     )
     .unwrap();
     fs::write(&ppm, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
+    fs::write(
+        &pbm,
+        imx_codec_pnm::encode_pbm(&Image::new(1, 1, PixelFormat::Bilevel, vec![0]).unwrap())
+            .unwrap(),
+    )
+    .unwrap();
     fs::write(
         &pgm,
         imx_codec_pnm::encode_pgm(&Image::new(1, 1, PixelFormat::Gray8, vec![0x80]).unwrap())
@@ -76,6 +83,16 @@ fn identifies_farbfeld_qoi_ppm_and_pgm() {
     assert_eq!(
         String::from_utf8(output.stdout).unwrap().trim(),
         "format=PPM width=1 height=1 channels=RGB depth=8"
+    );
+
+    let output = Command::new(imx())
+        .args(["identify", pbm.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap().trim(),
+        "format=PBM width=1 height=1 channels=GRAY depth=1"
     );
 
     let output = Command::new(imx())
@@ -166,6 +183,52 @@ fn transcodes_ppm_to_farbfeld_and_farbfeld_to_ppm() {
     assert_eq!(
         fs::read(input_ppm).unwrap(),
         fs::read(roundtrip_ppm).unwrap()
+    );
+}
+
+#[test]
+fn transcodes_pbm_to_farbfeld_and_farbfeld_to_pbm() {
+    let dir = temp_dir("pbm_transcode");
+    let input_pbm = dir.join("input.pbm");
+    let output_ff = dir.join("output.ff");
+    let roundtrip_pbm = dir.join("roundtrip.pbm");
+    let image = Image::new(2, 2, PixelFormat::Bilevel, vec![255, 0, 0, 255]).unwrap();
+    fs::write(&input_pbm, imx_codec_pnm::encode_pbm(&image).unwrap()).unwrap();
+
+    let output = Command::new(imx())
+        .args([input_pbm.to_str().unwrap(), output_ff.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    assert_eq!(
+        imx_codec_farbfeld::decode(&fs::read(&output_ff).unwrap())
+            .unwrap()
+            .pixels(),
+        &[
+            0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0, 0, 0,
+            0, 0, 0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
+        ]
+    );
+
+    let output = Command::new(imx())
+        .args([output_ff.to_str().unwrap(), roundtrip_pbm.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        imx_codec_pnm::decode_pbm(&fs::read(roundtrip_pbm).unwrap())
+            .unwrap()
+            .pixels(),
+        image.pixels()
     );
 }
 

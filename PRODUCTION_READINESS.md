@@ -1,4 +1,4 @@
-# IMX v0.2.0 Release Readiness
+# IMX v0.3.0 Release Readiness
 
 Status: release-readiness report for the standalone `jskoiz/imx` product repo.
 
@@ -6,27 +6,26 @@ Status: release-readiness report for the standalone `jskoiz/imx` product repo.
 
 - Source of truth: `https://github.com/jskoiz/imx`.
 - Product binary: `imx`.
-- v0.2.0 adds PGM support as the first PNM expansion while preserving the
-  existing FARBFELD, QOI, and PPM slice.
-- PGM support covers ASCII `P2` and binary `P5` decode, GRAY8/GRAY16BE pixel
-  buffers, deterministic binary `P5` encode, and `.pgm` CLI identify/transcode.
-- The shared Netpbm codec crate is now `imx-codec-pnm`.
-- RGB/RGBA to PGM uses Rec.709 luma and ignores alpha. PGM to color formats
-  replicates gray channels and adds opaque alpha where needed.
+- v0.3.0 completes the baseline Netpbm slice by adding PBM while preserving the
+  existing FARBFELD, QOI, PGM, and PPM support.
+- PBM support covers ASCII `P1` and binary `P4` decode, logical bilevel pixel
+  buffers, deterministic binary `P4` encode, and `.pbm` CLI
+  identify/transcode.
+- The shared Netpbm codec crate remains `imx-codec-pnm`.
+- RGB/RGBA to PBM uses Rec.709 luma and thresholding; PBM to color formats
+  replicates black/white channels and adds opaque alpha where needed.
 
-## Release Automation
+## Evidence Table
 
-- Release package script: `scripts/package-release.sh`.
-- CI workflow: `.github/workflows/rust-standalone-preview.yml`.
-- Branch, pull-request, and tag CI build ImageMagick as an external oracle, run
-  IMX release gates, generate structured benchmark evidence, package release
-  artifacts, verify fresh-checkout installation, and upload evidence artifacts.
-- Tag pushes matching `v*` run the preview gates and then publish packaged
-  archives to the matching GitHub Release.
-- Release archives are written with deterministic tar/gzip metadata, sorted
-  entries, fixed ownership, fixed mtimes, stable file modes, and relative
-  `SHA256SUMS` entries so repeated packaging of the same built payload is
-  byte-for-byte comparable.
+| Gate | Producer | Artifact Path | PBM Coverage | Result |
+| --- | --- | --- | --- | --- |
+| Release gates | `scripts/ci.sh` | terminal plus CI logs | cargo fmt, clippy, tests, fixture generation, fuzz smoke, cargo-fuzz, benchmark smoke, differential tests | local candidate passed 2026-05-25 UTC |
+| ImageMagick differentials | `cargo test --test differential` | test output | PBM identify, P1/P4 decode, PBM transcodes, FARBFELD-to-PBM thresholding | 13 tests passed locally |
+| Fuzz smoke | `scripts/run-fuzz.sh` | `target/fuzz-runs/20260524-183720/summary.json` | PNM target covers PBM/PGM/PPM identify and decode with PBM seeds | passed; PNM seed count 896 |
+| Bench/RSS | `scripts/bench-release.sh` | `target/release-bench-20260524-183735/summary.json` | PBM decode/encode, PBM-to-FARBFELD, FARBFELD-to-PBM, oracle PBM cases | passed; standalone PBM RSS cases recorded |
+| Install verify | `scripts/verify-install.sh` | `target/install-verify/install-summary.json` | PBM identify plus PBM/FARBFELD transcodes | passed from fresh checkout of committed `HEAD` |
+| Package/SHA | `scripts/package-release.sh` and release workflow | `target/release-artifacts`, GitHub Release assets | Linux and macOS archives include PBM-capable `imx` | local macOS package passed; tag CI publishes Linux and macOS archives |
+| No ImageMagick link | GitHub Actions `ldd`/`otool -L` checks | CI logs | release binaries checked for MagickCore/MagickWand/ImageMagick linkage | local `otool -L` clean; tag CI checks each release package |
 
 ## Local Verification
 
@@ -44,128 +43,52 @@ IMAGEMAGICK_MAGICK=/Users/jk/Desktop/imagemagick/utilities/magick \
 IMX_INSTALL_REPO_URL=/Users/jk/Desktop/imx \
   IMX_INSTALL_REVISION=HEAD \
   bash scripts/verify-install.sh
+bash scripts/package-release.sh
+otool -L target/release/imx
 ```
 
-The required ImageMagick differential lane passed 10 tests covering FARBFELD,
-QOI, PPM, and PGM, including P2/P5 decode, 16-bit PGM, PGM transcodes,
+The required ImageMagick differential lane passed 13 tests covering FARBFELD,
+QOI, PBM, PGM, and PPM, including P1/P4 decode, PBM transcodes,
+FARBFELD-to-PBM threshold behavior, P2/P5 decode, 16-bit PGM, PGM transcodes,
 FARBFELD-to-PGM luma behavior, and identify output.
 
-## Fuzz Evidence
-
-Local fuzz run directory:
+Fuzz summary:
 
 ```text
-target/fuzz-runs/20260524-153403
-```
-
-Summary:
-
-```text
+target/fuzz-runs/20260524-183720
 farbfeld_decode: passed, 17 seeds
-qoi_decode: passed, 713 seeds
-pnm_decode: passed, 570 seeds
+qoi_decode: passed, 811 seeds
+pnm_decode: passed, 896 seeds
 ```
 
-The PNM fuzz target covers identify and decode entrypoints for both PPM and
-PGM. Seed corpora include deterministic fixtures plus malformed/header-only P2,
-P3, P5, and P6 cases.
-
-## Benchmark And RSS Evidence
-
-Local benchmark evidence directory:
+Benchmark evidence:
 
 ```text
-target/release-bench-20260524-153417
-```
-
-The benchmark script writes:
-
-- `metadata.txt`
-- `benchmark-run.json`
-- `measurements.jsonl`
-- `summary.json`
-- `fixtures/manifest.txt`
-- `fixtures/manifest.json`
-- raw process time logs
-- output hashes
-
-Local library smoke metrics:
-
-```text
+target/release-bench-20260524-183735
 iterations=2
-farbfeld_decode_mib_s=22967.03
-farbfeld_encode_mib_s=10796.55
-qoi_decode_mib_s=821.11
-qoi_encode_mib_s=895.52
-ppm_decode_mib_s=599.01
-ppm_encode_mib_s=2083.01
-pgm_decode_mib_s=1471.50
-pgm_encode_mib_s=2218.39
-ff_to_qoi_mib_s=1606.26
-qoi_to_ff_mib_s=430.53
-ppm_to_ff_mib_s=353.51
-ff_to_ppm_mib_s=4205.48
-pgm_to_ff_mib_s=406.17
-ff_to_pgm_mib_s=7244.39
-max_rss_bytes=6799360
+pbm_decode_mib_s=207.92
+pbm_encode_mib_s=62.85
+pbm_to_ff_mib_s=25.77
+ff_to_pbm_mib_s=3901.92
+max_rss_bytes=6242304
+standalone-ff-to-pbm RSS=1818624 bytes
+standalone-pbm-to-ff RSS=1769472 bytes
 ```
 
-Representative local process RSS:
+## Release Automation
 
-```text
-standalone-ff-to-qoi: 1900544 bytes
-standalone-ff-to-ppm: 1818624 bytes
-standalone-ff-to-pgm: 1769472 bytes
-standalone-qoi-to-ff: 1605632 bytes
-standalone-ppm-to-ff: 1769472 bytes
-standalone-pgm-to-ff: 1753088 bytes
-oracle-ff-to-qoi: 8617984 bytes
-oracle-ff-to-ppm: 8388608 bytes
-oracle-ff-to-pgm: 8437760 bytes
-oracle-qoi-to-ff: 8404992 bytes
-oracle-ppm-to-ff: 8454144 bytes
-oracle-pgm-to-ff: 8454144 bytes
-```
-
-These are release-smoke measurements, not statistically significant benchmark
-claims.
-
-## Install Verification
-
-`scripts/verify-install.sh` clones a fresh checkout, runs:
-
-```sh
-cargo install --path crates/cli --bin imx --locked
-```
-
-Then it verifies:
-
-- `imx --version`
-- identify for generated FARBFELD/QOI/PPM/PGM fixtures
-- FARBFELD to QOI transcode
-- FARBFELD to PGM transcode
-- PPM to FARBFELD transcode
-- PGM to FARBFELD transcode
-
-Local fresh-checkout verification passed at:
-
-```text
-target/install-verify/install-summary.json
-```
-
-## Release Artifact Contents
-
-`scripts/package-release.sh` produces a target-specific tarball containing:
-
-```text
-imx
-LICENSE
-NOTICE
-README.md
-PRODUCTION_READINESS.md
-RELEASE_NOTES.md
-COMPATIBILITY.md
-```
+- Release package script: `scripts/package-release.sh`.
+- One-command installer: `scripts/install.sh`.
+- CI workflow: `.github/workflows/rust-standalone-preview.yml`.
+- Branch, pull-request, and tag CI build ImageMagick as an external oracle, run
+  IMX release gates, generate structured benchmark evidence, package release
+  artifacts, verify fresh-checkout installation, and upload evidence artifacts.
+- Tag pushes matching `v*` run the preview gates, build native Linux/macOS
+  release archives, generate aggregate checksums, and publish the matching
+  GitHub Release.
+- Release archives are written with deterministic tar/gzip metadata, sorted
+  entries, fixed ownership, fixed mtimes, stable file modes, and aggregate
+  `SHA256SUMS` entries.
 
 ## Confirmed Incompatibilities
 
@@ -175,28 +98,35 @@ COMPATIBILITY.md
 - No format prefixes such as `QOI:out.qoi`.
 - No delegates, profiles, color management, resize/transform operations,
   MagickCore API, or MagickWand API.
+- PBM source form is not preserved; output PBM is deterministic binary P4.
+- PBM comments, whitespace, and padding-bit values are not preserved.
+- PBM conversion from gray/color inputs is lossy thresholding.
 - PPM is RGB8-only; high-depth PPM is out of scope.
 - PGM supports `maxval <= 65535`; ImageMagick's nonstandard 32-bit PGM variants
   are out of scope.
 - P2 input is not source-preserved; output PGM is deterministic binary P5.
 - PGM comments and whitespace are not preserved.
 - FARBFELD to QOI/PPM is lossy for non-8-bit-representable 16-bit samples.
-- Color to PGM is lossy and ignores alpha.
-- No PBM, PAM, PFM, PNG, or BMP.
+- Color to PGM/PBM is lossy and ignores alpha.
+- No PAM, PFM, PNG, or BMP.
 - Fuzzing is time-bounded in CI; longer scheduled fuzzing remains future work.
 
 ## Safety Wins
 
-- PGM parsing is safe Rust and shares the hardened Netpbm token/comment parser
-  with PPM.
-- PGM dimensions and decoded buffers are checked before allocation.
-- Malformed PGM inputs fail without panics in unit tests, fuzz-smoke tests, and
+- PBM parsing is safe Rust and shares the bounded Netpbm header parser with
+  PGM/PPM.
+- PBM dimensions, row strides, and decoded buffers are checked before
+  allocation.
+- P4 bit unpacking is row-local and ignores padding bits without reading beyond
+  the expected raster.
+- Malformed PBM inputs fail without panics in unit tests, fuzz-smoke tests, and
   cargo-fuzz smoke runs.
 - CLI writes remain atomic via temp file plus rename.
 
 ## Next Smallest Milestone
 
-The smallest adoption-expanding next format is PBM `P1`/`P4`, because the PNM
-crate boundary and gray/RGB buffer model are now in place. PAM should wait until
-PBM and the compatibility ledger are stable. PNG and BMP remain too broad for
-the next milestone.
+The smallest adoption-expanding next milestone is a package-distribution pass:
+publish the v0.3.0 archives, verify `scripts/install.sh` against downloaded
+release assets on Linux and macOS, then decide whether a Homebrew tap or an
+additional `aarch64-unknown-linux-gnu` artifact has more adoption value. PAM,
+PNG, and BMP remain too broad for the next milestone.

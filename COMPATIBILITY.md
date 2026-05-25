@@ -1,4 +1,4 @@
-# IMX FARBFELD/QOI/PPM/PGM Compatibility Contract
+# IMX FARBFELD/QOI/PBM/PGM/PPM Compatibility Contract
 
 This contract covers only the standalone developer-preview slice.
 
@@ -14,28 +14,20 @@ This contract covers only the standalone developer-preview slice.
 ## Supported Commands
 
 ```sh
-imx identify input.ff
-imx identify input.qoi
-imx identify input.ppm
-imx identify input.pgm
-imx input.ff output.qoi
-imx input.ff output.ppm
-imx input.ff output.pgm
-imx input.qoi output.ff
-imx input.qoi output.ppm
-imx input.qoi output.pgm
-imx input.ppm output.ff
-imx input.ppm output.qoi
-imx input.ppm output.pgm
-imx input.pgm output.ff
-imx input.pgm output.qoi
-imx input.pgm output.ppm
+imx --help
+imx --version
+imx identify <input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm>
+imx <input.ff|input.farbfeld> <output.qoi|output.pbm|output.pgm|output.ppm>
+imx input.qoi <output.ff|output.farbfeld|output.pbm|output.pgm|output.ppm>
+imx input.pbm <output.ff|output.farbfeld|output.qoi|output.pgm|output.ppm>
+imx input.pgm <output.ff|output.farbfeld|output.qoi|output.pbm|output.ppm>
+imx input.ppm <output.ff|output.farbfeld|output.qoi|output.pbm|output.pgm>
 ```
 
 `identify` outputs:
 
 ```text
-format=<FORMAT> width=<WIDTH> height=<HEIGHT> channels=<GRAY|RGB|RGBA> depth=<8|16>
+format=<FORMAT> width=<WIDTH> height=<HEIGHT> channels=<GRAY|RGB|RGBA> depth=<1|8|16>
 ```
 
 ## Format Behavior
@@ -58,13 +50,25 @@ QOI:
 - Final runs that exceed the remaining declared pixel count are clipped to the
   declared dimensions.
 
-PPM:
+PBM:
 
-- ASCII `P3` and binary `P6` RGB8 PPM are supported.
-- Header comments before the raster are accepted.
-- `maxval` must be in `1..=255`; samples are scaled to 8-bit when `maxval` is
-  below 255.
-- High-depth PPM is intentionally out of scope.
+- ASCII `P1` and binary `P4` PBM are supported.
+- Magic must be uppercase `P1` or `P4`.
+- There is no `maxval`; header fields are magic, width, and height.
+- Width and height must be non-zero.
+- `identify` reports `format=PBM ... channels=GRAY depth=1`.
+- In file raster data, `0` means white and `1` means black.
+- In IMX core memory, bilevel pixels are stored as one byte per pixel:
+  `255` white and `0` black.
+- `P1` raster bits may be adjacent or separated by whitespace/comments.
+- `P4` rows are packed independently, most-significant bit first, left to
+  right.
+- Unused `P4` row-padding bits are ignored on decode and zeroed on encode.
+- `P4` consumes exactly one whitespace byte after dimensions as the raster
+  separator. Bytes after that separator are raster bytes, not comments.
+- Trailing bytes after the expected PBM raster are accepted.
+- IMX rejects malformed P1 raster bytes such as `2` or `a` even though
+  ImageMagick accepts some malformed values.
 
 PGM:
 
@@ -83,6 +87,14 @@ PGM:
   `maxval > 65535` even when ImageMagick accepts or clamps some malformed
   inputs.
 
+PPM:
+
+- ASCII `P3` and binary `P6` RGB8 PPM are supported.
+- Header comments before the raster are accepted.
+- `maxval` must be in `1..=255`; samples are scaled to 8-bit when `maxval` is
+  below 255.
+- High-depth PPM is intentionally out of scope.
+
 ## Transcode Rules
 
 FARBFELD to QOI:
@@ -98,11 +110,28 @@ QOI to FARBFELD:
 - RGBA8 expands to RGBA16BE preserving alpha.
 - 8-bit samples expand to 16-bit samples by byte replication.
 
+PBM to FARBFELD/QOI/PGM/PPM:
+
+- Black/white samples replicate into gray or RGB channels.
+- Alpha is opaque where the destination has alpha.
+- PBM to QOI emits RGB8 QOI.
+- PBM to PGM emits GRAY8 PGM.
+- PBM to PPM emits RGB8 PPM.
+
+PGM/PPM/FARBFELD/QOI to PBM:
+
+- Alpha is ignored.
+- Color converts to grayscale using Rec.709 luma:
+  `0.212656 R + 0.715158 G + 0.072186 B`.
+- 8-bit grayscale/luma `<128` becomes black; `>=128` becomes white.
+- 16-bit grayscale/luma `<32768` becomes black; `>=32768` becomes white.
+- PBM output is deterministic binary `P4`.
+
 PPM to FARBFELD/QOI/PGM:
 
 - PPM RGB8 expands to opaque RGBA when the destination has alpha.
 - PPM to QOI emits RGB8 QOI.
-- PPM to PGM uses Rec.709 luma: `0.212656 R + 0.715158 G + 0.072186 B`.
+- PPM to PGM uses the Rec.709 luma rule above.
 
 PGM to FARBFELD/QOI/PPM:
 
@@ -135,8 +164,8 @@ FARBFELD/QOI to PGM:
 - No same-format rewrites.
 - No stdin/stdout streaming.
 - No format prefixes such as `QOI:out.qoi`.
-- No PBM/PAM/PFM support yet.
-- No high-depth PPM support yet.
+- No PAM/PFM support.
+- No high-depth PPM support.
 - No delegates, profiles, color management, resize/transform operations,
   MagickCore API, or MagickWand API.
-- No format beyond FARBFELD, QOI, PPM, and PGM.
+- No format beyond FARBFELD, QOI, PBM, PGM, and PPM.
