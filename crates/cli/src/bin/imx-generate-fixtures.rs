@@ -28,9 +28,11 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let gradient_ff = imx_codec_farbfeld::encode(&gradient)?;
     let gradient_rgba8 = gradient.to_rgba8()?.into_pixels();
     let gradient_rgb8 = gradient.to_rgb8()?.into_pixels();
+    let gradient_rgb16be = gradient.to_rgb16be()?.into_pixels();
     let gradient_qoi = imx_codec_qoi::encode_image(&gradient, imx_codec_qoi::QOI_SRGB)?;
     let gradient_pbm = imx_codec_pnm::encode_pbm(&gradient)?;
-    let gradient_ppm = imx_codec_pnm::encode_ppm(&gradient)?;
+    let gradient_ppm = imx_codec_pnm::encode_ppm(&gradient.to_rgb8()?)?;
+    let gradient_ppm16 = imx_codec_pnm::encode_ppm(&gradient)?;
     let gradient_pgm = imx_codec_pnm::encode_pgm(&gradient)?;
     let gradient_gray8 = gradient.to_gray8()?.into_pixels();
     let gradient_rgba16be = gradient.pixels().to_vec();
@@ -79,9 +81,11 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         ("gradient-64.qoi", gradient_qoi),
         ("gradient-64.pbm", gradient_pbm),
         ("gradient-64.ppm", gradient_ppm),
+        ("gradient-64-ppm16.ppm", gradient_ppm16),
         ("gradient-64.pgm", gradient_pgm),
         ("gradient-64.rgba", gradient_rgba8),
         ("gradient-64.rgb", gradient_rgb8),
+        ("gradient-64.rgb16be", gradient_rgb16be),
         ("gradient-64.gray", gradient_gray8),
         ("gradient-64.rgba16be", gradient_rgba16be),
         ("quantization-2x2.ff", quantization_ff),

@@ -63,20 +63,46 @@ fn qoi_rejects_bad_headers_and_truncated_opcode_payloads() {
 #[test]
 fn ppm_rejects_out_of_scope_and_truncated_inputs() {
     assert!(imx_codec_pnm::decode_ppm(b"P3\n1 1\n255\n255 0 0").is_ok());
+    assert!(imx_codec_pnm::decode_ppm(b"P3\n1 1\n65535\n65535 32768 0").is_ok());
+    assert!(imx_codec_pnm::decode_ppm(b"P6\n1 1\n256\n\x00\x00\x01\x00\x01\x00").is_ok());
     assert_eq!(
         imx_codec_pnm::decode_ppm(b"P2\n1 1\n255\n255"),
         Err(ImageError::InvalidHeader("PPM"))
     );
     assert_eq!(
-        imx_codec_pnm::decode_ppm(b"P6\n1 1\n65535\n\0\0\0\0\0\0"),
+        imx_codec_pnm::decode_ppm(b"P6\n1 1\n0\n\0\0\0\0\0\0"),
         Err(ImageError::InvalidMaxValue {
             format: "PPM",
-            max_value: 65535,
-            max_supported: 255,
+            max_value: 0,
+            max_supported: 65535,
         })
+    );
+    assert_eq!(
+        imx_codec_pnm::decode_ppm(b"P6\n1 1\n65536\n\0\0\0\0\0\0"),
+        Err(ImageError::InvalidMaxValue {
+            format: "PPM",
+            max_value: 65536,
+            max_supported: 65535,
+        })
+    );
+    assert_eq!(
+        imx_codec_pnm::decode_ppm(b"P3\n1 1\n256\n0 257 1\n"),
+        Err(ImageError::InvalidHeader("PPM"))
+    );
+    assert_eq!(
+        imx_codec_pnm::decode_ppm(b"P6\n1 1\n256\n\x00\x00\x01\x01\x00\x00"),
+        Err(ImageError::InvalidHeader("PPM"))
     );
     assert!(matches!(
         imx_codec_pnm::decode_ppm(b"P6\n2 1\n255\n\xff\x00\x00"),
+        Err(ImageError::UnexpectedEof { .. })
+    ));
+    assert!(matches!(
+        imx_codec_pnm::decode_ppm(b"P6\n1 1\n65535\n\x12"),
+        Err(ImageError::UnexpectedEof { .. })
+    ));
+    assert!(matches!(
+        imx_codec_pnm::decode_ppm(b"P3\n2 1\n65535\n0 1 2\n"),
         Err(ImageError::UnexpectedEof { .. })
     ));
 }

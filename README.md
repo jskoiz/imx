@@ -1,22 +1,23 @@
 # IMX Developer Preview
 
 IMX is a standalone Rust image tool built one ImageMagick-compatible slice at a
-time. The `v0.6.0` release target supports deterministic identify,
-cross-format transcode, same-format rewrite, and exact uppercase format-prefix
-workflows across FARBFELD, QOI, and Netpbm PBM/PGM/PPM through the `imx`
-binary.
+time. The current source tree is the `v0.7.0` implementation candidate: it
+supports deterministic identify, cross-format transcode, same-format rewrite,
+exact uppercase format-prefix workflows, and high-depth PPM for the existing
+FARBFELD, QOI, and Netpbm PBM/PGM/PPM surface through the `imx` binary.
 
 IMX is not an ImageMagick fork and does not link to MagickCore, MagickWand,
 delegates, modules, `policy.xml`, or ImageMagick's build system. ImageMagick is
 used only as an external oracle in compatibility tests and benchmarks.
 
-The v0.6.0 prefix slice adds exact uppercase ImageMagick-style format prefixes
-for the existing FARBFELD/QOI/PBM/PGM/PPM formats only. It does not add new
-formats, stdin/stdout streaming, a `magick` alias, full ImageMagick CLI parsing,
-delegates, MagickCore, or MagickWand.
+The v0.7.0 candidate adds PPM `maxval` 256..65535 support for existing `P3` and
+`P6` PPM only. It does not add PNG/JPEG/TIFF/PAM/PFM/BMP, stdin/stdout
+streaming, a `magick` alias, full ImageMagick CLI parsing, delegates,
+MagickCore, or MagickWand.
 
 ## Install
 
+The latest published tap/release remains v0.6.0 until a v0.7.0 release is cut.
 Install the published v0.6.0 tap release:
 
 ```sh
@@ -60,7 +61,7 @@ The release-attached `imx.rb` is the formula source used to update the
 x86_64 and Linux arm64 tap blocks are generated from the release checksums and
 verified by Linux-only tap smoke.
 
-Or install v0.6.0 from source:
+Or install the current v0.7.0 candidate from source:
 
 ```sh
 git clone https://github.com/jskoiz/imx.git
@@ -111,25 +112,28 @@ incidental representation details.
   encode.
 - PGM: ASCII `P2` and binary `P5` GRAY8/GRAY16BE decode; deterministic binary
   `P5` encode.
-- PPM: ASCII `P3` and binary `P6` RGB8 decode; deterministic binary `P6`
-  encode.
+- PPM: ASCII `P3` and binary `P6` RGB8/RGB16BE decode; deterministic binary
+  `P6` encode with `maxval 255` for 8-bit sources and `maxval 65535` for 16-bit
+  RGB/RGBA/GRAY sources.
 
 Known lossy paths:
 
-- FARBFELD to QOI/PPM quantizes 16-bit samples to 8-bit.
+- FARBFELD to QOI quantizes 16-bit samples to 8-bit.
+- PPM to QOI quantizes 16-bit PPM samples to 8-bit.
 - FARBFELD/QOI/PPM/PGM to PBM uses Rec.709 luma where needed, then thresholds
   `<128` or `<32768` to black and all higher values to white.
 - FARBFELD to PGM converts RGBA16BE to GRAY16BE using Rec.709 luma and ignores
   alpha.
-- QOI/PBM/PGM/PPM to FARBFELD expands 8-bit samples to 16-bit by byte
-  replication and adds opaque alpha where needed.
+- QOI/PBM/8-bit PGM/8-bit PPM to FARBFELD expands 8-bit samples to 16-bit by
+  byte replication and adds opaque alpha where needed. High-depth PGM/PPM keeps
+  16-bit samples.
 - Any output to PPM drops alpha; any output to PGM drops color/alpha; any
   output to PBM drops color, alpha, and grayscale precision.
 
 Unsupported by design: full ImageMagick CLI parsing, stdin/stdout streaming,
 prefixes outside the exact five listed above, delegates, profiles, color
-management, resizing/transforms, MagickCore, MagickWand, PAM, PFM, high-depth
-PPM, PNG, BMP, and other image formats.
+management, resizing/transforms, MagickCore, MagickWand, PAM, PFM, PNG, BMP,
+and other image formats.
 
 ## Safety Posture
 
@@ -251,15 +255,17 @@ Tag releases additionally attach:
 - `CONFORMANCE_REPORT.md`
 - `conformance-summary.json`
 
-The v0.4.0 release also attached the `imx.rb` Homebrew tap formula snapshot.
-Future tags attach a generated tap formula based on whichever supported archive
-targets are present in that release's `SHA256SUMS`. Tap updates are handled in
-`jskoiz/homebrew-imx` without hosted macOS GitHub Actions.
+The v0.6.0 and later release path attaches the generated `imx.rb` Homebrew tap
+formula based on whichever supported archive targets are present in that
+release's `SHA256SUMS`. Tap updates are handled in `jskoiz/homebrew-imx` without
+hosted macOS GitHub Actions.
 
 See [COMPATIBILITY.md](COMPATIBILITY.md) for the exact behavior contract and
 [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) for current release evidence,
 known gaps, and the next adoption milestone.
-The v0.6.0 release checklist is tracked in
+The v0.7.0 implementation contract is tracked in
+[docs/v0.7.0-high-depth-ppm.md](docs/v0.7.0-high-depth-ppm.md). The published
+v0.6.0 release checklist remains in
 [docs/v0.6.0-release-ready.md](docs/v0.6.0-release-ready.md), and the bounded
-prefix compatibility contract is tracked in
+prefix compatibility contract remains in
 [docs/v0.6.0-compatibility-recommendation.md](docs/v0.6.0-compatibility-recommendation.md).

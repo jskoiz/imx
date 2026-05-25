@@ -29,6 +29,7 @@ pub enum PixelFormat {
     Gray8,
     Gray16Be,
     Rgb8,
+    Rgb16Be,
     Rgba8,
     Rgba16Be,
 }
@@ -38,7 +39,7 @@ impl PixelFormat {
         match self {
             Self::Bilevel => "GRAY",
             Self::Gray8 | Self::Gray16Be => "GRAY",
-            Self::Rgb8 => "RGB",
+            Self::Rgb8 | Self::Rgb16Be => "RGB",
             Self::Rgba8 => "RGBA",
             Self::Rgba16Be => "RGBA",
         }
@@ -50,6 +51,7 @@ impl PixelFormat {
             Self::Gray8 => 8,
             Self::Gray16Be => 16,
             Self::Rgb8 | Self::Rgba8 => 8,
+            Self::Rgb16Be => 16,
             Self::Rgba16Be => 16,
         }
     }
@@ -60,6 +62,7 @@ impl PixelFormat {
             Self::Gray8 => 1,
             Self::Gray16Be => 2,
             Self::Rgb8 => 3,
+            Self::Rgb16Be => 6,
             Self::Rgba8 => 4,
             Self::Rgba16Be => 8,
         }
@@ -159,6 +162,14 @@ impl Image {
                 }
                 Self::new(self.width, self.height, PixelFormat::Rgba16Be, out)
             }
+            PixelFormat::Rgb16Be => {
+                let mut out = try_vec_with_capacity(pixel_len(self.width, self.height, 8)?)?;
+                for px in self.pixels.chunks_exact(6) {
+                    out.extend_from_slice(&px[..6]);
+                    out.extend_from_slice(&[0xff, 0xff]);
+                }
+                Self::new(self.width, self.height, PixelFormat::Rgba16Be, out)
+            }
             PixelFormat::Rgb8 | PixelFormat::Rgba8 => {
                 let mut out = try_vec_with_capacity(pixel_len(self.width, self.height, 8)?)?;
                 for px in self
@@ -216,6 +227,16 @@ impl Image {
                 }
                 Self::new(self.width, self.height, PixelFormat::Rgba8, out)
             }
+            PixelFormat::Rgb16Be => {
+                let mut out = try_vec_with_capacity(pixel_len(self.width, self.height, 4)?)?;
+                for px in self.pixels.chunks_exact(6) {
+                    out.push(scale_u16be_to_u8(px[0], px[1]));
+                    out.push(scale_u16be_to_u8(px[2], px[3]));
+                    out.push(scale_u16be_to_u8(px[4], px[5]));
+                    out.push(0xff);
+                }
+                Self::new(self.width, self.height, PixelFormat::Rgba8, out)
+            }
             PixelFormat::Rgba16Be => {
                 let mut out = try_vec_with_capacity(pixel_len(self.width, self.height, 4)?)?;
                 for px in self.pixels.chunks_exact(8) {
@@ -261,6 +282,15 @@ impl Image {
                 }
                 Self::new(self.width, self.height, PixelFormat::Rgb8, out)
             }
+            PixelFormat::Rgb16Be => {
+                let mut out = try_vec_with_capacity(pixel_len(self.width, self.height, 3)?)?;
+                for px in self.pixels.chunks_exact(6) {
+                    out.push(scale_u16be_to_u8(px[0], px[1]));
+                    out.push(scale_u16be_to_u8(px[2], px[3]));
+                    out.push(scale_u16be_to_u8(px[4], px[5]));
+                }
+                Self::new(self.width, self.height, PixelFormat::Rgb8, out)
+            }
             PixelFormat::Rgba16Be => {
                 let mut out = try_vec_with_capacity(pixel_len(self.width, self.height, 3)?)?;
                 for px in self.pixels.chunks_exact(8) {
@@ -269,6 +299,61 @@ impl Image {
                     out.push(scale_u16be_to_u8(px[4], px[5]));
                 }
                 Self::new(self.width, self.height, PixelFormat::Rgb8, out)
+            }
+        }
+    }
+
+    pub fn to_rgb16be(&self) -> Result<Self, ImageError> {
+        match self.pixel_format {
+            PixelFormat::Rgb16Be => Ok(self.clone()),
+            PixelFormat::Bilevel => {
+                let mut out = try_vec_with_capacity(pixel_len(self.width, self.height, 6)?)?;
+                for value in &self.pixels {
+                    for channel in [*value, *value, *value] {
+                        out.push(channel);
+                        out.push(channel);
+                    }
+                }
+                Self::new(self.width, self.height, PixelFormat::Rgb16Be, out)
+            }
+            PixelFormat::Gray8 => {
+                let mut out = try_vec_with_capacity(pixel_len(self.width, self.height, 6)?)?;
+                for gray in &self.pixels {
+                    for channel in [*gray, *gray, *gray] {
+                        out.push(channel);
+                        out.push(channel);
+                    }
+                }
+                Self::new(self.width, self.height, PixelFormat::Rgb16Be, out)
+            }
+            PixelFormat::Gray16Be => {
+                let mut out = try_vec_with_capacity(pixel_len(self.width, self.height, 6)?)?;
+                for gray in self.pixels.chunks_exact(2) {
+                    out.extend_from_slice(gray);
+                    out.extend_from_slice(gray);
+                    out.extend_from_slice(gray);
+                }
+                Self::new(self.width, self.height, PixelFormat::Rgb16Be, out)
+            }
+            PixelFormat::Rgb8 | PixelFormat::Rgba8 => {
+                let mut out = try_vec_with_capacity(pixel_len(self.width, self.height, 6)?)?;
+                for px in self
+                    .pixels
+                    .chunks_exact(self.pixel_format.bytes_per_pixel())
+                {
+                    for channel in [px[0], px[1], px[2]] {
+                        out.push(channel);
+                        out.push(channel);
+                    }
+                }
+                Self::new(self.width, self.height, PixelFormat::Rgb16Be, out)
+            }
+            PixelFormat::Rgba16Be => {
+                let mut out = try_vec_with_capacity(pixel_len(self.width, self.height, 6)?)?;
+                for px in self.pixels.chunks_exact(8) {
+                    out.extend_from_slice(&px[..6]);
+                }
+                Self::new(self.width, self.height, PixelFormat::Rgb16Be, out)
             }
         }
     }
@@ -299,7 +384,7 @@ impl Image {
                 }
                 Self::new(self.width, self.height, PixelFormat::Gray8, out)
             }
-            PixelFormat::Rgba16Be => {
+            PixelFormat::Rgb16Be | PixelFormat::Rgba16Be => {
                 let gray16 = self.to_gray16be()?;
                 gray16.to_gray8()
             }
@@ -331,6 +416,14 @@ impl Image {
                 {
                     let gray = rec709_luma8(px[0], px[1], px[2]);
                     out.extend_from_slice(&[gray, gray]);
+                }
+                Self::new(self.width, self.height, PixelFormat::Gray16Be, out)
+            }
+            PixelFormat::Rgb16Be => {
+                let mut out = try_vec_with_capacity(pixel_len(self.width, self.height, 2)?)?;
+                for px in self.pixels.chunks_exact(6) {
+                    let gray = rec709_luma16be([px[0], px[1]], [px[2], px[3]], [px[4], px[5]]);
+                    out.extend_from_slice(&gray.to_be_bytes());
                 }
                 Self::new(self.width, self.height, PixelFormat::Gray16Be, out)
             }
@@ -370,6 +463,14 @@ impl Image {
                     .chunks_exact(self.pixel_format.bytes_per_pixel())
                 {
                     out.push(threshold_u8(rec709_luma8(px[0], px[1], px[2])));
+                }
+                Self::new(self.width, self.height, PixelFormat::Bilevel, out)
+            }
+            PixelFormat::Rgb16Be => {
+                let mut out = try_vec_with_capacity(pixel_len(self.width, self.height, 1)?)?;
+                for px in self.pixels.chunks_exact(6) {
+                    let gray = rec709_luma16be([px[0], px[1]], [px[2], px[3]], [px[4], px[5]]);
+                    out.push(if gray < 32768 { 0 } else { 255 });
                 }
                 Self::new(self.width, self.height, PixelFormat::Bilevel, out)
             }
@@ -580,6 +681,51 @@ mod tests {
     }
 
     #[test]
+    fn rgb16_converts_to_8_bit_and_farbfeld() {
+        let image = Image::new(
+            1,
+            2,
+            PixelFormat::Rgb16Be,
+            vec![
+                0x00, 0x00, 0x80, 0x00, 0xff, 0xff, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc,
+            ],
+        )
+        .unwrap();
+        assert_eq!(
+            image.to_rgb8().unwrap().pixels(),
+            &[0, 128, 255, 18, 86, 154]
+        );
+        assert_eq!(
+            image.to_rgba16be().unwrap().pixels(),
+            &[
+                0x00, 0x00, 0x80, 0x00, 0xff, 0xff, 0xff, 0xff, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc,
+                0xff, 0xff,
+            ]
+        );
+    }
+
+    #[test]
+    fn rgba16_and_gray16_convert_to_rgb16() {
+        let rgba = Image::new(
+            1,
+            1,
+            PixelFormat::Rgba16Be,
+            vec![0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0],
+        )
+        .unwrap();
+        assert_eq!(
+            rgba.to_rgb16be().unwrap().pixels(),
+            &[0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc]
+        );
+
+        let gray = Image::new(1, 1, PixelFormat::Gray16Be, vec![0x80, 0x00]).unwrap();
+        assert_eq!(
+            gray.to_rgb16be().unwrap().pixels(),
+            &[0x80, 0x00, 0x80, 0x00, 0x80, 0x00]
+        );
+    }
+
+    #[test]
     fn gray_formats_expand_to_rgb_and_farbfeld() {
         let gray = Image::new(1, 2, PixelFormat::Gray8, vec![0x12, 0x80]).unwrap();
         assert_eq!(
@@ -628,6 +774,15 @@ mod tests {
         )
         .unwrap();
         assert_eq!(rgba16.to_gray16be().unwrap().pixels(), &[0x4b, 0x4d]);
+
+        let rgb16 = Image::new(
+            1,
+            1,
+            PixelFormat::Rgb16Be,
+            vec![0x80, 0x00, 0x40, 0x00, 0x20, 0x00],
+        )
+        .unwrap();
+        assert_eq!(rgb16.to_gray16be().unwrap().pixels(), &[0x4b, 0x4d]);
     }
 
     #[test]
@@ -646,5 +801,16 @@ mod tests {
         )
         .unwrap();
         assert_eq!(rgba16.to_bilevel().unwrap().pixels(), &[0, 255]);
+
+        let rgb16 = Image::new(
+            1,
+            2,
+            PixelFormat::Rgb16Be,
+            vec![
+                0x7f, 0xff, 0x7f, 0xff, 0x7f, 0xff, 0x80, 0x00, 0x80, 0x00, 0x80, 0x00,
+            ],
+        )
+        .unwrap();
+        assert_eq!(rgb16.to_bilevel().unwrap().pixels(), &[0, 255]);
     }
 }

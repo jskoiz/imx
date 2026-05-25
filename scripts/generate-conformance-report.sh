@@ -80,7 +80,8 @@ $archive_table
   unsupported max values, and failed CLI output behavior.
 - ImageMagick differential tests cover decoded-pixel compatibility for
   FARBFELD/QOI/PBM/PGM/PPM identify, prefixed identify, transcode, prefixed
-  transcode, and deterministic same-format rewrite paths.
+  transcode, deterministic same-format rewrite paths, and high-depth PPM
+  identify/decode/transcode cases.
 - Cargo-fuzz targets exercise FARBFELD, QOI, and shared PNM identify/decode
   entrypoints with seeded corpora.
 - Benchmarks record library throughput, process timing, process RSS, and output
@@ -93,8 +94,7 @@ $archive_table
   MagickCore, or MagickWand.
 - No prefixes beyond exact \`FARBFELD:\`, \`QOI:\`, \`PBM:\`, \`PGM:\`, and
   \`PPM:\`.
-- No PNG, JPEG, TIFF, PAM, PFM, BMP, or high-depth PPM support in this
-  conformance surface.
+- No PNG, JPEG, TIFF, PAM, PFM, or BMP support in this conformance surface.
 EOF
 
 cat >"$out_dir/conformance-summary.json" <<EOF

@@ -156,21 +156,28 @@ else
 fi
 ! grep -E 'Magick(Core|Wand)|ImageMagick' "$artifact_dir/linkage-$target.txt"
 printf 'P3\n2 1\n255\n255 0 0 0 0 255\n' >"$verify_dir/input.ppm"
+printf 'P6\n2 1\n65535\n\x12\x34\x56\x78\x9a\xbc\x00\x00\x80\x00\xff\xff' >"$verify_dir/input16.ppm"
 printf 'P2\n2 1\n255\n0 255\n' >"$verify_dir/input.pgm"
 printf 'P1\n2 1\n0 1\n' >"$verify_dir/input.pbm"
 run_packaged_binary identify "$verify_dir/input.ppm" >/dev/null
+run_packaged_binary identify "$verify_dir/input16.ppm" >/dev/null
 run_packaged_binary identify "$verify_dir/input.pgm" >/dev/null
 run_packaged_binary identify "$verify_dir/input.pbm" >/dev/null
 run_packaged_binary identify "PPM:$verify_dir/input.ppm" >/dev/null
+run_packaged_binary identify "PPM:$verify_dir/input16.ppm" >/dev/null
 run_packaged_binary identify "PGM:$verify_dir/input.pgm" >/dev/null
 run_packaged_binary identify "PBM:$verify_dir/input.pbm" >/dev/null
 run_packaged_binary "$verify_dir/input.ppm" "$verify_dir/output.ff"
+run_packaged_binary "$verify_dir/input16.ppm" "$verify_dir/output16.ff"
 run_packaged_binary identify "$verify_dir/output.ff" >/dev/null
+run_packaged_binary identify "$verify_dir/output16.ff" >/dev/null
 run_packaged_binary identify "FARBFELD:$verify_dir/output.ff" >/dev/null
+run_packaged_binary identify "FARBFELD:$verify_dir/output16.ff" >/dev/null
 run_packaged_binary "$verify_dir/output.ff" "$verify_dir/output.qoi"
 run_packaged_binary identify "$verify_dir/output.qoi" >/dev/null
 run_packaged_binary identify "QOI:$verify_dir/output.qoi" >/dev/null
 run_packaged_binary "PPM:$verify_dir/input.ppm" "FARBFELD:$verify_dir/prefix-output.ff"
+run_packaged_binary "PPM:$verify_dir/input16.ppm" "PPM:$verify_dir/prefix-output16.ppm"
 run_packaged_binary "FARBFELD:$verify_dir/prefix-output.ff" "QOI:$verify_dir/prefix-output.qoi"
 run_packaged_binary "FARBFELD:$verify_dir/prefix-output.ff" "PBM:$verify_dir/prefix-output.pbm"
 run_packaged_binary "FARBFELD:$verify_dir/prefix-output.ff" "PGM:$verify_dir/prefix-output.pgm"

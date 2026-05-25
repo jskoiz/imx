@@ -2,7 +2,7 @@
 set -eu
 
 repo="${IMX_REPO:-jskoiz/imx}"
-version="${IMX_VERSION:-v0.6.0}"
+version="${IMX_VERSION:-v0.7.0}"
 install_dir="${IMX_INSTALL_DIR:-$HOME/.local/bin}"
 run_smoke="${IMX_INSTALL_SMOKE:-1}"
 
@@ -84,17 +84,23 @@ if [ "$run_smoke" != "0" ] && [ "$run_smoke" != "false" ]; then
   smoke_dir="$work_dir/smoke"
   mkdir -p "$smoke_dir"
   printf 'P3\n2 2\n255\n255 0 0 0 255 0 0 0 255 255 255 255\n' >"$smoke_dir/input.ppm"
+  printf 'P6\n2 1\n65535\n\x12\x34\x56\x78\x9a\xbc\x00\x00\x80\x00\xff\xff' >"$smoke_dir/input16.ppm"
   printf 'P2\n2 2\n255\n0 85 170 255\n' >"$smoke_dir/input.pgm"
   printf 'P1\n2 2\n0 1\n1 0\n' >"$smoke_dir/input.pbm"
   "$install_dir/imx" identify "$smoke_dir/input.ppm" >/dev/null
+  "$install_dir/imx" identify "$smoke_dir/input16.ppm" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/input.pgm" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/input.pbm" >/dev/null
   "$install_dir/imx" identify "PPM:$smoke_dir/input.ppm" >/dev/null
+  "$install_dir/imx" identify "PPM:$smoke_dir/input16.ppm" >/dev/null
   "$install_dir/imx" identify "PGM:$smoke_dir/input.pgm" >/dev/null
   "$install_dir/imx" identify "PBM:$smoke_dir/input.pbm" >/dev/null
   "$install_dir/imx" "$smoke_dir/input.ppm" "$smoke_dir/output.qoi"
+  "$install_dir/imx" "$smoke_dir/input16.ppm" "$smoke_dir/output16.ff"
   "$install_dir/imx" identify "$smoke_dir/output.qoi" >/dev/null
+  "$install_dir/imx" identify "$smoke_dir/output16.ff" >/dev/null
   "$install_dir/imx" identify "QOI:$smoke_dir/output.qoi" >/dev/null
+  "$install_dir/imx" identify "FARBFELD:$smoke_dir/output16.ff" >/dev/null
   "$install_dir/imx" "$smoke_dir/output.qoi" "$smoke_dir/output.ff"
   "$install_dir/imx" identify "$smoke_dir/output.ff" >/dev/null
   "$install_dir/imx" identify "FARBFELD:$smoke_dir/output.ff" >/dev/null
@@ -102,6 +108,7 @@ if [ "$run_smoke" != "0" ] && [ "$run_smoke" != "false" ]; then
   "$install_dir/imx" "$smoke_dir/output.ff" "$smoke_dir/output.pgm"
   "$install_dir/imx" "$smoke_dir/output.ff" "$smoke_dir/output.ppm"
   "$install_dir/imx" "PPM:$smoke_dir/input.ppm" "QOI:$smoke_dir/prefix-output.qoi"
+  "$install_dir/imx" "PPM:$smoke_dir/input16.ppm" "PPM:$smoke_dir/prefix-output16.ppm"
   "$install_dir/imx" "QOI:$smoke_dir/prefix-output.qoi" "FARBFELD:$smoke_dir/prefix-output.ff"
   "$install_dir/imx" "FARBFELD:$smoke_dir/prefix-output.ff" "PBM:$smoke_dir/prefix-output.pbm"
   "$install_dir/imx" "FARBFELD:$smoke_dir/prefix-output.ff" "PGM:$smoke_dir/prefix-output.pgm"

@@ -160,7 +160,7 @@ fn identifies_farbfeld_qoi_pbm_pgm_and_ppm() {
     assert!(output.status.success());
     assert_eq!(
         String::from_utf8(output.stdout).unwrap().trim(),
-        "format=PPM width=1 height=1 channels=RGB depth=8"
+        "format=PPM width=1 height=1 channels=RGB depth=16"
     );
 
     let output = Command::new(imx())
@@ -335,9 +335,121 @@ fn transcodes_ppm_to_farbfeld_and_farbfeld_to_ppm() {
         "stderr={}",
         String::from_utf8_lossy(&output.stderr)
     );
+    let roundtrip = imx_codec_pnm::decode_ppm(&fs::read(roundtrip_ppm).unwrap()).unwrap();
+    assert_eq!(roundtrip.pixel_format(), PixelFormat::Rgb16Be);
+    assert_eq!(roundtrip.to_rgb8().unwrap().pixels(), image.pixels());
+}
+
+#[test]
+fn identifies_sixteen_bit_ppm_with_and_without_prefix() {
+    let dir = temp_dir("ppm16_identify");
+    let input = dir.join("input.ppm");
+    fs::write(
+        &input,
+        b"P6\n2 1\n65535\n\x12\x34\x56\x78\x9a\xbc\x00\x00\x80\x00\xff\xff",
+    )
+    .unwrap();
+
+    for arg in [input.to_str().unwrap().to_string(), prefixed("PPM", &input)] {
+        let output = Command::new(imx())
+            .args(["identify", arg.as_str()])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "PPM16 identify failed with stderr={}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            String::from_utf8(output.stdout).unwrap().trim(),
+            "format=PPM width=2 height=1 channels=RGB depth=16"
+        );
+    }
+}
+
+#[test]
+fn transcodes_sixteen_bit_ppm_to_farbfeld_and_pgm16() {
+    let dir = temp_dir("ppm16_transcode");
+    let input = dir.join("input.ppm");
+    let output_ff = dir.join("output.ff");
+    let output_pgm = dir.join("output.pgm");
+    let ppm16 = Image::new(
+        2,
+        1,
+        PixelFormat::Rgb16Be,
+        vec![
+            0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0x00, 0x00, 0x80, 0x00, 0xff, 0xff,
+        ],
+    )
+    .unwrap();
+    fs::write(&input, imx_codec_pnm::encode_ppm(&ppm16).unwrap()).unwrap();
+
+    let output = Command::new(imx())
+        .args([input.to_str().unwrap(), output_ff.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "PPM16->FARBFELD failed with stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert_eq!(
-        fs::read(input_ppm).unwrap(),
-        fs::read(roundtrip_ppm).unwrap()
+        imx_codec_farbfeld::decode(&fs::read(&output_ff).unwrap())
+            .unwrap()
+            .pixels(),
+        &[
+            0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xff, 0xff, 0x00, 0x00, 0x80, 0x00, 0xff, 0xff,
+            0xff, 0xff,
+        ]
+    );
+
+    let output = Command::new(imx())
+        .args([input.to_str().unwrap(), output_pgm.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "PPM16->PGM failed with stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        imx_codec_pnm::decode_pgm(&fs::read(output_pgm).unwrap())
+            .unwrap()
+            .pixel_format(),
+        PixelFormat::Gray16Be
+    );
+}
+
+#[test]
+fn rewrites_sixteen_bit_ppm_same_format_with_prefix() {
+    let dir = temp_dir("ppm16_rewrite");
+    let input = dir.join("input.ppm");
+    let output_path = dir.join("rewrite.ppm");
+    let expected = b"P6\n2 1\n65535\n\x12\x34\x56\x78\x9a\xbc\x00\x00\x80\x00\xff\xff";
+    fs::write(&input, expected).unwrap();
+
+    let input_arg = prefixed("PPM", &input);
+    let output_arg = prefixed("PPM", &output_path);
+    let output = Command::new(imx())
+        .args([input_arg.as_str(), output_arg.as_str()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "PPM16 same-format rewrite failed with stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(fs::read(&output_path).unwrap(), expected);
+
+    let identify_arg = prefixed("PPM", &output_path);
+    let identify = Command::new(imx())
+        .args(["identify", identify_arg.as_str()])
+        .output()
+        .unwrap();
+    assert!(identify.status.success());
+    assert_eq!(
+        String::from_utf8(identify.stdout).unwrap().trim(),
+        "format=PPM width=2 height=1 channels=RGB depth=16"
     );
 }
 

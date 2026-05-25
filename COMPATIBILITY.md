@@ -109,11 +109,19 @@ PGM:
 
 PPM:
 
-- ASCII `P3` and binary `P6` RGB8 PPM are supported.
+- ASCII `P3` and binary `P6` RGB PPM are supported.
 - Header comments before the raster are accepted.
-- `maxval` must be in `1..=255`; samples are scaled to 8-bit when `maxval` is
-  below 255.
-- High-depth PPM is intentionally out of scope.
+- `maxval` must be in `1..=65535`.
+- `P3` samples are decimal tokens and are scaled to RGB8 when `maxval <= 255`
+  or RGB16BE when `maxval > 255`.
+- `P6` consumes exactly one whitespace byte after `maxval` as the raster
+  separator. Bytes after that separator are raster bytes, not comments.
+- `P6` uses one byte per sample when `maxval <= 255` and two big-endian bytes
+  per sample when `maxval > 255`.
+- Trailing bytes after the expected PPM raster are accepted.
+- IMX rejects over-max ASCII or binary samples, zero dimensions, `maxval=0`, and
+  `maxval > 65535` even when ImageMagick accepts or clamps some malformed
+  inputs.
 
 ## Transcode Rules
 
@@ -158,21 +166,23 @@ PGM/PPM/FARBFELD/QOI to PBM:
 
 PPM to FARBFELD/QOI/PGM:
 
-- PPM RGB8 expands to opaque RGBA when the destination has alpha.
-- PPM to QOI emits RGBA8 QOI.
-- PPM to PGM uses the Rec.709 luma rule above.
+- PPM RGB8/RGB16 expands to opaque RGBA when the destination has alpha.
+- PPM to QOI emits RGBA8 QOI; high-depth PPM samples are quantized to 8-bit.
+- PPM to PGM uses the Rec.709 luma rule above and emits GRAY8 for RGB8 input or
+  GRAY16BE for RGB16 input.
 
 PGM to FARBFELD/QOI/PPM:
 
 - Gray samples replicate into RGB channels.
 - Alpha is opaque where the destination has alpha.
 - PGM to QOI emits RGBA8 QOI.
-- PGM to PPM emits RGB8 PPM.
+- PGM to PPM emits RGB8 PPM for GRAY8 input and RGB16BE PPM for GRAY16BE input.
 
 FARBFELD/QOI to PPM:
 
 - Alpha is dropped.
-- FARBFELD 16-bit samples are quantized to 8-bit.
+- FARBFELD/RGBA16 input emits deterministic RGB16BE PPM with `maxval 65535`.
+- QOI/RGBA8 input emits deterministic RGB8 PPM with `maxval 255`.
 
 FARBFELD/QOI to PGM:
 
@@ -192,13 +202,17 @@ FARBFELD/QOI to PGM:
 The compatibility lane keeps `scripts/differential-corpus.sh` as a
 report-producing ImageMagick oracle lane. It generates the deterministic fixture
 corpus, runs `imx identify` for FARBFELD, QOI, PBM, PGM, and PPM fixtures, runs
-prefixed identify cases for the same five formats, then checks all 25 directed
-transcodes between the five supported formats plus a prefixed transcode ring
-that exercises every supported prefix as input and output.
+prefixed identify cases for the same five formats, runs additional high-depth
+PPM identify cases, then checks all 25 directed transcodes between the five
+supported formats plus a prefixed transcode ring that exercises every supported
+prefix as input and output. It also runs high-depth PPM transcode cases for
+16-bit preserving destinations.
 
-Each transcode result is decoded through ImageMagick to canonical 8-bit RGBA
+Most transcode results are decoded through ImageMagick to canonical 8-bit RGBA
 raw pixels and compared with the ImageMagick oracle output for the same source
-and destination format. The report emits:
+and destination format. High-depth PPM cases that should preserve precision are
+decoded to canonical 16-bit raw RGB or GRAY samples before comparison. The report
+emits:
 
 - `manifest.json` from the generated fixture corpus.
 - `results.jsonl` with one row per identify/transcode case.
@@ -216,7 +230,6 @@ clamp.
 - No stdin/stdout streaming.
 - No prefixes beyond exact `FARBFELD:`, `QOI:`, `PBM:`, `PGM:`, and `PPM:`.
 - No PAM/PFM support.
-- No high-depth PPM support.
 - No delegates, profiles, color management, resize/transform operations,
   MagickCore API, or MagickWand API.
 - No format beyond FARBFELD, QOI, PBM, PGM, and PPM.

@@ -58,7 +58,7 @@ sed -n 's/.*"\([^"]*_mib_s\)": \([0-9][0-9.]*\).*/\1 \2/p' "$current_summary" |
 while read -r metric current_value; do
   baseline_value="$(extract_library_metric "$baseline_summary" "$metric")"
   if [[ -z "$baseline_value" ]]; then
-    echo "missing baseline throughput metric $metric" >>"$failures"
+    echo "new throughput metric $metric has no baseline in $base_ref" >>"$warnings"
     continue
   fi
   awk -v metric="$metric" -v base="$baseline_value" -v current="$current_value" \
@@ -104,7 +104,7 @@ while read -r case_id current_rss; do
   esac
   baseline_rss="$(extract_process_rss "$baseline_summary" | awk -v case_id="$case_id" '$1 == case_id { print $2 }')"
   if [[ -z "$baseline_rss" ]]; then
-    echo "missing baseline process RSS case $case_id" >>"$failures"
+    echo "new process RSS case $case_id has no baseline in $base_ref" >>"$warnings"
     continue
   fi
   awk -v label="$case_id" -v base="$baseline_rss" -v current="$current_rss" \

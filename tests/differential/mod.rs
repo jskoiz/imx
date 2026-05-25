@@ -413,6 +413,179 @@ fn standalone_ascii_ppm_decode_matches_imagemagick_decoded_pixels() {
 }
 
 #[test]
+fn standalone_high_depth_ppm_transcodes_match_imagemagick_16bit_pixels() {
+    let Some(magick) = require_or_skip(magick_command(), "ImageMagick oracle") else {
+        return;
+    };
+    let Some(standalone) = require_or_skip(standalone_imx_command(), "standalone imx binary")
+    else {
+        return;
+    };
+    let dir = temp_dir("ppm16_transcodes");
+    let input_ppm = dir.join("input.ppm");
+    let output_ff = dir.join("output.ff");
+    let output_pgm = dir.join("output.pgm");
+    let im_rgb = dir.join("im.rgb16");
+    let ff_rgb = dir.join("ff.rgb16");
+    let im_gray = dir.join("im.gray16");
+    let pgm_gray = dir.join("pgm.gray16");
+
+    fs::write(
+        &input_ppm,
+        b"P6\n3 1\n65535\n\x00\x00\x00\x00\x00\x00\x80\x00\x80\x00\x80\x00\xff\xff\xff\xff\xff\xff",
+    )
+    .unwrap();
+
+    for output in [&output_ff, &output_pgm] {
+        let result = run_magick(
+            &standalone,
+            &[
+                input_ppm.display().to_string(),
+                output.display().to_string(),
+            ],
+        );
+        assert!(
+            result.status.success(),
+            "standalone high-depth PPM transcode failed for {}\nstdout:\n{}\nstderr:\n{}",
+            output.display(),
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+
+    let im = run_magick(
+        &magick,
+        &[
+            format!("PPM:{}", input_ppm.display()),
+            "-depth".to_string(),
+            "16".to_string(),
+            "-endian".to_string(),
+            "MSB".to_string(),
+            format!("RGB:{}", im_rgb.display()),
+        ],
+    );
+    let ff = run_magick(
+        &magick,
+        &[
+            format!("FARBFELD:{}", output_ff.display()),
+            "-depth".to_string(),
+            "16".to_string(),
+            "-endian".to_string(),
+            "MSB".to_string(),
+            format!("RGB:{}", ff_rgb.display()),
+        ],
+    );
+    if !assert_success_or_skip(&im, "ImageMagick PPM16 decode")
+        || !assert_success_or_skip(&ff, "ImageMagick FARBFELD decode")
+    {
+        return;
+    }
+    assert_eq!(fs::read(ff_rgb).unwrap(), fs::read(im_rgb).unwrap());
+
+    let im = run_magick(
+        &magick,
+        &[
+            format!("PPM:{}", input_ppm.display()),
+            "-depth".to_string(),
+            "16".to_string(),
+            "-endian".to_string(),
+            "MSB".to_string(),
+            format!("GRAY:{}", im_gray.display()),
+        ],
+    );
+    let pgm = run_magick(
+        &magick,
+        &[
+            format!("PGM:{}", output_pgm.display()),
+            "-depth".to_string(),
+            "16".to_string(),
+            "-endian".to_string(),
+            "MSB".to_string(),
+            format!("GRAY:{}", pgm_gray.display()),
+        ],
+    );
+    if !assert_success_or_skip(&im, "ImageMagick PPM16 grayscale decode")
+        || !assert_success_or_skip(&pgm, "ImageMagick PGM16 decode")
+    {
+        return;
+    }
+    assert_eq!(fs::read(pgm_gray).unwrap(), fs::read(im_gray).unwrap());
+}
+
+#[test]
+fn standalone_pgm16_to_ppm16_matches_imagemagick_16bit_pixels() {
+    let Some(magick) = require_or_skip(magick_command(), "ImageMagick oracle") else {
+        return;
+    };
+    let Some(standalone) = require_or_skip(standalone_imx_command(), "standalone imx binary")
+    else {
+        return;
+    };
+    let dir = temp_dir("pgm16_to_ppm16");
+    let input_pgm = dir.join("input.pgm");
+    let output_ppm = dir.join("output.ppm");
+    let oracle_ppm = dir.join("oracle.ppm");
+    let rust_rgb = dir.join("rust.rgb16");
+    let oracle_rgb = dir.join("oracle.rgb16");
+
+    fs::write(&input_pgm, b"P5\n3 1\n65535\n\x00\x00\x80\x00\xff\xff").unwrap();
+
+    let standalone_result = run_magick(
+        &standalone,
+        &[
+            input_pgm.display().to_string(),
+            output_ppm.display().to_string(),
+        ],
+    );
+    assert!(
+        standalone_result.status.success(),
+        "standalone PGM16->PPM failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&standalone_result.stdout),
+        String::from_utf8_lossy(&standalone_result.stderr)
+    );
+
+    let oracle_result = run_magick(
+        &magick,
+        &[
+            format!("PGM:{}", input_pgm.display()),
+            format!("PPM:{}", oracle_ppm.display()),
+        ],
+    );
+    if !assert_success_or_skip(&oracle_result, "ImageMagick PGM16->PPM encode") {
+        return;
+    }
+
+    let rust = run_magick(
+        &magick,
+        &[
+            format!("PPM:{}", output_ppm.display()),
+            "-depth".to_string(),
+            "16".to_string(),
+            "-endian".to_string(),
+            "MSB".to_string(),
+            format!("RGB:{}", rust_rgb.display()),
+        ],
+    );
+    let oracle = run_magick(
+        &magick,
+        &[
+            format!("PPM:{}", oracle_ppm.display()),
+            "-depth".to_string(),
+            "16".to_string(),
+            "-endian".to_string(),
+            "MSB".to_string(),
+            format!("RGB:{}", oracle_rgb.display()),
+        ],
+    );
+    if !assert_success_or_skip(&rust, "ImageMagick PPM decode")
+        || !assert_success_or_skip(&oracle, "ImageMagick oracle PPM decode")
+    {
+        return;
+    }
+    assert_eq!(fs::read(rust_rgb).unwrap(), fs::read(oracle_rgb).unwrap());
+}
+
+#[test]
 fn standalone_ascii_and_binary_pbm_decode_match_imagemagick_decoded_pixels() {
     let Some(magick) = require_or_skip(magick_command(), "ImageMagick oracle") else {
         return;

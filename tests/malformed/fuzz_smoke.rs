@@ -58,6 +58,17 @@ fn structured_truncation_fuzz_smoke_does_not_panic() {
         }
     }
 
+    for ppm in [
+        b"P3\n2 1\n1023\n0 512 1023 1023 256 128\n".as_slice(),
+        b"P6\n2 1\n65535\n\x00\x00\x80\x00\xff\xff\xff\xff\x40\x00\x20\x00".as_slice(),
+        b"P6\n1 1\n256\n\x00\x00\x01".as_slice(),
+    ] {
+        for len in 0..ppm.len() {
+            let result = std::panic::catch_unwind(|| imx_codec_pnm::decode_ppm(&ppm[..len]));
+            assert!(result.is_ok(), "PPM truncation panicked at len {len}");
+        }
+    }
+
     for pbm in [
         b"P1\n4 2\n0110\n1001\n".as_slice(),
         b"P4\n9 2\n\xaa\x80\x55\x00".as_slice(),

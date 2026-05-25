@@ -64,6 +64,10 @@ fixture_path() {
   esac
 }
 
+ppm16_fixture_path() {
+  echo "$fixture_dir/gradient-64-ppm16.ppm"
+}
+
 fixture_path_for_case() {
   local src="$1"
   local dst="$2"
@@ -133,6 +137,34 @@ run_prefixed_identify_case() {
   fi
 }
 
+run_ppm16_identify_case() {
+  local mode="$1"
+  local input imx_input case_id imx_out oracle_out
+  input="$(ppm16_fixture_path)"
+  case_id="identify-ppm16"
+  imx_input="$input"
+  if [[ "$mode" == "prefixed" ]]; then
+    case_id="identify-prefixed-ppm16"
+    imx_input="PPM:$input"
+  fi
+  imx_out="$out_dir/$case_id.imx.txt"
+  oracle_out="$out_dir/$case_id.oracle.txt"
+
+  if "$imx" identify "$imx_input" >"$imx_out" 2>"$out_dir/$case_id.imx.stderr" &&
+    "$oracle" identify -format '%m %w %h %[colorspace] %[depth]' "PPM:$input" >"$oracle_out" 2>"$out_dir/$case_id.oracle.stderr"; then
+    if grep -q 'depth=16' "$imx_out"; then
+      record "$case_id" passed "high-depth PPM identify accepted by IMX and ImageMagick"
+      passes=$((passes + 1))
+    else
+      record "$case_id" failed "high-depth PPM identify did not report depth=16"
+      failures=$((failures + 1))
+    fi
+  else
+    record "$case_id" failed "high-depth PPM identify failed in IMX or ImageMagick"
+    failures=$((failures + 1))
+  fi
+}
+
 run_transcode_case() {
   local src="$1"
   local dst="$2"
@@ -189,16 +221,68 @@ run_transcode_case() {
   fi
 }
 
+run_ppm16_transcode_case() {
+  local dst="$1"
+  local dst_label input imx_output oracle_output imx_raw oracle_raw case_id raw_format
+  dst_label="$(format_label "$dst")"
+  input="$(ppm16_fixture_path)"
+  case_id="transcode.ppm16.$dst"
+  imx_output="$out_dir/$case_id.imx.$(format_ext "$dst")"
+  oracle_output="$out_dir/$case_id.oracle.$(format_ext "$dst")"
+  imx_raw="$out_dir/$case_id.imx.raw"
+  oracle_raw="$out_dir/$case_id.oracle.raw"
+  raw_format="RGB"
+  if [[ "$dst" == "farbfeld" ]]; then
+    raw_format="RGB"
+  fi
+
+  if ! "$imx" "PPM:$input" "$dst_label:$imx_output" >"$out_dir/$case_id.imx.stdout" 2>"$out_dir/$case_id.imx.stderr"; then
+    record "$case_id" failed "IMX high-depth PPM transcode failed"
+    failures=$((failures + 1))
+    return
+  fi
+
+  if ! "$oracle" "PPM:$input" "$dst_label:$oracle_output" >"$out_dir/$case_id.oracle.stdout" 2>"$out_dir/$case_id.oracle.stderr"; then
+    record "$case_id" failed "ImageMagick high-depth PPM transcode failed"
+    failures=$((failures + 1))
+    return
+  fi
+
+  if ! "$oracle" "$dst_label:$imx_output" -depth 16 -endian MSB "$raw_format:$imx_raw" >"$out_dir/$case_id.imx-decode.stdout" 2>"$out_dir/$case_id.imx-decode.stderr"; then
+    record "$case_id" failed "ImageMagick could not decode high-depth IMX output"
+    failures=$((failures + 1))
+    return
+  fi
+
+  if ! "$oracle" "$dst_label:$oracle_output" -depth 16 -endian MSB "$raw_format:$oracle_raw" >"$out_dir/$case_id.oracle-decode.stdout" 2>"$out_dir/$case_id.oracle-decode.stderr"; then
+    record "$case_id" failed "ImageMagick could not decode high-depth oracle output"
+    failures=$((failures + 1))
+    return
+  fi
+
+  if cmp -s "$imx_raw" "$oracle_raw"; then
+    record "$case_id" passed "high-depth PPM to $dst_label decoded 16-bit pixels match oracle output"
+    passes=$((passes + 1))
+  else
+    record "$case_id" failed "high-depth PPM to $dst_label decoded 16-bit pixels differ from oracle output"
+    failures=$((failures + 1))
+  fi
+}
+
 for fmt in "${formats[@]}"; do
   run_identify_case "$fmt"
   run_prefixed_identify_case "$fmt"
 done
+run_ppm16_identify_case plain
+run_ppm16_identify_case prefixed
 
 for src in "${formats[@]}"; do
   for dst in "${formats[@]}"; do
     run_transcode_case "$src" "$dst"
   done
 done
+run_ppm16_transcode_case farbfeld
+run_ppm16_transcode_case ppm
 
 for prefixed_pair in farbfeld:qoi qoi:ppm ppm:pgm pgm:pbm pbm:farbfeld; do
   run_transcode_case "${prefixed_pair%%:*}" "${prefixed_pair##*:}" prefixed
@@ -217,8 +301,8 @@ cat >"$summary" <<EOF
   "oracle": "$oracle",
   "fixture_manifest": "fixtures/manifest.json",
   "results": "results.jsonl",
-  "identify_cases": 10,
-  "transcode_cases": 30,
+  "identify_cases": 12,
+  "transcode_cases": 32,
   "passes": $passes,
   "failures": $failures
 }

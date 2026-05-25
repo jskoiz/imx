@@ -76,7 +76,7 @@ pub fn identify_ppm(input: &[u8]) -> Result<Identify, ImageError> {
         format: Format::Ppm,
         width: header.width,
         height: header.height,
-        pixel_format: PixelFormat::Rgb8,
+        pixel_format: ppm_pixel_format(header.max_value),
     })
 }
 
@@ -104,14 +104,8 @@ pub fn decode_ppm_header(input: &[u8]) -> Result<PnmHeader, ImageError> {
     if !header.encoding.is_ppm() {
         return Err(ImageError::InvalidHeader("PPM"));
     }
-    if header.max_value > 255 {
-        return Err(ImageError::InvalidMaxValue {
-            format: "PPM",
-            max_value: header.max_value,
-            max_supported: 255,
-        });
-    }
-    let _ = pixel_len(header.width, header.height, 3)?;
+    let bytes_per_pixel = ppm_pixel_format(header.max_value).bytes_per_pixel();
+    let _ = pixel_len(header.width, header.height, bytes_per_pixel)?;
     Ok(header)
 }
 
@@ -179,16 +173,15 @@ pub fn decode_pbm(input: &[u8]) -> Result<Image, ImageError> {
 pub fn decode_ppm(input: &[u8]) -> Result<Image, ImageError> {
     let header = decode_ppm_header(input)?;
     let sample_count = sample_count(header)?;
-    let payload_len = pixel_len(header.width, header.height, 3)?;
-    let pixels = decode_raster(
-        input,
-        header,
-        sample_count,
-        payload_len,
-        SampleOutput::U8,
-        "PPM",
-    )?;
-    Image::new(header.width, header.height, PixelFormat::Rgb8, pixels)
+    let pixel_format = ppm_pixel_format(header.max_value);
+    let payload_len = pixel_len(header.width, header.height, pixel_format.bytes_per_pixel())?;
+    let output = if pixel_format == PixelFormat::Rgb8 {
+        SampleOutput::U8
+    } else {
+        SampleOutput::U16Be
+    };
+    let pixels = decode_raster(input, header, sample_count, payload_len, output, "PPM")?;
+    Image::new(header.width, header.height, pixel_format, pixels)
 }
 
 pub fn decode_pgm(input: &[u8]) -> Result<Image, ImageError> {
@@ -234,22 +227,47 @@ pub fn encode_pbm(image: &Image) -> Result<Vec<u8>, ImageError> {
 }
 
 pub fn encode_ppm(image: &Image) -> Result<Vec<u8>, ImageError> {
-    let rgb = image.to_rgb8()?;
-    let payload_len = pixel_len(rgb.width(), rgb.height(), 3)?;
-    let header = format!("P6\n{} {}\n255\n", rgb.width(), rgb.height());
+    match image.pixel_format() {
+        PixelFormat::Gray16Be | PixelFormat::Rgb16Be | PixelFormat::Rgba16Be => {
+            encode_ppm16(&image.to_rgb16be()?)
+        }
+        PixelFormat::Bilevel | PixelFormat::Gray8 | PixelFormat::Rgb8 | PixelFormat::Rgba8 => {
+            encode_ppm8(&image.to_rgb8()?)
+        }
+    }
+}
+
+fn encode_ppm8(image: &Image) -> Result<Vec<u8>, ImageError> {
+    let payload_len = pixel_len(image.width(), image.height(), 3)?;
+    let header = format!("P6\n{} {}\n255\n", image.width(), image.height());
     let capacity = header
         .len()
         .checked_add(payload_len)
         .ok_or(ImageError::LengthOverflow)?;
     let mut out = try_vec_with_capacity(capacity)?;
     out.extend_from_slice(header.as_bytes());
-    out.extend_from_slice(rgb.pixels());
+    out.extend_from_slice(image.pixels());
+    Ok(out)
+}
+
+fn encode_ppm16(image: &Image) -> Result<Vec<u8>, ImageError> {
+    let payload_len = pixel_len(image.width(), image.height(), 6)?;
+    let header = format!("P6\n{} {}\n65535\n", image.width(), image.height());
+    let capacity = header
+        .len()
+        .checked_add(payload_len)
+        .ok_or(ImageError::LengthOverflow)?;
+    let mut out = try_vec_with_capacity(capacity)?;
+    out.extend_from_slice(header.as_bytes());
+    out.extend_from_slice(image.pixels());
     Ok(out)
 }
 
 pub fn encode_pgm(image: &Image) -> Result<Vec<u8>, ImageError> {
     match image.pixel_format() {
-        PixelFormat::Gray16Be | PixelFormat::Rgba16Be => encode_pgm16(&image.to_gray16be()?),
+        PixelFormat::Gray16Be | PixelFormat::Rgb16Be | PixelFormat::Rgba16Be => {
+            encode_pgm16(&image.to_gray16be()?)
+        }
         PixelFormat::Bilevel | PixelFormat::Gray8 | PixelFormat::Rgb8 | PixelFormat::Rgba8 => {
             encode_pgm8(&image.to_gray8()?)
         }
@@ -507,6 +525,14 @@ fn pgm_pixel_format(max_value: u32) -> PixelFormat {
     }
 }
 
+fn ppm_pixel_format(max_value: u32) -> PixelFormat {
+    if max_value <= 255 {
+        PixelFormat::Rgb8
+    } else {
+        PixelFormat::Rgb16Be
+    }
+}
+
 struct Parser<'a> {
     input: &'a [u8],
     offset: usize,
@@ -633,6 +659,30 @@ mod tests {
     }
 
     #[test]
+    fn decodes_sixteen_bit_binary_ppm() {
+        let ppm = b"P6\n2 1\n65535\n\x12\x34\x80\x00\xff\xff\x00\x00\x40\x00\x7f\xff";
+        let image = decode_ppm(ppm).unwrap();
+        assert_eq!(image.width(), 2);
+        assert_eq!(image.height(), 1);
+        assert_eq!(image.pixel_format(), PixelFormat::Rgb16Be);
+        assert_eq!(
+            image.pixels(),
+            &[0x12, 0x34, 0x80, 0x00, 0xff, 0xff, 0x00, 0x00, 0x40, 0x00, 0x7f, 0xff]
+        );
+    }
+
+    #[test]
+    fn decodes_sixteen_bit_ascii_ppm_with_scaling() {
+        let ppm = b"P3\n2 1\n1023\n0 512 1023\n1023 256 128";
+        let image = decode_ppm(ppm).unwrap();
+        assert_eq!(image.pixel_format(), PixelFormat::Rgb16Be);
+        assert_eq!(
+            image.pixels(),
+            &[0, 0, 0x80, 0x20, 0xff, 0xff, 0xff, 0xff, 0x40, 0x10, 0x20, 0x08]
+        );
+    }
+
+    #[test]
     fn decodes_ascii_pbm_with_comments() {
         let pbm = b"P1\n# generated\n4 2\n0110\n1 # black\n0 0 1\n";
         let image = decode_pbm(pbm).unwrap();
@@ -707,6 +757,24 @@ mod tests {
     }
 
     #[test]
+    fn encodes_deterministic_sixteen_bit_binary_ppm() {
+        let image = Image::new(
+            1,
+            2,
+            PixelFormat::Rgba16Be,
+            vec![
+                0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x00, 0x00, 0x80, 0x00, 0xff, 0xff,
+                0xff, 0xff,
+            ],
+        )
+        .unwrap();
+        assert_eq!(
+            encode_ppm(&image).unwrap(),
+            b"P6\n1 2\n65535\n\x12\x34\x56\x78\x9a\xbc\x00\x00\x80\x00\xff\xff"
+        );
+    }
+
+    #[test]
     fn encodes_deterministic_binary_pbm_from_gray8() {
         let image = Image::new(4, 1, PixelFormat::Gray8, vec![0, 127, 128, 255]).unwrap();
         assert_eq!(encode_pbm(&image).unwrap(), b"P4\n4 1\n\xc0");
@@ -755,15 +823,23 @@ mod tests {
     }
 
     #[test]
-    fn rejects_high_maxval_for_ppm_slice() {
+    fn rejects_out_of_range_ppm_maxval_and_sample() {
         assert_eq!(
-            decode_ppm(b"P6\n1 1\n65535\n\0\0\0\0\0\0"),
+            decode_ppm(b"P6\n1 1\n65536\n\0\0\0\0\0\0"),
             Err(ImageError::InvalidMaxValue {
                 format: "PPM",
-                max_value: 65535,
-                max_supported: 255,
+                max_value: 65536,
+                max_supported: 65535,
             })
         );
+        assert_eq!(
+            decode_ppm(b"P3\n1 1\n1023\n0 1024 1\n"),
+            Err(ImageError::InvalidHeader("PPM"))
+        );
+        assert!(matches!(
+            decode_ppm(b"P6\n1 1\n65535\n\x12"),
+            Err(ImageError::UnexpectedEof { .. })
+        ));
     }
 
     #[test]

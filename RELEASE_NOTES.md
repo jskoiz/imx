@@ -1,5 +1,26 @@
 # IMX Release Notes
 
+## IMX v0.7.0 High-Depth PPM Candidate
+
+- Adds high-depth PPM support for the existing PPM codec only: uppercase `P3`
+  and `P6` with `maxval` 256..65535 identify and decode as RGB16BE.
+- Carries forward the v0.6.0 exact uppercase `FARBFELD:`, `QOI:`, `PBM:`,
+  `PGM:`, and `PPM:` prefix behavior for identify, transcode, and same-format
+  rewrite paths.
+- Adds a core RGB16BE image representation so PPM16 can preserve precision when
+  transcoding to FARBFELD, PGM16, or same-format PPM output.
+- Encodes PPM deterministically as binary `P6`: `maxval 255` for 8-bit sources
+  and `maxval 65535` for 16-bit RGB/RGBA/GRAY sources.
+- Extends CLI, codec, golden, malformed, fuzz-smoke, benchmark, install,
+  package, archive-smoke, differential-corpus, and conformance evidence to cover
+  the PPM16 slice.
+- Keeps the boundary unchanged: no PNG/JPEG/TIFF/PAM/PFM/BMP, no stdin/stdout,
+  no `magick` alias, no full ImageMagick CLI, no delegates, no MagickCore, no
+  MagickWand, no crates.io, no Homebrew/core, no Windows, and no hosted macOS or
+  iOS GitHub Actions.
+- v0.7.0 is an implementation candidate in this source tree until a future
+  release/tap publication goal cuts and verifies published assets.
+
 ## IMX v0.6.0 Prefix Compatibility
 
 - Adds exact uppercase `FARBFELD:`, `QOI:`, `PBM:`, `PGM:`, and `PPM:`
@@ -82,12 +103,14 @@ imx <input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm> \
 - PBM input source form is not preserved; `P1` input re-encodes as binary `P4`.
 - PBM comments, whitespace, and padding-bit values are not preserved.
 - PBM output is lossy thresholding from gray/color inputs.
-- PPM support is intentionally limited to RGB8 `P3`/`P6` with `maxval <= 255`.
+- v0.5.0/v0.6.0 PPM support was limited to RGB8 `P3`/`P6` with
+  `maxval <= 255`; the v0.7.0 candidate extends this to RGB16BE PPM for
+  `maxval` 256..65535.
 - PGM supports `maxval <= 65535`; ImageMagick's nonstandard 32-bit PGM variants
   are intentionally out of scope.
 - P2 input is re-encoded as deterministic binary P5 output; source form,
   comments, and whitespace are not preserved.
-- FARBFELD to QOI/PPM is lossy because 16-bit samples are quantized to 8-bit.
+- FARBFELD to QOI is lossy because 16-bit samples are quantized to 8-bit.
 - QOI compatibility accepts case-insensitive magic and missing end markers after
   enough pixels decode.
 - Same-format rewrites are deterministic decode/re-encode operations and do not
@@ -119,4 +142,4 @@ regression reports, conformance reports, and packaged Linux release archives.
 Hosted macOS/iOS GitHub Actions are disabled after the v0.4.0 proof; macOS
 archive or tap proof must be run locally or manually after explicit approval.
 After publication, release archive smoke and Homebrew tap updates must be
-verified from the published v0.6.0 `SHA256SUMS`.
+verified from the published release `SHA256SUMS`.

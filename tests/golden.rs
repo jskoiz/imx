@@ -32,6 +32,9 @@ fn decodes_checked_in_golden_fixture_files() {
             .pixels(),
         &[0xff, 0x00, 0x00]
     );
+    let ppm16 = imx_codec_pnm::decode_ppm(b"P6\n1 1\n65535\n\x12\x34\x56\x78\x9a\xbc").unwrap();
+    assert_eq!(ppm16.pixel_format(), PixelFormat::Rgb16Be);
+    assert_eq!(ppm16.pixels(), &[0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc]);
     assert_eq!(imx_codec_pnm::decode_pbm(&pbm).unwrap().pixels(), &[0]);
     assert_eq!(
         imx_codec_pnm::decode_pbm(b"P1\n# black pixel\n1 1\n1")
@@ -105,7 +108,7 @@ fn identify_metadata_is_stable_for_supported_fields() {
     );
     assert_eq!(
         imx_codec_pnm::identify_ppm(&ppm).unwrap().stable_line(),
-        "format=PPM width=1 height=1 channels=RGB depth=8"
+        "format=PPM width=1 height=1 channels=RGB depth=16"
     );
     assert_eq!(
         imx_codec_pnm::identify_pgm(&pgm).unwrap().stable_line(),

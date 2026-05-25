@@ -50,17 +50,20 @@ run_timed standalone-ff-to-pgm "$root/target/release/imx" "$fixture_dir/gradient
 run_timed standalone-qoi-to-ff "$root/target/release/imx" "$fixture_dir/qoi-rgba-2x2.qoi" "$out_dir/standalone-qoi-rgba.ff"
 run_timed standalone-pbm-to-ff "$root/target/release/imx" "$fixture_dir/gradient-64.pbm" "$out_dir/standalone-pbm.ff"
 run_timed standalone-ppm-to-ff "$root/target/release/imx" "$fixture_dir/gradient-64.ppm" "$out_dir/standalone-ppm.ff"
+run_timed standalone-ppm16-to-ff "$root/target/release/imx" "$fixture_dir/gradient-64-ppm16.ppm" "$out_dir/standalone-ppm16.ff"
 run_timed standalone-pgm-to-ff "$root/target/release/imx" "$fixture_dir/gradient-64.pgm" "$out_dir/standalone-pgm.ff"
 
 run_timed oracle-farbfeld-decode "$oracle" "FARBFELD:$fixture_dir/gradient-64.ff" NULL:
 run_timed oracle-qoi-decode "$oracle" "QOI:$fixture_dir/gradient-64.qoi" NULL:
 run_timed oracle-pbm-decode "$oracle" "PBM:$fixture_dir/gradient-64.pbm" NULL:
 run_timed oracle-ppm-decode "$oracle" "PPM:$fixture_dir/gradient-64.ppm" NULL:
+run_timed oracle-ppm16-decode "$oracle" "PPM:$fixture_dir/gradient-64-ppm16.ppm" NULL:
 run_timed oracle-pgm-decode "$oracle" "PGM:$fixture_dir/gradient-64.pgm" NULL:
 run_timed oracle-farbfeld-encode "$oracle" -size 64x64 -depth 16 -endian MSB "RGBA:$fixture_dir/gradient-64.rgba16be" "FARBFELD:$out_dir/oracle-gradient.ff"
 run_timed oracle-qoi-encode "$oracle" -size 64x64 -depth 8 "RGBA:$fixture_dir/gradient-64.rgba" "QOI:$out_dir/oracle-gradient.qoi"
 run_timed oracle-pbm-encode "$oracle" -size 64x64 -depth 8 "GRAY:$fixture_dir/gradient-64.gray" "PBM:$out_dir/oracle-gradient.pbm"
 run_timed oracle-ppm-encode "$oracle" -size 64x64 -depth 8 "RGB:$fixture_dir/gradient-64.rgb" "PPM:$out_dir/oracle-gradient.ppm"
+run_timed oracle-ppm16-encode "$oracle" -size 64x64 -depth 16 -endian MSB "RGB:$fixture_dir/gradient-64.rgb16be" "PPM:$out_dir/oracle-gradient-ppm16.ppm"
 run_timed oracle-pgm-encode "$oracle" -size 64x64 -depth 8 "GRAY:$fixture_dir/gradient-64.gray" "PGM:$out_dir/oracle-gradient.pgm"
 run_timed oracle-ff-to-qoi "$oracle" "FARBFELD:$fixture_dir/gradient-64.ff" "QOI:$out_dir/oracle-gradient-transcode.qoi"
 run_timed oracle-ff-to-pbm "$oracle" "FARBFELD:$fixture_dir/gradient-64.ff" "PBM:$out_dir/oracle-gradient-transcode.pbm"
@@ -69,6 +72,7 @@ run_timed oracle-ff-to-pgm "$oracle" "FARBFELD:$fixture_dir/gradient-64.ff" "PGM
 run_timed oracle-qoi-to-ff "$oracle" "QOI:$fixture_dir/qoi-rgba-2x2.qoi" "FARBFELD:$out_dir/oracle-qoi-rgba.ff"
 run_timed oracle-pbm-to-ff "$oracle" "PBM:$fixture_dir/gradient-64.pbm" "FARBFELD:$out_dir/oracle-pbm.ff"
 run_timed oracle-ppm-to-ff "$oracle" "PPM:$fixture_dir/gradient-64.ppm" "FARBFELD:$out_dir/oracle-ppm.ff"
+run_timed oracle-ppm16-to-ff "$oracle" "PPM:$fixture_dir/gradient-64-ppm16.ppm" "FARBFELD:$out_dir/oracle-ppm16.ff"
 run_timed oracle-pgm-to-ff "$oracle" "PGM:$fixture_dir/gradient-64.pgm" "FARBFELD:$out_dir/oracle-pgm.ff"
 
 if command -v shasum >/dev/null 2>&1; then
