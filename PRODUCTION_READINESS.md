@@ -14,8 +14,8 @@ local/manual only unless explicitly approved in the current turn.
   rewrites for the existing FARBFELD/QOI/PBM/PGM/PPM slice when input and
   output paths are different.
 - Published v0.4.0 release targets are Linux x86_64, macOS arm64, and macOS
-  x86_64. The planned v0.5.0 hosted release targets are Linux x86_64 and Linux
-  arm64 only, without hosted macOS/iOS Actions.
+  x86_64. The v0.5.0 hosted release targets are Linux x86_64 and Linux arm64
+  only, without hosted macOS/iOS Actions.
 - ImageMagick remains an oracle for tests and benchmarks only; shipped binaries
   must not link to ImageMagick, MagickCore, MagickWand, delegates, modules,
   `policy.xml`, or ImageMagick's build system.
@@ -36,14 +36,14 @@ local/manual only unless explicitly approved in the current turn.
 | Bench/RSS thresholds | `scripts/bench-release.sh` | `target/release-bench-*/threshold-summary.json` | throughput and process/library RSS sanity budgets | required before tag |
 | Bench regression | `scripts/bench-regression.sh` | `target/bench-regression-*/regression-report.json` | v0.5.0 vs v0.4.0 throughput/RSS baseline; throughput ratios are tracked as warnings, RSS growth is enforced | required before tag |
 | Source install verify | `scripts/verify-install.sh` | `target/install-verify/install-summary.json` | fresh checkout install plus supported identify/transcode smoke | required before tag |
-| Package/SHA/no-link | `scripts/package-release.sh` plus hosted Linux workflow; local macOS or explicitly approved manual evidence for macOS targets | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive smoke, no ImageMagick linkage for each claimed platform; post-v0.4.0 workflow prepares Linux arm64 preview artifacts | required before publishing that platform archive |
+| Package/SHA/no-link | `scripts/package-release.sh` plus hosted Linux workflow; local macOS or explicitly approved manual evidence for macOS targets | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive smoke, no ImageMagick linkage for each claimed platform; v0.5.0 hosted automation prepares Linux x86_64 and Linux arm64 release artifacts | required before publishing that platform archive |
 | Published archive smoke | `scripts/verify-release-archive.sh` | `target/release-archive-smoke/<target>/summary.json` | downloads the selected GitHub release archive, verifies that archive against aggregate SHA256SUMS, no-link, identify/transcode smoke; hosted CI covers Linux only | required after release publish |
-| Homebrew tap smoke | `brew install jskoiz/imx/imx` and `brew test jskoiz/imx/imx` | `jskoiz/homebrew-imx` Linux formula/archive workflow plus local macOS or explicitly approved manual terminal output | formula URL/SHA fetch, binary version check, PPM identify, PPM-to-QOI smoke, and PPM same-format rewrite smoke; local/manual Homebrew install proof for tap claims | required for tap claim; no hosted macOS tap smoke is claimed |
+| Homebrew tap smoke | `brew install jskoiz/imx/imx` and `brew test jskoiz/imx/imx` | `jskoiz/homebrew-imx` Linux formula/archive workflow plus local macOS or explicitly approved manual terminal output | formula URL/SHA fetch, binary version check, PPM identify, PPM-to-QOI smoke, and FARBFELD/QOI/PBM/PGM/PPM same-format rewrite smoke; local/manual Homebrew install proof for tap claims | required for tap claim; no hosted macOS tap smoke is claimed |
 | Conformance report | `scripts/generate-conformance-report.sh` | `CONFORMANCE_REPORT.md`, `conformance-summary.json` | generated from CI evidence and attached to the release | required release asset |
 
 ## Local Verification
 
-Candidate commands:
+Release verification commands:
 
 ```sh
 IMAGEMAGICK_MAGICK=/Users/jk/Desktop/imx/target/local-tools/magick-oracle \

@@ -11,7 +11,8 @@ used only as an external oracle in compatibility tests and benchmarks.
 
 ## Install
 
-Install the latest published release from the Homebrew tap:
+After the tap formula is updated from the published release checksums, install
+the latest tap release:
 
 ```sh
 brew tap jskoiz/imx
@@ -50,8 +51,9 @@ be:
 https://github.com/jskoiz/imx/releases/tag/v0.5.0
 ```
 
-The release-attached `imx.rb` is the formula source published through the
-`jskoiz/homebrew-imx` tap. Linux arm64 tap support requires a published
+The release-attached `imx.rb` is the formula source used to update the
+`jskoiz/homebrew-imx` tap after the published `SHA256SUMS` and Linux-only tap
+smoke pass. Linux arm64 tap support requires a published
 `aarch64-unknown-linux-gnu` archive URL and matching SHA generated from that
 release's `SHA256SUMS`, plus Linux-only tap smoke verification of the formula
 entry.
@@ -200,13 +202,14 @@ Verify published Linux release archives after GitHub release publication:
 IMX_VERSION=v0.5.0 IMX_RELEASE_TARGET=x86_64-unknown-linux-gnu ./scripts/verify-release-archive.sh
 ```
 
-Verify the Homebrew tap install smoke:
+Verify the v0.5.0 Homebrew tap install smoke after the tap update lands:
 
 ```sh
 brew tap jskoiz/imx
 brew install imx
 brew test imx
 imx --version
+test "$(imx --version)" = "imx 0.5.0"
 ```
 
 `brew test` verifies installation only. Compatibility remains covered by the
