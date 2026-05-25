@@ -17,8 +17,7 @@ delegates, MagickCore, or MagickWand.
 
 ## Install
 
-After the tap formula is updated from the published v0.6.0 checksums, install
-the latest tap release:
+Install the published v0.6.0 tap release:
 
 ```sh
 brew tap jskoiz/imx
@@ -34,7 +33,7 @@ Homebrew/core formula.
 Hosted GitHub Actions for the tap are Linux-only; macOS install proof must be
 run locally or manually after explicit approval.
 
-After v0.6.0 release assets are published, install a release archive directly:
+Install the published v0.6.0 release archive directly:
 
 ```sh
 IMX_VERSION=v0.6.0
@@ -57,11 +56,9 @@ https://github.com/jskoiz/imx/releases/tag/v0.6.0
 ```
 
 The release-attached `imx.rb` is the formula source used to update the
-`jskoiz/homebrew-imx` tap after the published `SHA256SUMS` and Linux-only tap
-smoke pass. Linux arm64 tap support requires a published
-`aarch64-unknown-linux-gnu` archive URL and matching SHA generated from that
-release's `SHA256SUMS`, plus Linux-only tap smoke verification of the formula
-entry.
+`jskoiz/homebrew-imx` tap from the published `SHA256SUMS`. For v0.6.0, Linux
+x86_64 and Linux arm64 tap blocks are generated from the release checksums and
+verified by Linux-only tap smoke.
 
 Or install v0.6.0 from source:
 
@@ -214,7 +211,7 @@ Verify published Linux release archives after GitHub release publication:
 IMX_VERSION=v0.6.0 IMX_RELEASE_TARGET=x86_64-unknown-linux-gnu ./scripts/verify-release-archive.sh
 ```
 
-Verify the v0.6.0 Homebrew tap install smoke after the tap update lands:
+Verify the v0.6.0 Homebrew tap install smoke:
 
 ```sh
 brew tap jskoiz/imx

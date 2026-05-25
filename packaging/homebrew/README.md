@@ -17,11 +17,9 @@ Tap updates are automation for the `jskoiz/homebrew-imx` tap only. They must not
 trigger hosted macOS or iOS GitHub Actions; macOS tap proof remains local/manual
 unless explicitly approved in the current turn.
 
-Linux arm64 may be added to the tap only after `Formula/imx.rb` contains a
-published Linux arm64 release archive `url` and matching `sha256` generated from
-the release `SHA256SUMS`, and the Linux-only tap smoke fetches and verifies that
-formula entry. Until then, Linux arm64 is a release-archive preview only, not a
-tap-supported platform.
+For v0.6.0, the generated tap formula includes Linux x86_64 and Linux arm64
+blocks from the published `SHA256SUMS`, and Linux-only tap smoke verifies both
+archive entries before support is claimed.
 
 `brew test` verifies installation only. Compatibility remains covered by the
 IMX differential corpus, fuzz, benchmark, and conformance gates; macOS tap

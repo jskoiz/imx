@@ -1,10 +1,10 @@
 # IMX Compatibility Readiness
 
-Status: v0.6.0 is the current production-candidate release surface. It adds
+Status: v0.6.0 is the canonical production-candidate release surface. It adds
 exact format-prefix parsing for the existing five formats only, on top of the
-v0.5.0 same-format rewrite surface. Hosted release proof is Linux-only;
-Homebrew tap support is claimed only after the tap formula is regenerated from
-the published v0.6.0 `SHA256SUMS` and Linux tap smoke passes.
+v0.5.0 same-format rewrite surface. Hosted release proof is Linux-only; the
+Homebrew tap formula is regenerated from the published v0.6.0 `SHA256SUMS` and
+verified by Linux tap smoke before support is claimed.
 Automatic hosted macOS/iOS GitHub Actions remain disabled; macOS proof is
 local/manual only unless explicitly approved in the current turn.
 

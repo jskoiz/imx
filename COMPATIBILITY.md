@@ -221,5 +221,6 @@ clamp.
   MagickCore API, or MagickWand API.
 - No format beyond FARBFELD, QOI, PBM, PGM, and PPM.
 - No Windows, crates.io, Homebrew/core, or package-manager distribution beyond
-  the `jskoiz/imx` Homebrew tap is claimed for this slice. Linux arm64 remains
-  gated on published archive and tap smoke proof.
+  the `jskoiz/imx` Homebrew tap is claimed for this slice. v0.6.0 Linux arm64
+  support is claimed only for the published archive and tap block verified from
+  release `SHA256SUMS` by Linux-only tap smoke.
