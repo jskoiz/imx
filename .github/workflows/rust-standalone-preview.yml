@@ -37,6 +37,11 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
+      - name: Check hosted Apple Actions guard
+        run: |
+          set -euo pipefail
+          bash scripts/check-no-hosted-apple-actions.sh
+
       - name: Prepare Rust toolchain
         run: |
           set -euo pipefail
@@ -141,17 +146,16 @@ jobs:
           - name: linux-x86_64
             runner: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
-          - name: macos-aarch64
-            runner: macos-15
-            target: aarch64-apple-darwin
-          - name: macos-x86_64
-            runner: macos-15-intel
-            target: x86_64-apple-darwin
 
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
+
+      - name: Check hosted Apple Actions guard
+        run: |
+          set -euo pipefail
+          bash scripts/check-no-hosted-apple-actions.sh
 
       - name: Package standalone preview
         run: |
@@ -161,13 +165,8 @@ jobs:
       - name: Verify standalone binary does not link ImageMagick
         run: |
           set -euo pipefail
-          if [[ "$RUNNER_OS" == "macOS" ]]; then
-            otool -L target/release/imx
-            ! otool -L target/release/imx | grep -E 'Magick(Core|Wand)|ImageMagick'
-          else
-            ldd target/release/imx
-            ! ldd target/release/imx | grep -E 'Magick(Core|Wand)|ImageMagick'
-          fi
+          ldd target/release/imx
+          ! ldd target/release/imx | grep -E 'Magick(Core|Wand)|ImageMagick'
 
       - name: Upload release artifact
         uses: actions/upload-artifact@v7
@@ -188,6 +187,11 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Check hosted Apple Actions guard
+        run: |
+          set -euo pipefail
+          bash scripts/check-no-hosted-apple-actions.sh
+
       - name: Download packaged release artifacts
         uses: actions/download-artifact@v7
         with:
@@ -206,14 +210,6 @@ jobs:
           set -euo pipefail
           cd target/release-upload
           shasum -a 256 *.tar.gz > SHA256SUMS
-
-      - name: Generate Homebrew formula draft
-        run: |
-          set -euo pipefail
-          bash scripts/generate-homebrew-formula.sh \
-            "$GITHUB_REF_NAME" \
-            target/release-upload/SHA256SUMS \
-            target/release-upload/imx.rb
 
       - name: Generate release conformance report
         run: |
@@ -259,17 +255,16 @@ jobs:
           - name: linux-x86_64
             runner: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
-          - name: macos-aarch64
-            runner: macos-15
-            target: aarch64-apple-darwin
-          - name: macos-x86_64
-            runner: macos-15-intel
-            target: x86_64-apple-darwin
 
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
+
+      - name: Check hosted Apple Actions guard
+        run: |
+          set -euo pipefail
+          bash scripts/check-no-hosted-apple-actions.sh
 
       - name: Verify published release archive
         run: |

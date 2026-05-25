@@ -23,6 +23,9 @@ This uses the `jskoiz/homebrew-imx` tap formula for the prebuilt v0.4.0
 archive. It supports macOS arm64, macOS x86_64, and Linux x86_64. It is not a
 Homebrew/core formula.
 
+Hosted GitHub Actions for the tap are Linux-only; macOS install proof must be
+run locally or manually after explicit approval.
+
 Or install the release archive directly:
 
 ```sh
@@ -179,7 +182,7 @@ Verify source installation from a fresh checkout:
 IMX_INSTALL_REPO_URL=https://github.com/jskoiz/imx.git ./scripts/verify-install.sh
 ```
 
-Verify published release archives after GitHub release publication:
+Verify published Linux release archives after GitHub release publication:
 
 ```sh
 IMX_VERSION=v0.4.0 IMX_RELEASE_TARGET=x86_64-unknown-linux-gnu ./scripts/verify-release-archive.sh
@@ -199,11 +202,14 @@ CI differential corpus, fuzz, benchmark, and conformance gates.
 
 ## Evidence
 
-The CI workflow builds ImageMagick as an external oracle, runs release gates,
-runs fuzz targets, verifies install from a fresh checkout, packages Linux and
-macOS release archives, checks that binaries do not link ImageMagick, generates
-the release conformance report, and downloads the published release assets back
-for archive smoke tests.
+The hosted CI workflow builds ImageMagick as an external oracle, runs release
+gates, runs fuzz targets, verifies install from a fresh checkout, packages the
+Linux release archive, checks hosted-built binaries for ImageMagick linkage,
+generates the release conformance report, and downloads the published Linux
+asset back for archive smoke. macOS archive and tap proof must be recorded
+locally or through an explicitly approved manual run before new macOS claims are
+made. Hosted GitHub Actions must not run macOS or iOS jobs without explicit
+approval in the current turn.
 
 Benchmark runs emit:
 
@@ -218,9 +224,12 @@ Benchmark runs emit:
 Tag releases additionally attach:
 
 - `SHA256SUMS`
-- `imx.rb` Homebrew tap formula snapshot
 - `CONFORMANCE_REPORT.md`
 - `conformance-summary.json`
+
+The v0.4.0 release also attached the `imx.rb` Homebrew tap formula snapshot.
+Future tap updates are handled in `jskoiz/homebrew-imx` without hosted macOS
+GitHub Actions.
 
 See [COMPATIBILITY.md](COMPATIBILITY.md) for the exact behavior contract and
 [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) for current release evidence,

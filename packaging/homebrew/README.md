@@ -13,7 +13,16 @@ arm64, macOS x86_64, or Linux x86_64, then runs a formula test that identifies
 PPM input and transcodes it to QOI.
 
 `brew test` verifies installation only. Compatibility remains covered by the
-CI differential corpus, fuzz, benchmark, and conformance gates.
+IMX differential corpus, fuzz, benchmark, and conformance gates; macOS tap
+support requires recorded local macOS or explicitly approved manual smoke
+evidence.
+
+Before pushing tap or workflow changes, verify that hosted workflows do not
+reference macOS or iOS runners:
+
+```sh
+bash scripts/check-no-hosted-apple-actions.sh
+```
 
 The formula must be regenerated for every release from that release's aggregate
 `SHA256SUMS`.

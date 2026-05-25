@@ -13,12 +13,6 @@ if [[ "$version" != v* ]]; then
   version="v$version"
 fi
 
-targets=(
-  "x86_64-unknown-linux-gnu"
-  "aarch64-apple-darwin"
-  "x86_64-apple-darwin"
-)
-
 detect_target() {
   local os arch
   os="$(uname -s)"
@@ -71,22 +65,25 @@ if [[ -n "${IMX_RELEASE_DIR:-}" ]]; then
     echo "error: selected archive is missing from IMX_RELEASE_DIR: $archive" >&2
     exit 1
   fi
-  cp "$IMX_RELEASE_DIR"/*.tar.gz "$download_dir/"
+  cp "$IMX_RELEASE_DIR/$archive" "$download_dir/"
 else
   download "$base_url/SHA256SUMS" "$download_dir/SHA256SUMS"
-  for release_target in "${targets[@]}"; do
-    download \
-      "$base_url/imx-preview-${version#v}-$release_target.tar.gz" \
-      "$download_dir/imx-preview-${version#v}-$release_target.tar.gz"
-  done
+  download "$base_url/$archive" "$download_dir/$archive"
 fi
 
 (
   cd "$download_dir"
+  expected_sha="$(
+    awk -v archive="$archive" '$2 == archive { print $1 }' SHA256SUMS
+  )"
+  if [[ -z "$expected_sha" ]]; then
+    echo "error: SHA256SUMS does not contain selected archive: $archive" >&2
+    exit 1
+  fi
   if command -v shasum >/dev/null 2>&1; then
-    shasum -a 256 -c SHA256SUMS
+    printf '%s  %s\n' "$expected_sha" "$archive" | shasum -a 256 -c -
   elif command -v sha256sum >/dev/null 2>&1; then
-    sha256sum -c SHA256SUMS
+    printf '%s  %s\n' "$expected_sha" "$archive" | sha256sum -c -
   else
     echo "error: shasum or sha256sum is required" >&2
     exit 2

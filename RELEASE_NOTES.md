@@ -80,7 +80,6 @@ brew test jskoiz/imx/imx
 
 The GitHub Actions preview workflow uploads generated fixtures, fuzz results,
 fresh-install evidence, corpus differentials, benchmark evidence, benchmark
-regression reports, conformance reports, and packaged release archives. Tagged
-releases publish native Linux and macOS archives automatically, then download
-the published assets back for checksum, no-link, identify, and transcode smoke
-verification.
+regression reports, conformance reports, and packaged Linux release archives.
+Hosted macOS/iOS GitHub Actions are disabled after the v0.4.0 proof; macOS
+archive or tap proof must be run locally or manually after explicit approval.

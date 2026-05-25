@@ -1,7 +1,9 @@
 # IMX v0.4.0 Public Install Readiness
 
 Status: v0.4.0 public install report after GitHub Release archive smoke and
-Homebrew tap install/test verification.
+Homebrew tap install/test verification. Automatic hosted macOS/iOS GitHub
+Actions are disabled after the v0.4.0 proof; macOS proof is local/manual only
+unless explicitly approved in the current turn.
 
 ## Implemented Behavior
 
@@ -13,9 +15,11 @@ Homebrew tap install/test verification.
 - ImageMagick remains an oracle for tests and benchmarks only; shipped binaries
   must not link to ImageMagick, MagickCore, MagickWand, delegates, modules,
   `policy.xml`, or ImageMagick's build system.
-- Public distribution artifacts are the three release tarballs, aggregate
-  `SHA256SUMS`, `imx.rb` formula published through the `jskoiz/homebrew-imx` tap,
-  `CONFORMANCE_REPORT.md`, and `conformance-summary.json`.
+- Public v0.4.0 distribution artifacts are the three release tarballs,
+  aggregate `SHA256SUMS`, `imx.rb` formula published through the
+  `jskoiz/homebrew-imx` tap, `CONFORMANCE_REPORT.md`, and
+  `conformance-summary.json`. Future hosted tag automation is Linux-only unless
+  a macOS run is explicitly approved in the current turn.
 
 ## Evidence Table
 
@@ -28,9 +32,9 @@ Homebrew tap install/test verification.
 | Bench/RSS thresholds | `scripts/bench-release.sh` | `target/release-bench-*/threshold-summary.json` | throughput and process/library RSS sanity budgets | required before tag |
 | Bench regression | `scripts/bench-regression.sh` | `target/bench-regression-*/regression-report.json` | current candidate vs v0.3.0 throughput/RSS baseline; throughput ratios are tracked as warnings, RSS growth is enforced | required before tag |
 | Source install verify | `scripts/verify-install.sh` | `target/install-verify/install-summary.json` | fresh checkout install plus supported identify/transcode smoke | required before tag |
-| Package/SHA/no-link | `scripts/package-release.sh` and release workflow | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive smoke, no ImageMagick linkage | required before tag |
-| Published archive smoke | `scripts/verify-release-archive.sh` | `target/release-archive-smoke/<target>/summary.json` | downloads GitHub release assets, verifies aggregate SHA256SUMS, no-link, identify/transcode smoke | required after release publish |
-| Homebrew tap smoke | `brew install jskoiz/imx/imx` and `brew test jskoiz/imx/imx` | `jskoiz/homebrew-imx` workflow and local terminal output | formula SHA fetch, binary install, `imx 0.4.0` version check, PPM identify, PPM-to-QOI smoke | required for tap claim |
+| Package/SHA/no-link | `scripts/package-release.sh` plus hosted Linux workflow; local macOS or explicitly approved manual evidence for macOS targets | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive smoke, no ImageMagick linkage for each claimed platform | required before publishing that platform archive |
+| Published archive smoke | `scripts/verify-release-archive.sh` | `target/release-archive-smoke/<target>/summary.json` | downloads the selected GitHub release archive, verifies that archive against aggregate SHA256SUMS, no-link, identify/transcode smoke; hosted CI covers Linux only | required after release publish |
+| Homebrew tap smoke | `brew install jskoiz/imx/imx` and `brew test jskoiz/imx/imx` | `jskoiz/homebrew-imx` Linux workflow plus local macOS or explicitly approved manual terminal output | formula SHA fetch, binary install, `imx 0.4.0` version check, PPM identify, PPM-to-QOI smoke | required for tap claim; no hosted macOS tap smoke is claimed |
 | Conformance report | `scripts/generate-conformance-report.sh` | `CONFORMANCE_REPORT.md`, `conformance-summary.json` | generated from CI evidence and attached to the release | required release asset |
 
 ## Local Verification
@@ -63,7 +67,7 @@ brew test imx
 imx --version
 ```
 
-After the `v0.4.0` release is published, each supported platform must run:
+After a release is published, each claimed platform must run:
 
 ```sh
 IMX_VERSION=v0.4.0 IMX_RELEASE_TARGET=<target> \
@@ -77,21 +81,25 @@ IMX_VERSION=v0.4.0 IMX_RELEASE_TARGET=<target> \
 - Release archive smoke script: `scripts/verify-release-archive.sh`.
 - Homebrew formula generator: `scripts/generate-homebrew-formula.sh`.
 - Conformance report generator: `scripts/generate-conformance-report.sh`.
+- Hosted Actions guard: `scripts/check-no-hosted-apple-actions.sh`.
 - CI workflow: `.github/workflows/rust-standalone-preview.yml`.
 - Scheduled fuzz workflow: `.github/workflows/rust-fuzz-scheduled.yml`.
-- Homebrew tap workflow: `jskoiz/homebrew-imx/.github/workflows/tap-smoke.yml`.
+- Homebrew tap workflow: `jskoiz/homebrew-imx/.github/workflows/tap-smoke.yml`
+  for Linux-only hosted smoke, plus local macOS or explicitly approved manual
+  smoke when making macOS tap claims.
 - Branch, pull-request, and tag CI build ImageMagick as an external oracle, run
   IMX release gates, generate differential corpus evidence, generate structured
   benchmark evidence, record v0.3.0 throughput ratios and enforce RSS budgets,
-  package release
-  artifacts, verify fresh-checkout installation, generate conformance reports,
-  and upload evidence artifacts.
-- Tag pushes matching `v*` run the preview gates, build native Linux/macOS
-  release archives, generate aggregate checksums, generate a Homebrew formula
-  snapshot, attach the conformance report, publish the GitHub Release, then
-  download the published assets back for platform smoke tests. The tap formula
-  is published through `jskoiz/homebrew-imx`; tap updates are committed there
-  from the generated formula rather than pushed by the tag workflow.
+  package Linux release artifacts, verify fresh-checkout installation,
+  generate conformance reports, and upload evidence artifacts.
+- Tag pushes matching `v*` run the preview gates, build the native Linux release
+  archive, generate aggregate checksums, attach the conformance report, publish
+  the GitHub Release, then download the published Linux asset back for smoke
+  tests. The tap formula is published through `jskoiz/homebrew-imx`; tap updates
+  are committed there without hosted macOS GitHub Actions.
+- macOS archive or tap proof must run locally or manually after explicit
+  approval in the current turn; normal pushes, tags, schedules, and tap updates
+  must not start hosted macOS or iOS runners.
 - Release archives are written with deterministic tar/gzip metadata, sorted
   entries, fixed ownership, fixed mtimes, stable file modes, and aggregate
   `SHA256SUMS` entries.
@@ -130,9 +138,9 @@ IMX_VERSION=v0.4.0 IMX_RELEASE_TARGET=<target> \
   cargo-fuzz smoke runs.
 - CLI writes remain atomic via temp file plus rename.
 - Release archive smoke tests verify the installed binary from the archive, not
-  only a source checkout.
+  only a source checkout, on each platform where evidence is recorded.
 - Homebrew tap smoke verifies formula installation only; compatibility remains
-  covered by CI differential corpus, fuzz, benchmark, and conformance gates.
+  covered by differential corpus, fuzz, benchmark, and conformance gates.
 - Scheduled fuzz retains crash artifacts under the uploaded fuzz evidence.
 
 ## Next Smallest Milestone
