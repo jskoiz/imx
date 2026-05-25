@@ -8,3 +8,4 @@ reviewable in text diffs.
 - `ppm-1x1-red.hex`: 1x1 binary `P6` RGB8 red pixel. ASCII `P3`
   coverage is inline in the golden and differential tests because it is already
   text-readable.
+- `pgm-1x1-gray.hex`: 1x1 binary `P5` GRAY8 pixel with value `0x80`.

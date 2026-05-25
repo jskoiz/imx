@@ -11,7 +11,7 @@ cargo-fuzz = true
 
 [dependencies]
 imx-codec-farbfeld = { path = "../crates/codecs/farbfeld" }
-imx-codec-ppm = { path = "../crates/codecs/ppm" }
+imx-codec-pnm = { path = "../crates/codecs/pnm" }
 imx-codec-qoi = { path = "../crates/codecs/qoi" }
 libfuzzer-sys = "0.4"
 
@@ -22,8 +22,8 @@ test = false
 doc = false
 
 [[bin]]
-name = "ppm_decode"
-path = "fuzz_targets/ppm_decode.rs"
+name = "pnm_decode"
+path = "fuzz_targets/pnm_decode.rs"
 test = false
 doc = false
 

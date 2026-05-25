@@ -46,35 +46,35 @@ dependencies = [
 
 [[package]]
 name = "imx-codec-farbfeld"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "imx-core",
 ]
 
 [[package]]
-name = "imx-codec-ppm"
-version = "0.1.0"
+name = "imx-codec-pnm"
+version = "0.2.0"
 dependencies = [
  "imx-core",
 ]
 
 [[package]]
 name = "imx-codec-qoi"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "imx-core",
 ]
 
 [[package]]
 name = "imx-core"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "imx-fuzz"
 version = "0.0.0"
 dependencies = [
  "imx-codec-farbfeld",
- "imx-codec-ppm",
+ "imx-codec-pnm",
  "imx-codec-qoi",
  "libfuzzer-sys",
 ]

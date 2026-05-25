@@ -6,7 +6,8 @@ cd "$root"
 
 version="$(cargo metadata --no-deps --format-version 1 | sed -n 's/.*"name":"imx-preview","version":"\([^"]*\)".*/\1/p')"
 if [[ -z "$version" ]]; then
-  version="0.1.0"
+  echo "error: failed to read imx-preview package version" >&2
+  exit 1
 fi
 target="$(rustc -vV | sed -n 's/^host: //p')"
 artifact_dir="$root/target/release-artifacts"

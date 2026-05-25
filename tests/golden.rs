@@ -11,6 +11,7 @@ fn decodes_checked_in_golden_fixture_files() {
     let farbfeld = hex_fixture(include_str!("fixtures/farbfeld-1x1-red-half-alpha.hex"));
     let qoi = hex_fixture(include_str!("fixtures/qoi-1x1-red-half-alpha.hex"));
     let ppm = hex_fixture(include_str!("fixtures/ppm-1x1-red.hex"));
+    let pgm = hex_fixture(include_str!("fixtures/pgm-1x1-gray.hex"));
 
     assert_eq!(
         imx_codec_farbfeld::decode(&farbfeld).unwrap().pixels(),
@@ -21,14 +22,21 @@ fn decodes_checked_in_golden_fixture_files() {
         &[0xff, 0x00, 0x00, 0x80]
     );
     assert_eq!(
-        imx_codec_ppm::decode(&ppm).unwrap().pixels(),
+        imx_codec_pnm::decode_ppm(&ppm).unwrap().pixels(),
         &[0xff, 0x00, 0x00]
     );
     assert_eq!(
-        imx_codec_ppm::decode(b"P3\n# red pixel\n1 1\n255\n255 0 0")
+        imx_codec_pnm::decode_ppm(b"P3\n# red pixel\n1 1\n255\n255 0 0")
             .unwrap()
             .pixels(),
         &[0xff, 0x00, 0x00]
+    );
+    assert_eq!(imx_codec_pnm::decode_pgm(&pgm).unwrap().pixels(), &[0x80]);
+    assert_eq!(
+        imx_codec_pnm::decode_pgm(b"P2\n# gray pixel\n1 1\n31\n15")
+            .unwrap()
+            .pixels(),
+        &[0x7b]
     );
 }
 
@@ -69,7 +77,9 @@ fn identify_metadata_is_stable_for_supported_fields() {
     .unwrap();
     let ff = imx_codec_farbfeld::encode(&image).unwrap();
     let qoi = imx_codec_qoi::encode_image(&image, imx_codec_qoi::QOI_SRGB).unwrap();
-    let ppm = imx_codec_ppm::encode(&image).unwrap();
+    let ppm = imx_codec_pnm::encode_ppm(&image).unwrap();
+    let gray = Image::new(1, 1, PixelFormat::Gray8, vec![0x80]).unwrap();
+    let pgm = imx_codec_pnm::encode_pgm(&gray).unwrap();
 
     assert_eq!(
         imx_codec_farbfeld::identify(&ff).unwrap().stable_line(),
@@ -80,7 +90,11 @@ fn identify_metadata_is_stable_for_supported_fields() {
         "format=QOI width=1 height=1 channels=RGBA depth=8"
     );
     assert_eq!(
-        imx_codec_ppm::identify(&ppm).unwrap().stable_line(),
+        imx_codec_pnm::identify_ppm(&ppm).unwrap().stable_line(),
         "format=PPM width=1 height=1 channels=RGB depth=8"
+    );
+    assert_eq!(
+        imx_codec_pnm::identify_pgm(&pgm).unwrap().stable_line(),
+        "format=PGM width=1 height=1 channels=GRAY depth=8"
     );
 }

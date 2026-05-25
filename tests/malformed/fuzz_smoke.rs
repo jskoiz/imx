@@ -19,8 +19,11 @@ fn decode_fuzz_smoke_does_not_panic_or_allocate_unboundedly() {
         let qoi = std::panic::catch_unwind(|| imx_codec_qoi::decode(&bytes));
         assert!(qoi.is_ok(), "QOI decode panicked at len {len}");
 
-        let ppm = std::panic::catch_unwind(|| imx_codec_ppm::decode(&bytes));
+        let ppm = std::panic::catch_unwind(|| imx_codec_pnm::decode_ppm(&bytes));
         assert!(ppm.is_ok(), "PPM decode panicked at len {len}");
+
+        let pgm = std::panic::catch_unwind(|| imx_codec_pnm::decode_pgm(&bytes));
+        assert!(pgm.is_ok(), "PGM decode panicked at len {len}");
     }
 }
 
@@ -39,5 +42,16 @@ fn structured_truncation_fuzz_smoke_does_not_panic() {
     for len in 0..farbfeld.len() {
         let result = std::panic::catch_unwind(|| imx_codec_farbfeld::decode(&farbfeld[..len]));
         assert!(result.is_ok(), "farbfeld truncation panicked at len {len}");
+    }
+
+    for pgm in [
+        b"P2\n2 2\n15\n0 7 15 3\n".as_slice(),
+        b"P5\n2 2\n255\n\x00\x7f\x80\xff".as_slice(),
+        b"P5\n2 2\n65535\n\x00\x00\x7f\xff\x80\x00\xff\xff".as_slice(),
+    ] {
+        for len in 0..pgm.len() {
+            let result = std::panic::catch_unwind(|| imx_codec_pnm::decode_pgm(&pgm[..len]));
+            assert!(result.is_ok(), "PGM truncation panicked at len {len}");
+        }
     }
 }

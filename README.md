@@ -1,7 +1,7 @@
 # IMX Developer Preview
 
 IMX is a standalone Rust image tool built one ImageMagick-compatible slice at a
-time. The current `v0.1.0` preview supports FARBFELD, QOI, and PPM
+time. The current `v0.2.0` preview supports FARBFELD, QOI, PPM, and PGM
 identify/transcode workflows through the `imx` binary.
 
 IMX is not an ImageMagick fork and does not link to MagickCore, MagickWand,
@@ -13,7 +13,7 @@ used only as an external oracle in compatibility tests and benchmarks.
 Download the Linux release archive from:
 
 ```text
-https://github.com/jskoiz/imx/releases/tag/v0.1.0
+https://github.com/jskoiz/imx/releases/tag/v0.2.0
 ```
 
 Or install from source:
@@ -36,18 +36,25 @@ imx --version
 imx identify input.ff
 imx identify input.qoi
 imx identify input.ppm
+imx identify input.pgm
 imx input.ff output.qoi
 imx input.ff output.ppm
+imx input.ff output.pgm
 imx input.qoi output.ff
 imx input.qoi output.ppm
+imx input.qoi output.pgm
 imx input.ppm output.ff
 imx input.ppm output.qoi
+imx input.ppm output.pgm
+imx input.pgm output.ff
+imx input.pgm output.qoi
+imx input.pgm output.ppm
 ```
 
 Successful `identify` prints one stable key-value line:
 
 ```text
-format=<FORMAT> width=<WIDTH> height=<HEIGHT> channels=<RGB|RGBA> depth=<8|16>
+format=<FORMAT> width=<WIDTH> height=<HEIGHT> channels=<GRAY|RGB|RGBA> depth=<8|16>
 ```
 
 Successful transcodes are silent and write the output file. Data and IO
@@ -59,17 +66,22 @@ failures exit `1`; unsupported command shapes exit `2`.
 - QOI: RGB8/RGBA8 identify/decode/encode.
 - PPM: ASCII `P3` and binary `P6` RGB8 decode; deterministic binary `P6`
   encode.
+- PGM: ASCII `P2` and binary `P5` GRAY8/GRAY16BE decode; deterministic binary
+  `P5` encode.
 
 Known lossy paths:
 
 - FARBFELD to QOI/PPM quantizes 16-bit samples to 8-bit.
-- QOI/PPM to FARBFELD expands 8-bit samples to 16-bit by byte replication.
-- Any output to PPM drops alpha.
+- FARBFELD to PGM converts RGBA16BE to GRAY16BE using Rec.709 luma and ignores
+  alpha.
+- QOI/PPM/PGM to FARBFELD expands 8-bit samples to 16-bit by byte replication
+  and adds opaque alpha where needed.
+- Any output to PPM drops alpha and any output to PGM drops color/alpha.
 
-Unsupported by design in `v0.1.0`: full ImageMagick CLI parsing, same-format
+Unsupported by design in `v0.2.0`: full ImageMagick CLI parsing, same-format
 rewrites, stdin/stdout streaming, format prefixes such as `QOI:out.qoi`,
 delegates, profiles, color management, resizing/transforms, MagickCore,
-MagickWand, PBM, PGM, PAM, PFM, high-depth PPM, PNG, and BMP.
+MagickWand, PBM, PAM, PFM, high-depth PPM, PNG, and BMP.
 
 ## Safety Posture
 
@@ -79,8 +91,8 @@ MagickWand, PBM, PGM, PAM, PFM, high-depth PPM, PNG, and BMP.
 - CLI input reads are capped at 513 MiB.
 - Output writes use a temp file plus rename, and malformed input does not leave
   the requested output behind.
-- Fuzz targets cover FARBFELD, QOI, and PPM decode/identify entrypoints with
-  seeded corpora.
+- Fuzz targets cover FARBFELD, QOI, and PNM decode/identify entrypoints with
+  seeded FARBFELD/QOI/PPM/PGM corpora.
 
 ## Release Gates
 

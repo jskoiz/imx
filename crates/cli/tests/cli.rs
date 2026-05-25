@@ -21,11 +21,12 @@ fn imx() -> &'static str {
 }
 
 #[test]
-fn identifies_farbfeld_qoi_and_ppm() {
+fn identifies_farbfeld_qoi_ppm_and_pgm() {
     let dir = temp_dir("identify");
     let ff = dir.join("input.ff");
     let qoi = dir.join("input.qoi");
     let ppm = dir.join("input.ppm");
+    let pgm = dir.join("input.pgm");
     let image = Image::new(
         1,
         1,
@@ -39,7 +40,13 @@ fn identifies_farbfeld_qoi_and_ppm() {
         imx_codec_qoi::encode_image(&image, imx_codec_qoi::QOI_SRGB).unwrap(),
     )
     .unwrap();
-    fs::write(&ppm, imx_codec_ppm::encode(&image).unwrap()).unwrap();
+    fs::write(&ppm, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
+    fs::write(
+        &pgm,
+        imx_codec_pnm::encode_pgm(&Image::new(1, 1, PixelFormat::Gray8, vec![0x80]).unwrap())
+            .unwrap(),
+    )
+    .unwrap();
 
     let output = Command::new(imx())
         .args(["identify", ff.to_str().unwrap()])
@@ -69,6 +76,16 @@ fn identifies_farbfeld_qoi_and_ppm() {
     assert_eq!(
         String::from_utf8(output.stdout).unwrap().trim(),
         "format=PPM width=1 height=1 channels=RGB depth=8"
+    );
+
+    let output = Command::new(imx())
+        .args(["identify", pgm.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap().trim(),
+        "format=PGM width=1 height=1 channels=GRAY depth=8"
     );
 }
 
@@ -125,7 +142,7 @@ fn transcodes_ppm_to_farbfeld_and_farbfeld_to_ppm() {
     let output_ff = dir.join("output.ff");
     let roundtrip_ppm = dir.join("roundtrip.ppm");
     let image = Image::new(2, 1, PixelFormat::Rgb8, vec![255, 0, 0, 0, 128, 255]).unwrap();
-    fs::write(&input_ppm, imx_codec_ppm::encode(&image).unwrap()).unwrap();
+    fs::write(&input_ppm, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
 
     let output = Command::new(imx())
         .args([input_ppm.to_str().unwrap(), output_ff.to_str().unwrap()])
@@ -149,6 +166,51 @@ fn transcodes_ppm_to_farbfeld_and_farbfeld_to_ppm() {
     assert_eq!(
         fs::read(input_ppm).unwrap(),
         fs::read(roundtrip_ppm).unwrap()
+    );
+}
+
+#[test]
+fn transcodes_pgm_to_farbfeld_and_farbfeld_to_pgm() {
+    let dir = temp_dir("pgm_transcode");
+    let input_pgm = dir.join("input.pgm");
+    let output_ff = dir.join("output.ff");
+    let roundtrip_pgm = dir.join("roundtrip.pgm");
+    let image = Image::new(2, 1, PixelFormat::Gray8, vec![0, 255]).unwrap();
+    fs::write(&input_pgm, imx_codec_pnm::encode_pgm(&image).unwrap()).unwrap();
+
+    let output = Command::new(imx())
+        .args([input_pgm.to_str().unwrap(), output_ff.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    assert_eq!(
+        imx_codec_farbfeld::decode(&fs::read(&output_ff).unwrap())
+            .unwrap()
+            .pixels(),
+        &[0, 0, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]
+    );
+
+    let output = Command::new(imx())
+        .args([output_ff.to_str().unwrap(), roundtrip_pgm.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        imx_codec_pnm::decode_pgm(&fs::read(roundtrip_pgm).unwrap())
+            .unwrap()
+            .to_gray8()
+            .unwrap()
+            .pixels(),
+        image.pixels()
     );
 }
 
@@ -199,7 +261,7 @@ fn same_input_and_output_path_is_rejected() {
     let dir = temp_dir("same_path");
     let input = dir.join("input.ppm");
     let image = Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap();
-    fs::write(&input, imx_codec_ppm::encode(&image).unwrap()).unwrap();
+    fs::write(&input, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
 
     let output = Command::new(imx())
         .args([input.to_str().unwrap(), input.to_str().unwrap()])

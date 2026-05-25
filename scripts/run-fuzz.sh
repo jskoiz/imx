@@ -33,7 +33,7 @@ mkdir -p "$out_dir"
 } >"$out_dir/summary.json"
 
 first=1
-for target in farbfeld_decode qoi_decode ppm_decode; do
+for target in farbfeld_decode qoi_decode pnm_decode; do
   log="$out_dir/$target.log"
   if CARGO="$nightly_cargo" RUSTC="$nightly_rustc" cargo fuzz run "$target" "$corpus_root/$target" \
     -- -max_total_time="$max_total_time" -rss_limit_mb="$rss_limit_mb" >"$log" 2>&1; then

@@ -29,7 +29,9 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let gradient_rgba8 = gradient.to_rgba8()?.into_pixels();
     let gradient_rgb8 = gradient.to_rgb8()?.into_pixels();
     let gradient_qoi = imx_codec_qoi::encode_image(&gradient, imx_codec_qoi::QOI_SRGB)?;
-    let gradient_ppm = imx_codec_ppm::encode(&gradient)?;
+    let gradient_ppm = imx_codec_pnm::encode_ppm(&gradient)?;
+    let gradient_pgm = imx_codec_pnm::encode_pgm(&gradient)?;
+    let gradient_gray8 = gradient.to_gray8()?.into_pixels();
     let gradient_rgba16be = gradient.pixels().to_vec();
 
     let quantization = Image::new(
@@ -55,8 +57,10 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         ("gradient-64.ff", gradient_ff),
         ("gradient-64.qoi", gradient_qoi),
         ("gradient-64.ppm", gradient_ppm),
+        ("gradient-64.pgm", gradient_pgm),
         ("gradient-64.rgba", gradient_rgba8),
         ("gradient-64.rgb", gradient_rgb8),
+        ("gradient-64.gray", gradient_gray8),
         ("gradient-64.rgba16be", gradient_rgba16be),
         ("quantization-2x2.ff", quantization_ff),
         ("qoi-rgba-2x2.qoi", qoi_rgba),

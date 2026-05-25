@@ -62,17 +62,78 @@ fn qoi_rejects_bad_headers_and_truncated_opcode_payloads() {
 
 #[test]
 fn ppm_rejects_out_of_scope_and_truncated_inputs() {
-    assert!(imx_codec_ppm::decode(b"P3\n1 1\n255\n255 0 0").is_ok());
+    assert!(imx_codec_pnm::decode_ppm(b"P3\n1 1\n255\n255 0 0").is_ok());
     assert_eq!(
-        imx_codec_ppm::decode(b"P2\n1 1\n255\n255"),
+        imx_codec_pnm::decode_ppm(b"P2\n1 1\n255\n255"),
         Err(ImageError::InvalidHeader("PPM"))
     );
     assert_eq!(
-        imx_codec_ppm::decode(b"P6\n1 1\n65535\n\0\0\0\0\0\0"),
-        Err(ImageError::InvalidMaxValue { max_value: 65535 })
+        imx_codec_pnm::decode_ppm(b"P6\n1 1\n65535\n\0\0\0\0\0\0"),
+        Err(ImageError::InvalidMaxValue {
+            format: "PPM",
+            max_value: 65535,
+            max_supported: 255,
+        })
     );
     assert!(matches!(
-        imx_codec_ppm::decode(b"P6\n2 1\n255\n\xff\x00\x00"),
+        imx_codec_pnm::decode_ppm(b"P6\n2 1\n255\n\xff\x00\x00"),
+        Err(ImageError::UnexpectedEof { .. })
+    ));
+}
+
+#[test]
+fn pgm_rejects_malformed_inputs() {
+    assert!(imx_codec_pnm::decode_pgm(b"P2\n1 1\n255\n255").is_ok());
+    assert_eq!(
+        imx_codec_pnm::decode_pgm(b"P3\n1 1\n255\n255 0 0"),
+        Err(ImageError::InvalidHeader("PGM"))
+    );
+    assert_eq!(
+        imx_codec_pnm::decode_pgm(b"P2\n1 1\n0\n0\n"),
+        Err(ImageError::InvalidMaxValue {
+            format: "PGM",
+            max_value: 0,
+            max_supported: 65535,
+        })
+    );
+    assert_eq!(
+        imx_codec_pnm::decode_pgm(b"P2\n1 1\n65536\n0\n"),
+        Err(ImageError::InvalidMaxValue {
+            format: "PGM",
+            max_value: 65536,
+            max_supported: 65535,
+        })
+    );
+    assert_eq!(
+        imx_codec_pnm::decode_pgm(b"P2\n1 1\n10\n11\n"),
+        Err(ImageError::InvalidHeader("PGM"))
+    );
+    assert!(matches!(
+        imx_codec_pnm::decode_pgm(b"P2\n2 1\n255\n0\n"),
+        Err(ImageError::UnexpectedEof { .. })
+    ));
+    assert!(matches!(
+        imx_codec_pnm::decode_pgm(b"P5\n2 1\n255\n\x00"),
+        Err(ImageError::UnexpectedEof { .. })
+    ));
+    assert!(matches!(
+        imx_codec_pnm::decode_pgm(b"P5\n1 1\n65535\n\x12"),
+        Err(ImageError::UnexpectedEof { .. })
+    ));
+    assert_eq!(
+        imx_codec_pnm::decode_pgm(b"P5\n1 1\n255X"),
+        Err(ImageError::InvalidHeader("PGM"))
+    );
+    assert_eq!(
+        imx_codec_pnm::decode_pgm(b"P2\n0 1\n255\n0\n"),
+        Err(ImageError::InvalidDimensions)
+    );
+    assert_eq!(
+        imx_codec_pnm::decode_pgm(b"P2\n1 0\n255\n0\n"),
+        Err(ImageError::InvalidDimensions)
+    );
+    assert!(matches!(
+        imx_codec_pnm::decode_pgm(b"P2\n# unterminated comment"),
         Err(ImageError::UnexpectedEof { .. })
     ));
 }
@@ -103,7 +164,11 @@ fn excessive_dimensions_fail_before_allocation() {
         Err(ImageError::ImageTooLarge { .. })
     ));
     assert!(matches!(
-        imx_codec_ppm::decode_header(b"P6\n100000 100000\n255\n"),
+        imx_codec_pnm::decode_ppm_header(b"P6\n100000 100000\n255\n"),
+        Err(ImageError::ImageTooLarge { .. })
+    ));
+    assert!(matches!(
+        imx_codec_pnm::decode_pgm_header(b"P5\n100000 100000\n255\n"),
         Err(ImageError::ImageTooLarge { .. })
     ));
 }
