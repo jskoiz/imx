@@ -12,6 +12,7 @@ on:
       - 'Cargo.lock'
       - 'fuzz/**'
       - 'scripts/**'
+      - 'packaging/**'
       - 'tests/**'
       - 'README.md'
       - 'COMPATIBILITY.md'
@@ -34,6 +35,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Prepare Rust toolchain
         run: |
@@ -79,6 +81,14 @@ jobs:
             IMX_BENCH_ITERATIONS=3 \
             bash scripts/bench-release.sh
 
+      - name: Check benchmark regressions
+        run: |
+          set -euo pipefail
+            IMAGEMAGICK_MAGICK="$GITHUB_WORKSPACE/target/imagemagick-oracle/utilities/magick" \
+            IMX_BENCH_BASE_REF=v0.3.0 \
+            IMX_BENCH_ITERATIONS=10 \
+            bash scripts/bench-regression.sh
+
       - name: Package standalone preview
         run: |
           set -euo pipefail
@@ -99,6 +109,11 @@ jobs:
           ! ldd target/debug/imx | grep -E 'Magick(Core|Wand)|ImageMagick'
           ! ldd target/release/imx | grep -E 'Magick(Core|Wand)|ImageMagick'
 
+      - name: Generate conformance report
+        run: |
+          set -euo pipefail
+          bash scripts/generate-conformance-report.sh
+
       - name: Upload standalone preview evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -106,10 +121,13 @@ jobs:
           name: rust-standalone-preview-evidence
           path: |
             target/generated-fixtures
+            target/differential-corpus-*
             target/fuzz-runs
             target/install-verify
             target/release-bench-*
+            target/bench-regression-*
             target/release-artifacts
+            target/conformance
 
   package:
     name: Package release artifact (${{ matrix.name }})
@@ -177,11 +195,36 @@ jobs:
           path: target/release-upload
           merge-multiple: true
 
+      - name: Download preview evidence
+        uses: actions/download-artifact@v7
+        with:
+          name: rust-standalone-preview-evidence
+          path: target/release-evidence
+
       - name: Generate aggregate checksums
         run: |
           set -euo pipefail
           cd target/release-upload
           shasum -a 256 *.tar.gz > SHA256SUMS
+
+      - name: Generate Homebrew formula draft
+        run: |
+          set -euo pipefail
+          bash scripts/generate-homebrew-formula.sh \
+            "$GITHUB_REF_NAME" \
+            target/release-upload/SHA256SUMS \
+            target/release-upload/imx.rb
+
+      - name: Generate release conformance report
+        run: |
+          set -euo pipefail
+          IMX_VERSION="$GITHUB_REF_NAME" \
+            IMX_CONFORMANCE_EVIDENCE_DIR=target/release-evidence \
+            IMX_RELEASE_DIR=target/release-upload \
+            IMX_CONFORMANCE_OUT=target/release-conformance \
+            bash scripts/generate-conformance-report.sh
+          cp target/release-conformance/CONFORMANCE_REPORT.md target/release-upload/CONFORMANCE_REPORT.md
+          cp target/release-conformance/conformance-summary.json target/release-upload/conformance-summary.json
 
       - name: Publish GitHub release
         env:
@@ -201,3 +244,44 @@ jobs:
               --target "$GITHUB_SHA" \
               --verify-tag
           fi
+
+  release-archive-smoke:
+    name: Smoke published release archive (${{ matrix.name }})
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - name: macos-aarch64
+            runner: macos-15
+            target: aarch64-apple-darwin
+          - name: macos-x86_64
+            runner: macos-15-intel
+            target: x86_64-apple-darwin
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Verify published release archive
+        run: |
+          set -euo pipefail
+          IMX_REPO="$GITHUB_REPOSITORY" \
+            IMX_VERSION="$GITHUB_REF_NAME" \
+            IMX_RELEASE_TARGET="${{ matrix.target }}" \
+            bash scripts/verify-release-archive.sh
+
+      - name: Upload release archive smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-archive-smoke-${{ matrix.name }}
+          path: target/release-archive-smoke/${{ matrix.target }}

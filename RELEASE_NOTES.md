@@ -1,4 +1,4 @@
-# IMX v0.3.0 Developer Preview
+# IMX v0.4.0 Developer Preview
 
 This preview ships a standalone Rust image-tool binary named `imx`.
 
@@ -25,19 +25,25 @@ imx input.ppm <output.ff|output.farbfeld|output.qoi|output.pbm|output.pgm>
   `P5` encode.
 - PPM ASCII `P3` and binary `P6` RGB8 decode; deterministic binary `P6` encode.
 
-## New In v0.3.0
+## New In v0.4.0
 
-- Added PBM as the final baseline Netpbm format for this preview slice.
-- Added `P1` and `P4` identify/decode plus deterministic `P4` encode.
-- Added logical bilevel pixel-buffer handling with one byte per pixel in safe
-  Rust core memory.
-- Added PBM transcodes across FARBFELD, QOI, PGM, and PPM.
-- Added ImageMagick differential tests for PBM identify, P1/P4 decode, PBM
-  transcodes, and FARBFELD-to-PBM threshold behavior.
-- Added PBM seeds to the PNM fuzz target and PBM metrics to benchmark/RSS
-  evidence.
-- Added a one-command release installer and tag-only native packaging for Linux
-  and macOS release archives.
+- Hardened the one-command installer so it verifies release checksums, asserts
+  the installed binary version, and runs a small identify/transcode smoke test.
+- Added published release-archive smoke verification for Linux x86_64, macOS
+  arm64, and macOS x86_64 after GitHub release publication.
+- Added a generated Homebrew formula draft (`imx.rb`) based on the aggregate
+  release `SHA256SUMS`.
+- Added a generated conformance report (`CONFORMANCE_REPORT.md`) sourced from
+  CI evidence.
+- Added a corpus differential report that identifies all supported fixture
+  formats and checks all 20 directed cross-format transcodes against
+  ImageMagick decoded pixels.
+- Added scheduled cargo-fuzz with retained crash artifacts and stronger fuzz
+  summary metadata.
+- Added benchmark threshold summaries and a v0.3.0 baseline regression report
+  that records throughput ratios and enforces RSS budgets.
+- No new image formats are introduced in v0.4.0; this release is a public
+  install and trust milestone for the existing FARBFELD/QOI/PBM/PGM/PPM slice.
 
 ## Known Limits
 
@@ -69,5 +75,8 @@ IMX_INSTALL_REPO_URL=https://github.com/jskoiz/imx.git ./scripts/verify-install.
 ```
 
 The GitHub Actions preview workflow uploads generated fixtures, fuzz results,
-fresh-install evidence, benchmark evidence, and packaged release archives.
-Tagged releases publish native Linux and macOS archives automatically.
+fresh-install evidence, corpus differentials, benchmark evidence, benchmark
+regression reports, conformance reports, and packaged release archives. Tagged
+releases publish native Linux and macOS archives automatically, then download
+the published assets back for checksum, no-link, identify, and transcode smoke
+verification.

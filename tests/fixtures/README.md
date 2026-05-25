@@ -9,3 +9,4 @@ reviewable in text diffs.
   coverage is inline in the golden and differential tests because it is already
   text-readable.
 - `pgm-1x1-gray.hex`: 1x1 binary `P5` GRAY8 pixel with value `0x80`.
+- `pbm-1x1-black.hex`: 1x1 binary `P4` bilevel black pixel.

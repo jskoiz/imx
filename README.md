@@ -1,7 +1,7 @@
 # IMX Developer Preview
 
 IMX is a standalone Rust image tool built one ImageMagick-compatible slice at a
-time. The current `v0.3.0` preview supports deterministic identify and
+time. The current `v0.4.0` preview supports deterministic identify and
 transcode workflows across FARBFELD, QOI, and Netpbm PBM/PGM/PPM through the
 `imx` binary.
 
@@ -11,23 +11,36 @@ used only as an external oracle in compatibility tests and benchmarks.
 
 ## Install
 
-Install the latest v0.3.0 release archive for Linux or macOS:
+Install the latest v0.4.0 release archive:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/jskoiz/imx/v0.3.0/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/jskoiz/imx/v0.4.0/scripts/install.sh | sh
 ```
 
-Release archives are published at:
+The installer verifies the published `SHA256SUMS`, installs `imx`, asserts the
+installed version, and runs a small identify/transcode smoke test. Supported
+archive targets are:
+
+- `imx-preview-0.4.0-x86_64-unknown-linux-gnu.tar.gz`
+- `imx-preview-0.4.0-aarch64-apple-darwin.tar.gz`
+- `imx-preview-0.4.0-x86_64-apple-darwin.tar.gz`
+
+No Windows, Linux arm64, crates.io, or broad package-manager release is claimed
+for v0.4.0. Release archives are published at:
 
 ```text
-https://github.com/jskoiz/imx/releases/tag/v0.3.0
+https://github.com/jskoiz/imx/releases/tag/v0.4.0
 ```
+
+A Homebrew formula draft is attached to the release as `imx.rb`. It is intended
+for a tap such as `jskoiz/homebrew-imx`; it is not a Homebrew/core submission.
 
 Or install from source:
 
 ```sh
 git clone https://github.com/jskoiz/imx.git
 cd imx
+git checkout v0.4.0
 cargo install --path crates/cli --bin imx --locked
 imx --version
 ```
@@ -80,7 +93,7 @@ Known lossy paths:
 - Any output to PPM drops alpha; any output to PGM drops color/alpha; any
   output to PBM drops color, alpha, and grayscale precision.
 
-Unsupported by design in `v0.3.0`: full ImageMagick CLI parsing, same-format
+Unsupported by design in `v0.4.0`: full ImageMagick CLI parsing, same-format
 rewrites, stdin/stdout streaming, format prefixes such as `QOI:out.qoi`,
 delegates, profiles, color management, resizing/transforms, MagickCore,
 MagickWand, PAM, PFM, high-depth PPM, PNG, BMP, and other image formats.
@@ -110,16 +123,31 @@ Require ImageMagick oracle differentials:
 IMAGEMAGICK_MAGICK=/path/to/magick IMX_REQUIRE_ORACLE=1 ./scripts/ci.sh
 ```
 
+Run the corpus differential report directly:
+
+```sh
+IMAGEMAGICK_MAGICK=/path/to/magick ./scripts/differential-corpus.sh
+```
+
 Run coverage-guided fuzz smoke:
 
 ```sh
 IMX_FUZZ_MAX_TOTAL_TIME=5 ./scripts/run-fuzz.sh
 ```
 
+Scheduled CI runs the same cargo-fuzz targets for a longer window and retains
+crash artifacts under the fuzz evidence directory.
+
 Generate machine-readable benchmark evidence:
 
 ```sh
 IMAGEMAGICK_MAGICK=/path/to/magick ./scripts/bench-release.sh
+```
+
+Compare current benchmark/RSS evidence against the v0.3.0 baseline:
+
+```sh
+IMAGEMAGICK_MAGICK=/path/to/magick IMX_BENCH_BASE_REF=v0.3.0 ./scripts/bench-regression.sh
 ```
 
 Package a release archive:
@@ -138,12 +166,19 @@ Verify source installation from a fresh checkout:
 IMX_INSTALL_REPO_URL=https://github.com/jskoiz/imx.git ./scripts/verify-install.sh
 ```
 
+Verify published release archives after GitHub release publication:
+
+```sh
+IMX_VERSION=v0.4.0 IMX_RELEASE_TARGET=x86_64-unknown-linux-gnu ./scripts/verify-release-archive.sh
+```
+
 ## Evidence
 
 The CI workflow builds ImageMagick as an external oracle, runs release gates,
 runs fuzz targets, verifies install from a fresh checkout, packages Linux and
-macOS release archives, checks that binaries do not link ImageMagick, and
-uploads release evidence.
+macOS release archives, checks that binaries do not link ImageMagick, generates
+the release conformance report, and downloads the published release assets back
+for archive smoke tests.
 
 Benchmark runs emit:
 
@@ -151,8 +186,16 @@ Benchmark runs emit:
 - `benchmark-run.json`
 - `measurements.jsonl`
 - `summary.json`
+- `threshold-summary.json`
 - generated fixture `manifest.txt` and `manifest.json`
 - raw `/usr/bin/time` outputs and output hashes
+
+Tag releases additionally attach:
+
+- `SHA256SUMS`
+- `imx.rb` Homebrew formula draft
+- `CONFORMANCE_REPORT.md`
+- `conformance-summary.json`
 
 See [COMPATIBILITY.md](COMPATIBILITY.md) for the exact behavior contract and
 [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) for current release evidence,

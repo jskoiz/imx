@@ -1,35 +1,41 @@
-# IMX v0.3.0 Release Readiness
+# IMX v0.4.0 Public Install Readiness
 
-Status: release-readiness report for the standalone `jskoiz/imx` product repo.
+Status: candidate release-readiness report for the standalone `jskoiz/imx`
+product repo. This report becomes final only after the `v0.4.0` tag workflow
+publishes the release and the release-archive smoke matrix passes.
 
 ## Implemented Behavior
 
 - Source of truth: `https://github.com/jskoiz/imx`.
 - Product binary: `imx`.
-- v0.3.0 completes the baseline Netpbm slice by adding PBM while preserving the
-  existing FARBFELD, QOI, PGM, and PPM support.
-- PBM support covers ASCII `P1` and binary `P4` decode, logical bilevel pixel
-  buffers, deterministic binary `P4` encode, and `.pbm` CLI
-  identify/transcode.
-- The shared Netpbm codec crate remains `imx-codec-pnm`.
-- RGB/RGBA to PBM uses Rec.709 luma and thresholding; PBM to color formats
-  replicates black/white channels and adds opaque alpha where needed.
+- v0.4.0 does not add a new image format. It hardens the v0.3.0
+  FARBFELD/QOI/PBM/PGM/PPM slice into a public-install readiness release.
+- Supported release targets are Linux x86_64, macOS arm64, and macOS x86_64.
+- ImageMagick remains an oracle for tests and benchmarks only; shipped binaries
+  must not link to ImageMagick, MagickCore, MagickWand, delegates, modules,
+  `policy.xml`, or ImageMagick's build system.
+- Public distribution artifacts are the three release tarballs, aggregate
+  `SHA256SUMS`, generated `imx.rb` Homebrew formula draft,
+  `CONFORMANCE_REPORT.md`, and `conformance-summary.json`.
 
 ## Evidence Table
 
-| Gate | Producer | Artifact Path | PBM Coverage | Result |
+| Gate | Producer | Artifact Path | Coverage | Result |
 | --- | --- | --- | --- | --- |
-| Release gates | `scripts/ci.sh` | terminal plus CI logs | cargo fmt, clippy, tests, fixture generation, fuzz smoke, cargo-fuzz, benchmark smoke, differential tests | local candidate passed 2026-05-25 UTC |
-| ImageMagick differentials | `cargo test --test differential` | test output | PBM identify, P1/P4 decode, PBM transcodes, FARBFELD-to-PBM thresholding | 13 tests passed locally |
-| Fuzz smoke | `scripts/run-fuzz.sh` | `target/fuzz-runs/20260524-183720/summary.json` | PNM target covers PBM/PGM/PPM identify and decode with PBM seeds | passed; PNM seed count 896 |
-| Bench/RSS | `scripts/bench-release.sh` | `target/release-bench-20260524-183735/summary.json` | PBM decode/encode, PBM-to-FARBFELD, FARBFELD-to-PBM, oracle PBM cases | passed; standalone PBM RSS cases recorded |
-| Install verify | `scripts/verify-install.sh` | `target/install-verify/install-summary.json` | PBM identify plus PBM/FARBFELD transcodes | passed from fresh checkout of committed `HEAD` |
-| Package/SHA | `scripts/package-release.sh` and release workflow | `target/release-artifacts`, GitHub Release assets | Linux and macOS archives include PBM-capable `imx` | local macOS package passed; tag CI publishes Linux and macOS archives |
-| No ImageMagick link | GitHub Actions `ldd`/`otool -L` checks | CI logs | release binaries checked for MagickCore/MagickWand/ImageMagick linkage | local `otool -L` clean; tag CI checks each release package |
+| Release gates | `scripts/ci.sh` | terminal plus CI logs | fmt, clippy, tests, fixture generation, fuzz smoke, benchmark smoke, differential tests | required before tag |
+| Differential corpus | `scripts/differential-corpus.sh` | `target/differential-corpus-*/summary.json` | identify for 5 formats plus 20 directed cross-format transcodes | required before tag |
+| Fuzz smoke | `scripts/run-fuzz.sh` | `target/fuzz-runs/*/summary.json` | FARBFELD, QOI, and PNM identify/decode with retained crash artifacts | required before tag |
+| Scheduled fuzz | `.github/workflows/rust-fuzz-scheduled.yml` | `scheduled-fuzz-evidence` artifact | longer cargo-fuzz run with artifact retention | required CI lane |
+| Bench/RSS thresholds | `scripts/bench-release.sh` | `target/release-bench-*/threshold-summary.json` | throughput and process/library RSS sanity budgets | required before tag |
+| Bench regression | `scripts/bench-regression.sh` | `target/bench-regression-*/regression-report.json` | current candidate vs v0.3.0 throughput/RSS baseline; throughput ratios are tracked as warnings, RSS growth is enforced | required before tag |
+| Source install verify | `scripts/verify-install.sh` | `target/install-verify/install-summary.json` | fresh checkout install plus supported identify/transcode smoke | required before tag |
+| Package/SHA/no-link | `scripts/package-release.sh` and release workflow | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive smoke, no ImageMagick linkage | required before tag |
+| Published archive smoke | `scripts/verify-release-archive.sh` | `target/release-archive-smoke/<target>/summary.json` | downloads GitHub release assets, verifies aggregate SHA256SUMS, no-link, identify/transcode smoke | required after release publish |
+| Conformance report | `scripts/generate-conformance-report.sh` | `CONFORMANCE_REPORT.md`, `conformance-summary.json` | generated from CI evidence and attached to the release | required release asset |
 
 ## Local Verification
 
-Commands run locally on 2026-05-24 HST / 2026-05-25 UTC:
+Candidate commands:
 
 ```sh
 IMAGEMAGICK_MAGICK=/Users/jk/Desktop/imagemagick/utilities/magick \
@@ -38,8 +44,14 @@ IMAGEMAGICK_MAGICK=/Users/jk/Desktop/imagemagick/utilities/magick \
   IMX_BENCH_ITERATIONS=2 \
   bash scripts/ci.sh
 IMAGEMAGICK_MAGICK=/Users/jk/Desktop/imagemagick/utilities/magick \
+  bash scripts/differential-corpus.sh
+IMAGEMAGICK_MAGICK=/Users/jk/Desktop/imagemagick/utilities/magick \
   IMX_BENCH_ITERATIONS=2 \
   bash scripts/bench-release.sh
+IMAGEMAGICK_MAGICK=/Users/jk/Desktop/imagemagick/utilities/magick \
+  IMX_BENCH_BASE_REF=v0.3.0 \
+  IMX_BENCH_ITERATIONS=2 \
+  bash scripts/bench-regression.sh
 IMX_INSTALL_REPO_URL=/Users/jk/Desktop/imx \
   IMX_INSTALL_REVISION=HEAD \
   bash scripts/verify-install.sh
@@ -47,45 +59,32 @@ bash scripts/package-release.sh
 otool -L target/release/imx
 ```
 
-The required ImageMagick differential lane passed 13 tests covering FARBFELD,
-QOI, PBM, PGM, and PPM, including P1/P4 decode, PBM transcodes,
-FARBFELD-to-PBM threshold behavior, P2/P5 decode, 16-bit PGM, PGM transcodes,
-FARBFELD-to-PGM luma behavior, and identify output.
+After the `v0.4.0` release is published, each supported platform must run:
 
-Fuzz summary:
-
-```text
-target/fuzz-runs/20260524-183720
-farbfeld_decode: passed, 17 seeds
-qoi_decode: passed, 811 seeds
-pnm_decode: passed, 896 seeds
-```
-
-Benchmark evidence:
-
-```text
-target/release-bench-20260524-183735
-iterations=2
-pbm_decode_mib_s=207.92
-pbm_encode_mib_s=62.85
-pbm_to_ff_mib_s=25.77
-ff_to_pbm_mib_s=3901.92
-max_rss_bytes=6242304
-standalone-ff-to-pbm RSS=1818624 bytes
-standalone-pbm-to-ff RSS=1769472 bytes
+```sh
+IMX_VERSION=v0.4.0 IMX_RELEASE_TARGET=<target> \
+  bash scripts/verify-release-archive.sh
 ```
 
 ## Release Automation
 
 - Release package script: `scripts/package-release.sh`.
 - One-command installer: `scripts/install.sh`.
+- Release archive smoke script: `scripts/verify-release-archive.sh`.
+- Homebrew formula generator: `scripts/generate-homebrew-formula.sh`.
+- Conformance report generator: `scripts/generate-conformance-report.sh`.
 - CI workflow: `.github/workflows/rust-standalone-preview.yml`.
+- Scheduled fuzz workflow: `.github/workflows/rust-fuzz-scheduled.yml`.
 - Branch, pull-request, and tag CI build ImageMagick as an external oracle, run
-  IMX release gates, generate structured benchmark evidence, package release
-  artifacts, verify fresh-checkout installation, and upload evidence artifacts.
+  IMX release gates, generate differential corpus evidence, generate structured
+  benchmark evidence, record v0.3.0 throughput ratios and enforce RSS budgets,
+  package release
+  artifacts, verify fresh-checkout installation, generate conformance reports,
+  and upload evidence artifacts.
 - Tag pushes matching `v*` run the preview gates, build native Linux/macOS
-  release archives, generate aggregate checksums, and publish the matching
-  GitHub Release.
+  release archives, generate aggregate checksums, generate a Homebrew formula
+  draft, attach the conformance report, publish the GitHub Release, then
+  download the published assets back for platform smoke tests.
 - Release archives are written with deterministic tar/gzip metadata, sorted
   entries, fixed ownership, fixed mtimes, stable file modes, and aggregate
   `SHA256SUMS` entries.
@@ -109,7 +108,8 @@ standalone-pbm-to-ff RSS=1769472 bytes
 - FARBFELD to QOI/PPM is lossy for non-8-bit-representable 16-bit samples.
 - Color to PGM/PBM is lossy and ignores alpha.
 - No PAM, PFM, PNG, or BMP.
-- Fuzzing is time-bounded in CI; longer scheduled fuzzing remains future work.
+- No Windows, Linux arm64, crates.io, or Homebrew/core release is claimed for
+  v0.4.0.
 
 ## Safety Wins
 
@@ -122,11 +122,14 @@ standalone-pbm-to-ff RSS=1769472 bytes
 - Malformed PBM inputs fail without panics in unit tests, fuzz-smoke tests, and
   cargo-fuzz smoke runs.
 - CLI writes remain atomic via temp file plus rename.
+- Release archive smoke tests verify the installed binary from the archive, not
+  only a source checkout.
+- Scheduled fuzz retains crash artifacts under the uploaded fuzz evidence.
 
 ## Next Smallest Milestone
 
-The smallest adoption-expanding next milestone is a package-distribution pass:
-publish the v0.3.0 archives, verify `scripts/install.sh` against downloaded
-release assets on Linux and macOS, then decide whether a Homebrew tap or an
-additional `aarch64-unknown-linux-gnu` artifact has more adoption value. PAM,
-PNG, and BMP remain too broad for the next milestone.
+After v0.4.0, the smallest adoption-expanding next milestone is to turn the
+generated `imx.rb` into a real tap with documented install commands, or add a
+Linux arm64 archive if user demand points there. PNG, JPEG, TIFF, delegates,
+MagickCore, MagickWand, and full ImageMagick CLI compatibility remain too broad
+for the next milestone.

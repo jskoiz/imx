@@ -4,9 +4,26 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
-version="$(cargo metadata --no-deps --format-version 1 | sed -n 's/.*"name":"imx-preview","version":"\([^"]*\)".*/\1/p')"
+metadata="$(cargo metadata --no-deps --format-version 1)"
+package_version() {
+  local package="$1"
+  printf '%s\n' "$metadata" | tr '{' '\n' | sed -n "s/.*\"name\":\"$package\",\"version\":\"\([^\"]*\)\".*/\1/p" | head -n 1
+}
+
+version="$(package_version imx-preview)"
 if [[ -z "$version" ]]; then
   echo "error: failed to read imx-preview package version" >&2
+  exit 1
+fi
+for package in imx-cli imx-core imx-codec-farbfeld imx-codec-pnm imx-codec-qoi; do
+  package_version_value="$(package_version "$package")"
+  if [[ "$package_version_value" != "$version" ]]; then
+    echo "error: package $package version $package_version_value does not match imx-preview $version" >&2
+    exit 1
+  fi
+done
+if ! grep -q "version=\"\${IMX_VERSION:-v$version}\"" scripts/install.sh; then
+  echo "error: scripts/install.sh default version does not match v$version" >&2
   exit 1
 fi
 target="$(rustc -vV | sed -n 's/^host: //p')"
@@ -81,6 +98,29 @@ with archive_path.open("wb") as raw:
                 with path.open("rb") as file:
                     archive.addfile(info, file)
 PY
+
+verify_dir="$(mktemp -d "$root/target/package-smoke.XXXXXX")"
+trap 'rm -rf "$verify_dir"' EXIT
+tar -xzf "$archive_path" -C "$verify_dir"
+packaged_binary="$verify_dir/imx-preview-$version-$target/imx"
+packaged_version="$("$packaged_binary" --version)"
+if [[ "$packaged_version" != "imx $version" ]]; then
+  echo "error: packaged binary version mismatch: expected imx $version, got $packaged_version" >&2
+  exit 1
+fi
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  otool -L "$packaged_binary" >"$artifact_dir/linkage-$target.txt"
+  ! grep -E 'Magick(Core|Wand)|ImageMagick' "$artifact_dir/linkage-$target.txt"
+else
+  ldd "$packaged_binary" >"$artifact_dir/linkage-$target.txt"
+  ! grep -E 'Magick(Core|Wand)|ImageMagick' "$artifact_dir/linkage-$target.txt"
+fi
+printf 'P3\n2 1\n255\n255 0 0 0 0 255\n' >"$verify_dir/input.ppm"
+"$packaged_binary" identify "$verify_dir/input.ppm" >/dev/null
+"$packaged_binary" "$verify_dir/input.ppm" "$verify_dir/output.ff"
+"$packaged_binary" identify "$verify_dir/output.ff" >/dev/null
+"$packaged_binary" "$verify_dir/output.ff" "$verify_dir/output.qoi"
+"$packaged_binary" identify "$verify_dir/output.qoi" >/dev/null
 
 if command -v shasum >/dev/null 2>&1; then
   (cd "$artifact_dir" && shasum -a 256 "$archive_name" >SHA256SUMS)

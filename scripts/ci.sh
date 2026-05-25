@@ -24,4 +24,6 @@ if [[ "${IMX_REQUIRE_ORACLE:-0}" == "1" ]]; then
   IMX_REQUIRE_ORACLE=1 \
     IMX_STANDALONE_BIN="$root/target/debug/imx" \
     cargo test --test differential -- --nocapture
+  IMX_STANDALONE_BIN="$root/target/debug/imx" \
+    bash scripts/differential-corpus.sh
 fi

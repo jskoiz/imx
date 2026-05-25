@@ -78,5 +78,6 @@ else
 fi
 
 cargo run -p imx-cli --bin imx-summarize-bench -- "$out_dir"
+bash scripts/check-bench-thresholds.sh "$out_dir"
 
 echo "$out_dir"

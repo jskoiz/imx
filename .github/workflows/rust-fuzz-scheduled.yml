@@ -1,0 +1,52 @@
+on:
+  workflow_dispatch:
+    inputs:
+      max_total_time:
+        description: Seconds per fuzz target
+        required: false
+        default: "1800"
+  schedule:
+    - cron: '37 10 * * 1'
+
+permissions:
+  contents: read
+
+name: Rust Scheduled Fuzz
+
+jobs:
+  fuzz:
+    name: Scheduled cargo-fuzz
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Prepare Rust fuzz toolchain
+        run: |
+          set -euo pipefail
+          rustup toolchain install nightly --profile minimal
+          cargo install cargo-fuzz --locked
+
+      - name: Run extended fuzz targets
+        run: |
+          set -euo pipefail
+          max_total_time="${{ github.event.inputs.max_total_time }}"
+          if [[ -z "$max_total_time" ]]; then
+            max_total_time=1800
+          fi
+          IMX_FUZZ_MAX_TOTAL_TIME="$max_total_time" \
+            IMX_FUZZ_RSS_LIMIT_MB=1024 \
+            bash scripts/run-fuzz.sh
+
+      - name: Upload fuzz evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: scheduled-fuzz-evidence
+          retention-days: 30
+          path: |
+            target/fuzz-runs
+            fuzz/artifacts

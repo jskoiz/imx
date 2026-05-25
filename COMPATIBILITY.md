@@ -158,9 +158,30 @@ FARBFELD/QOI to PGM:
 - CLI input files larger than 513 MiB are rejected before reading.
 - The cap is an IMX safety policy, not ImageMagick parity.
 
+## Corpus Differential Coverage
+
+The v0.4.0 release adds `scripts/differential-corpus.sh` as a report-producing
+ImageMagick oracle lane. It generates the deterministic fixture corpus, runs
+`imx identify` for FARBFELD, QOI, PBM, PGM, and PPM fixtures, then checks all
+20 directed cross-format transcodes between the five supported formats.
+
+Each transcode result is decoded through ImageMagick to canonical 8-bit RGBA
+raw pixels and compared with the ImageMagick oracle output for the same source
+and destination format. The report emits:
+
+- `manifest.json` from the generated fixture corpus.
+- `results.jsonl` with one row per identify/transcode case.
+- `summary.json` with pass/fail counts and evidence paths.
+
+Malformed-input conformance remains covered by golden/malformed unit tests and
+fuzz targets rather than by ImageMagick byte-for-byte compatibility. IMX
+intentionally rejects several malformed inputs that ImageMagick may accept or
+clamp.
+
 ## Unsupported Surface
 
 - No full ImageMagick command parser.
+- No `magick` binary alias; the shipped command is `imx`.
 - No same-format rewrites.
 - No stdin/stdout streaming.
 - No format prefixes such as `QOI:out.qoi`.
@@ -169,3 +190,5 @@ FARBFELD/QOI to PGM:
 - No delegates, profiles, color management, resize/transform operations,
   MagickCore API, or MagickWand API.
 - No format beyond FARBFELD, QOI, PBM, PGM, and PPM.
+- No Windows, Linux arm64, crates.io, Homebrew/core, or full package-manager
+  distribution is claimed for v0.4.0.

@@ -2,8 +2,9 @@
 set -eu
 
 repo="${IMX_REPO:-jskoiz/imx}"
-version="${IMX_VERSION:-v0.3.0}"
+version="${IMX_VERSION:-v0.4.0}"
 install_dir="${IMX_INSTALL_DIR:-$HOME/.local/bin}"
+run_smoke="${IMX_INSTALL_SMOKE:-1}"
 
 os="$(uname -s)"
 arch="$(uname -m)"
@@ -68,5 +69,33 @@ else
   chmod 755 "$install_dir/imx"
 fi
 
-"$install_dir/imx" --version
+installed_version="$("$install_dir/imx" --version)"
+if [ "$installed_version" != "imx ${version#v}" ]; then
+  echo "error: installed binary version mismatch: expected imx ${version#v}, got $installed_version" >&2
+  exit 1
+fi
+echo "$installed_version"
+
+if [ "$run_smoke" != "0" ] && [ "$run_smoke" != "false" ]; then
+  smoke_dir="$work_dir/smoke"
+  mkdir -p "$smoke_dir"
+  printf 'P3\n2 2\n255\n255 0 0 0 255 0 0 0 255 255 255 255\n' >"$smoke_dir/input.ppm"
+  printf 'P2\n2 2\n255\n0 85 170 255\n' >"$smoke_dir/input.pgm"
+  printf 'P1\n2 2\n0 1\n1 0\n' >"$smoke_dir/input.pbm"
+  "$install_dir/imx" identify "$smoke_dir/input.ppm" >/dev/null
+  "$install_dir/imx" identify "$smoke_dir/input.pgm" >/dev/null
+  "$install_dir/imx" identify "$smoke_dir/input.pbm" >/dev/null
+  "$install_dir/imx" "$smoke_dir/input.ppm" "$smoke_dir/output.qoi"
+  "$install_dir/imx" identify "$smoke_dir/output.qoi" >/dev/null
+  "$install_dir/imx" "$smoke_dir/output.qoi" "$smoke_dir/output.ff"
+  "$install_dir/imx" identify "$smoke_dir/output.ff" >/dev/null
+  "$install_dir/imx" "$smoke_dir/output.ff" "$smoke_dir/output.pbm"
+  "$install_dir/imx" "$smoke_dir/output.ff" "$smoke_dir/output.pgm"
+  "$install_dir/imx" "$smoke_dir/output.ff" "$smoke_dir/output.ppm"
+  "$install_dir/imx" identify "$smoke_dir/output.pbm" >/dev/null
+  "$install_dir/imx" identify "$smoke_dir/output.pgm" >/dev/null
+  "$install_dir/imx" identify "$smoke_dir/output.ppm" >/dev/null
+  echo "smoke passed"
+fi
+
 echo "installed $install_dir/imx"
