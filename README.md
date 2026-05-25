@@ -11,7 +11,7 @@ used only as an external oracle in compatibility tests and benchmarks.
 
 ## Install
 
-Install the latest published v0.4.0 release from the Homebrew tap:
+Install the latest published release from the Homebrew tap:
 
 ```sh
 brew tap jskoiz/imx
@@ -19,37 +19,40 @@ brew install imx
 imx --version
 ```
 
-This uses the `jskoiz/homebrew-imx` tap formula for the prebuilt v0.4.0
-archive. It supports macOS arm64, macOS x86_64, and Linux x86_64. It is not a
+This uses the `jskoiz/homebrew-imx` tap formula generated from each published
+release's `SHA256SUMS`. For v0.5.0, tap support is limited to archive targets
+present in the published v0.5.0 release and verified by tap smoke. It is not a
 Homebrew/core formula.
 
 Hosted GitHub Actions for the tap are Linux-only; macOS install proof must be
 run locally or manually after explicit approval.
 
-Or install the release archive directly:
+After v0.5.0 is tagged and published, install a published release archive
+directly:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/jskoiz/imx/v0.4.0/scripts/install.sh | sh
+IMX_VERSION=v0.5.0
+curl -fsSL "https://raw.githubusercontent.com/jskoiz/imx/${IMX_VERSION}/scripts/install.sh" | sh
 ```
 
 The installer verifies the published `SHA256SUMS`, installs `imx`, asserts the
-installed version, and runs a small identify/transcode smoke test. Supported
-archive targets are:
+installed version, and runs a small identify/transcode smoke test. Hosted
+v0.5.0 tag automation publishes Linux archives for:
 
-- `imx-preview-0.4.0-x86_64-unknown-linux-gnu.tar.gz`
-- `imx-preview-0.4.0-aarch64-apple-darwin.tar.gz`
-- `imx-preview-0.4.0-x86_64-apple-darwin.tar.gz`
+- `imx-preview-0.5.0-x86_64-unknown-linux-gnu.tar.gz`
+- `imx-preview-0.5.0-aarch64-unknown-linux-gnu.tar.gz`
 
-No Windows, Linux arm64, crates.io, Homebrew/core, or package-manager
-distribution beyond the `jskoiz/imx` tap is claimed for v0.4.0. Release
-archives are published at:
+macOS v0.5.0 archives or tap blocks require recorded local/manual proof before
+being claimed. No Windows, crates.io, Homebrew/core, or package-manager
+distribution beyond the `jskoiz/imx` tap is claimed. The v0.5.0 release URL will
+be:
 
 ```text
-https://github.com/jskoiz/imx/releases/tag/v0.4.0
+https://github.com/jskoiz/imx/releases/tag/v0.5.0
 ```
 
 The release-attached `imx.rb` is the formula source published through the
-`jskoiz/homebrew-imx` tap. Future Linux arm64 tap support requires a published
+`jskoiz/homebrew-imx` tap. Linux arm64 tap support requires a published
 `aarch64-unknown-linux-gnu` archive URL and matching SHA generated from that
 release's `SHA256SUMS`, plus Linux-only tap smoke verification of the formula
 entry.
@@ -176,11 +179,11 @@ Package a release archive:
 ./scripts/package-release.sh
 ```
 
-For tags created after the Linux arm64 workflow change, hosted Linux release
-automation also packages `aarch64-unknown-linux-gnu` with the Rust cross target,
-QEMU smoke, architecture checks, and `readelf` linkage checks. That archive is
-not claimed for the already-published v0.4.0 release. No hosted macOS or iOS
-runner is used for the Linux arm64 proof.
+For v0.5.0 and later tags, hosted Linux release automation packages
+`x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu` archives. The Linux
+arm64 archive uses the Rust cross target, QEMU smoke, architecture checks, and
+`readelf` linkage checks. Linux arm64 is not claimed for the already-published
+v0.4.0 release. No hosted macOS or iOS runner is used for release proof.
 
 Release archives use deterministic tar/gzip metadata and aggregate
 `SHA256SUMS` entries so repeated packaging of the same built payload is
@@ -195,7 +198,7 @@ IMX_INSTALL_REPO_URL=https://github.com/jskoiz/imx.git ./scripts/verify-install.
 Verify published Linux release archives after GitHub release publication:
 
 ```sh
-IMX_VERSION=v0.4.0 IMX_RELEASE_TARGET=x86_64-unknown-linux-gnu ./scripts/verify-release-archive.sh
+IMX_VERSION=v0.5.0 IMX_RELEASE_TARGET=x86_64-unknown-linux-gnu ./scripts/verify-release-archive.sh
 ```
 
 Verify the Homebrew tap install smoke:
@@ -214,12 +217,12 @@ CI differential corpus, fuzz, benchmark, and conformance gates.
 
 The hosted CI workflow builds ImageMagick as an external oracle, runs release
 gates, runs fuzz targets, verifies install from a fresh checkout, packages Linux
-x86_64 release archives and post-v0.4.0 Linux arm64 preview archives, checks
-hosted-built binaries for ImageMagick linkage, generates the release conformance
-report, and downloads published Linux assets back for archive smoke. macOS
-archive and tap proof must be recorded locally or through an explicitly approved
-manual run before new macOS claims are made. Hosted GitHub Actions must not run
-macOS or iOS jobs without explicit approval in the current turn.
+x86_64 and Linux arm64 archives, checks hosted-built binaries for ImageMagick
+linkage, generates the release conformance report, and downloads published Linux
+assets back for archive smoke after a tag publish. macOS archive and tap proof
+must be recorded locally or through an explicitly approved manual run before new
+macOS claims are made. Hosted GitHub Actions must not run macOS or iOS jobs
+without explicit approval in the current turn.
 
 Benchmark runs emit:
 
@@ -245,3 +248,7 @@ targets are present in that release's `SHA256SUMS`. Tap updates are handled in
 See [COMPATIBILITY.md](COMPATIBILITY.md) for the exact behavior contract and
 [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) for current release evidence,
 known gaps, and the next adoption milestone.
+The current pre-tag release checklist is tracked in
+[docs/v0.5.0-release-ready.md](docs/v0.5.0-release-ready.md), and the next
+bounded compatibility recommendation is tracked in
+[docs/v0.6.0-compatibility-recommendation.md](docs/v0.6.0-compatibility-recommendation.md).

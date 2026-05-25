@@ -124,6 +124,8 @@ cat <<'EOF'
     assert_match "format=PPM width=2 height=1 channels=RGB depth=8", shell_output("#{bin/"imx"} identify input.ppm")
     system bin/"imx", "input.ppm", "output.qoi"
     assert_match "format=QOI width=2 height=1 channels=RGBA depth=8", shell_output("#{bin/"imx"} identify output.qoi")
+    system bin/"imx", "input.ppm", "rewrite.ppm"
+    assert_match "format=PPM width=2 height=1 channels=RGB depth=8", shell_output("#{bin/"imx"} identify rewrite.ppm")
   end
 end
 EOF

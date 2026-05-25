@@ -16,11 +16,9 @@ case "$os:$arch" in
   Linux:aarch64|Linux:arm64)
     target="aarch64-unknown-linux-gnu"
     ;;
-  Darwin:arm64|Darwin:aarch64)
-    target="aarch64-apple-darwin"
-    ;;
-  Darwin:x86_64)
-    target="x86_64-apple-darwin"
+  Darwin:*)
+    echo "error: this release installer supports Linux archives only; use the v0.4.0 installer for published macOS archives or install from source" >&2
+    exit 2
     ;;
   *)
     echo "error: unsupported platform: $os $arch" >&2
@@ -101,6 +99,16 @@ if [ "$run_smoke" != "0" ] && [ "$run_smoke" != "false" ]; then
   "$install_dir/imx" identify "$smoke_dir/output.pbm" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/output.pgm" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/output.ppm" >/dev/null
+  "$install_dir/imx" "$smoke_dir/output.ff" "$smoke_dir/rewrite.ff"
+  "$install_dir/imx" "$smoke_dir/output.qoi" "$smoke_dir/rewrite.qoi"
+  "$install_dir/imx" "$smoke_dir/input.pbm" "$smoke_dir/rewrite.pbm"
+  "$install_dir/imx" "$smoke_dir/input.pgm" "$smoke_dir/rewrite.pgm"
+  "$install_dir/imx" "$smoke_dir/input.ppm" "$smoke_dir/rewrite.ppm"
+  "$install_dir/imx" identify "$smoke_dir/rewrite.ff" >/dev/null
+  "$install_dir/imx" identify "$smoke_dir/rewrite.qoi" >/dev/null
+  "$install_dir/imx" identify "$smoke_dir/rewrite.pbm" >/dev/null
+  "$install_dir/imx" identify "$smoke_dir/rewrite.pgm" >/dev/null
+  "$install_dir/imx" identify "$smoke_dir/rewrite.ppm" >/dev/null
   echo "smoke passed"
 fi
 

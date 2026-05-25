@@ -78,7 +78,8 @@ $archive_table
 - Malformed-input tests cover invalid headers, truncation, oversized dimensions,
   unsupported max values, and failed CLI output behavior.
 - ImageMagick differential tests cover decoded-pixel compatibility for
-  FARBFELD/QOI/PBM/PGM/PPM identify and transcode paths.
+  FARBFELD/QOI/PBM/PGM/PPM identify and transcode paths, including
+  deterministic same-format rewrites.
 - Cargo-fuzz targets exercise FARBFELD, QOI, and shared PNM identify/decode
   entrypoints with seeded corpora.
 - Benchmarks record library throughput, process timing, process RSS, and output

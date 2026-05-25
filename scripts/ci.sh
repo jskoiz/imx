@@ -11,6 +11,7 @@ cargo tree --workspace --edges normal
 cargo test --workspace
 
 cargo build -p imx-cli --bin imx
+bash scripts/smoke-same-format-determinism.sh
 fixture_dir="${IMX_FIXTURE_DIR:-$root/target/generated-fixtures}"
 rm -rf "$fixture_dir"
 cargo run -p imx-cli --bin imx-generate-fixtures -- "$fixture_dir"

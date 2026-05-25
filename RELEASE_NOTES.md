@@ -39,10 +39,11 @@ imx <input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm> \
 
 - Hardened the one-command installer so it verifies release checksums, asserts
   the installed binary version, and runs a small identify/transcode smoke test.
-- Added published release-archive smoke verification for Linux x86_64, macOS
-  arm64, and macOS x86_64 after GitHub release publication.
-- Added Homebrew tap install: `brew install jskoiz/imx/imx`. The tap installs
-  the prebuilt v0.4.0 archive and is not a Homebrew/core submission.
+- Carried forward release-archive smoke verification. For v0.5.0, hosted
+  archive smoke is Linux-only: `x86_64-unknown-linux-gnu` and
+  `aarch64-unknown-linux-gnu`.
+- Homebrew remains tap-only, not Homebrew/core. The v0.5.0 tap update is a
+  follow-up from the published release `SHA256SUMS`.
 - Added a generated conformance report (`CONFORMANCE_REPORT.md`) sourced from
   CI evidence.
 - Added a corpus differential report that identifies all supported fixture
@@ -72,8 +73,9 @@ imx <input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm> \
   QOI opcode choices, or incidental representation details.
 - CLI input files larger than 513 MiB are rejected before reading.
 - Decoded pixel buffers larger than 512 MiB are rejected.
-- Homebrew support is tap-only; no Homebrew/core, crates.io, Windows, or Linux
-  arm64 package is claimed.
+- Homebrew support is tap-only; no Homebrew/core, crates.io, Windows, or
+  unverified macOS v0.5.0 package is claimed. Linux arm64 is claimed only for
+  published v0.5.0 archives and tap blocks verified from release `SHA256SUMS`.
 - This is not a full ImageMagick CLI, MagickCore, or MagickWand replacement.
 
 ## Release Evidence
@@ -86,8 +88,6 @@ IMX_FUZZ_MAX_TOTAL_TIME=5 ./scripts/run-fuzz.sh
 IMAGEMAGICK_MAGICK=/path/to/magick ./scripts/bench-release.sh
 IMX_INSTALL_REPO_URL=https://github.com/jskoiz/imx.git ./scripts/verify-install.sh
 ./scripts/package-release.sh
-brew install jskoiz/imx/imx
-brew test jskoiz/imx/imx
 ```
 
 The GitHub Actions preview workflow uploads generated fixtures, fuzz results,
@@ -95,3 +95,5 @@ fresh-install evidence, corpus differentials, benchmark evidence, benchmark
 regression reports, conformance reports, and packaged Linux release archives.
 Hosted macOS/iOS GitHub Actions are disabled after the v0.4.0 proof; macOS
 archive or tap proof must be run locally or manually after explicit approval.
+After publication, release archive smoke and Homebrew tap updates must be
+verified from the published v0.5.0 `SHA256SUMS`.

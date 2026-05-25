@@ -11,8 +11,9 @@ This contract covers only the standalone developer-preview slice.
   modules, policy.xml, or autotools.
 - Oracle dependency: ImageMagick may be invoked by tests and benchmarks only.
 - Public install surfaces: GitHub release archives, the one-command archive
-  installer, and the `jskoiz/imx` Homebrew tap. The published tap currently
-  tracks v0.4.0 archives until a v0.5.0 release is published and verified.
+  installer, and the `jskoiz/imx` Homebrew tap. The tap formula for a given
+  release is generated only from that release's published `SHA256SUMS`; platform
+  support is limited to archive targets with tap smoke proof.
 - No Homebrew/core formula is claimed.
 
 ## Supported Commands
@@ -170,8 +171,9 @@ FARBFELD/QOI to PGM:
 
 ## Corpus Differential Coverage
 
-The v0.5.0 release keeps `scripts/differential-corpus.sh` as a report-producing
-ImageMagick oracle lane. It generates the deterministic fixture corpus, runs
+The v0.5.0 candidate keeps `scripts/differential-corpus.sh` as a
+report-producing ImageMagick oracle lane. It generates the deterministic fixture
+corpus, runs
 `imx identify` for FARBFELD, QOI, PBM, PGM, and PPM fixtures, then checks all
 25 directed transcodes between the five supported formats, including
 same-format deterministic rewrites.

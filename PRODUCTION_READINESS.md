@@ -1,6 +1,6 @@
 # IMX v0.5.0 Compatibility Readiness
 
-Status: v0.5.0 compatibility candidate after the v0.4.0 public install report.
+Status: v0.5.0 compatibility candidate pending explicit tag approval.
 Automatic hosted macOS/iOS GitHub Actions remain disabled; macOS proof is
 local/manual only unless explicitly approved in the current turn.
 
@@ -12,8 +12,8 @@ local/manual only unless explicitly approved in the current turn.
   rewrites for the existing FARBFELD/QOI/PBM/PGM/PPM slice when input and
   output paths are different.
 - Published v0.4.0 release targets are Linux x86_64, macOS arm64, and macOS
-  x86_64. Post-v0.4.0 hosted automation prepares Linux x86_64 and Linux arm64
-  preview archives without hosted macOS/iOS Actions.
+  x86_64. The planned v0.5.0 hosted release targets are Linux x86_64 and Linux
+  arm64 only, without hosted macOS/iOS Actions.
 - ImageMagick remains an oracle for tests and benchmarks only; shipped binaries
   must not link to ImageMagick, MagickCore, MagickWand, delegates, modules,
   `policy.xml`, or ImageMagick's build system.
@@ -36,7 +36,7 @@ local/manual only unless explicitly approved in the current turn.
 | Source install verify | `scripts/verify-install.sh` | `target/install-verify/install-summary.json` | fresh checkout install plus supported identify/transcode smoke | required before tag |
 | Package/SHA/no-link | `scripts/package-release.sh` plus hosted Linux workflow; local macOS or explicitly approved manual evidence for macOS targets | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive smoke, no ImageMagick linkage for each claimed platform; post-v0.4.0 workflow prepares Linux arm64 preview artifacts | required before publishing that platform archive |
 | Published archive smoke | `scripts/verify-release-archive.sh` | `target/release-archive-smoke/<target>/summary.json` | downloads the selected GitHub release archive, verifies that archive against aggregate SHA256SUMS, no-link, identify/transcode smoke; hosted CI covers Linux only | required after release publish |
-| Homebrew tap smoke | `brew install jskoiz/imx/imx` and `brew test jskoiz/imx/imx` | `jskoiz/homebrew-imx` Linux formula/archive workflow plus local macOS or explicitly approved manual terminal output | formula URL/SHA fetch, binary version check, PPM identify, PPM-to-QOI smoke; local/manual Homebrew install proof for tap claims | required for tap claim; no hosted macOS tap smoke is claimed |
+| Homebrew tap smoke | `brew install jskoiz/imx/imx` and `brew test jskoiz/imx/imx` | `jskoiz/homebrew-imx` Linux formula/archive workflow plus local macOS or explicitly approved manual terminal output | formula URL/SHA fetch, binary version check, PPM identify, PPM-to-QOI smoke, and PPM same-format rewrite smoke; local/manual Homebrew install proof for tap claims | required for tap claim; no hosted macOS tap smoke is claimed |
 | Conformance report | `scripts/generate-conformance-report.sh` | `CONFORMANCE_REPORT.md`, `conformance-summary.json` | generated from CI evidence and attached to the release | required release asset |
 
 ## Local Verification
@@ -44,25 +44,25 @@ local/manual only unless explicitly approved in the current turn.
 Candidate commands:
 
 ```sh
-IMAGEMAGICK_MAGICK=/Users/jk/Desktop/imagemagick/utilities/magick \
+IMAGEMAGICK_MAGICK=/Users/jk/Desktop/imx/target/local-tools/magick-oracle \
   IMX_REQUIRE_ORACLE=1 \
   IMX_FUZZ_MAX_TOTAL_TIME=1 \
   IMX_BENCH_ITERATIONS=2 \
   bash scripts/ci.sh
-IMAGEMAGICK_MAGICK=/Users/jk/Desktop/imagemagick/utilities/magick \
+IMAGEMAGICK_MAGICK=/Users/jk/Desktop/imx/target/local-tools/magick-oracle \
   bash scripts/differential-corpus.sh
-IMAGEMAGICK_MAGICK=/Users/jk/Desktop/imagemagick/utilities/magick \
+IMAGEMAGICK_MAGICK=/Users/jk/Desktop/imx/target/local-tools/magick-oracle \
   IMX_BENCH_ITERATIONS=2 \
   bash scripts/bench-release.sh
-IMAGEMAGICK_MAGICK=/Users/jk/Desktop/imagemagick/utilities/magick \
+IMAGEMAGICK_MAGICK=/Users/jk/Desktop/imx/target/local-tools/magick-oracle \
   IMX_BENCH_BASE_REF=v0.4.0 \
   IMX_BENCH_ITERATIONS=2 \
   bash scripts/bench-regression.sh
 IMX_INSTALL_REPO_URL=/Users/jk/Desktop/imx \
   IMX_INSTALL_REVISION=HEAD \
-  bash scripts/verify-install.sh
+bash scripts/verify-install.sh
 bash scripts/package-release.sh
-otool -L target/release/imx
+cat target/release-artifacts/linkage-$(rustc -vV | sed -n 's/^host: //p').txt
 brew tap jskoiz/imx
 brew install imx
 brew test imx
@@ -92,9 +92,8 @@ IMX_VERSION=v0.5.0 IMX_RELEASE_TARGET=<target> \
 - Branch, pull-request, and tag CI build ImageMagick as an external oracle, run
   IMX release gates, generate differential corpus evidence, generate structured
   benchmark evidence, record v0.4.0 throughput ratios and enforce RSS budgets,
-  package Linux x86_64 release artifacts and post-v0.4.0 Linux arm64 preview
-  artifacts, verify fresh-checkout installation, generate conformance reports,
-  and upload evidence artifacts.
+  package Linux x86_64 and Linux arm64 artifacts, verify fresh-checkout
+  installation, generate conformance reports, and upload evidence artifacts.
 - Tag pushes matching `v*` run the preview gates, build native Linux x86_64 and
   cross-built Linux arm64 release archives, generate aggregate checksums, attach
   the generated tap formula and conformance report, publish the GitHub Release,
@@ -102,8 +101,9 @@ IMX_VERSION=v0.5.0 IMX_RELEASE_TARGET=<target> \
   is published through `jskoiz/homebrew-imx`; tap updates are tap-only
   automation, not Homebrew/core submissions, and must not use hosted macOS or
   iOS GitHub Actions. Linux arm64 is not claimed for the already-published
-  v0.4.0 assets unless the formula contains a checked URL and SHA generated
-  from a published `SHA256SUMS` entry and Linux-only tap smoke verifies it.
+  v0.4.0 assets, and tap support is claimed only after the formula contains a
+  checked URL and SHA generated from a published `SHA256SUMS` entry and
+  Linux-only tap smoke verifies it.
 - macOS archive or tap proof must run locally or manually after explicit
   approval in the current turn; normal pushes, tags, schedules, and tap updates
   must not start hosted macOS or iOS runners.
@@ -128,8 +128,10 @@ IMX_VERSION=v0.5.0 IMX_RELEASE_TARGET=<target> \
 - PGM comments and whitespace are not preserved.
 - FARBFELD to QOI/PPM is lossy for non-8-bit-representable 16-bit samples.
 - Color to PGM/PBM is lossy and ignores alpha.
-- No Windows, Linux arm64, crates.io, or Homebrew/core release is claimed for
-  v0.4.0; Homebrew support is tap-only through `jskoiz/imx`.
+- No Windows, crates.io, Homebrew/core, or unverified macOS v0.5.0 release is
+  claimed. Linux arm64 is claimed only for published v0.5.0 archives and tap
+  blocks verified from release `SHA256SUMS`; Homebrew support is tap-only
+  through `jskoiz/imx`.
 
 ## Safety Wins
 

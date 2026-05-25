@@ -156,12 +156,24 @@ else
 fi
 ! grep -E 'Magick(Core|Wand)|ImageMagick' "$artifact_dir/linkage-$target.txt"
 printf 'P3\n2 1\n255\n255 0 0 0 0 255\n' >"$verify_dir/input.ppm"
+printf 'P2\n2 1\n255\n0 255\n' >"$verify_dir/input.pgm"
+printf 'P1\n2 1\n0 1\n' >"$verify_dir/input.pbm"
 run_packaged_binary identify "$verify_dir/input.ppm" >/dev/null
+run_packaged_binary identify "$verify_dir/input.pgm" >/dev/null
+run_packaged_binary identify "$verify_dir/input.pbm" >/dev/null
 run_packaged_binary "$verify_dir/input.ppm" "$verify_dir/output.ff"
 run_packaged_binary identify "$verify_dir/output.ff" >/dev/null
 run_packaged_binary "$verify_dir/output.ff" "$verify_dir/output.qoi"
 run_packaged_binary identify "$verify_dir/output.qoi" >/dev/null
+run_packaged_binary "$verify_dir/output.ff" "$verify_dir/rewrite.ff"
+run_packaged_binary "$verify_dir/output.qoi" "$verify_dir/rewrite.qoi"
+run_packaged_binary "$verify_dir/input.pbm" "$verify_dir/rewrite.pbm"
+run_packaged_binary "$verify_dir/input.pgm" "$verify_dir/rewrite.pgm"
 run_packaged_binary "$verify_dir/input.ppm" "$verify_dir/rewrite.ppm"
+run_packaged_binary identify "$verify_dir/rewrite.ff" >/dev/null
+run_packaged_binary identify "$verify_dir/rewrite.qoi" >/dev/null
+run_packaged_binary identify "$verify_dir/rewrite.pbm" >/dev/null
+run_packaged_binary identify "$verify_dir/rewrite.pgm" >/dev/null
 run_packaged_binary identify "$verify_dir/rewrite.ppm" >/dev/null
 
 if command -v shasum >/dev/null 2>&1; then
