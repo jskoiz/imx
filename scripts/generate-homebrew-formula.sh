@@ -40,10 +40,9 @@ fi
 mkdir -p "$(dirname "$output")"
 cat >"$output" <<EOF
 class Imx < Formula
-  desc "Standalone Rust image tool for a bounded ImageMagick-compatible CLI slice"
+  desc "Standalone Rust image tool for FARBFELD, QOI, and Netpbm transcodes"
   homepage "https://github.com/$repo"
   license "ImageMagick"
-  version "$formula_version"
 
   on_macos do
     on_arm do
@@ -71,9 +70,9 @@ class Imx < Formula
 
   test do
     (testpath/"input.ppm").write "P3\\n2 1\\n255\\n255 0 0 0 0 255\\n"
-    assert_match "format=PPM width=2 height=1 channels=RGB depth=8", shell_output("#{bin}/imx identify input.ppm")
-    system "#{bin}/imx", "input.ppm", "output.qoi"
-    assert_match "format=QOI width=2 height=1 channels=RGB depth=8", shell_output("#{bin}/imx identify output.qoi")
+    assert_match "format=PPM width=2 height=1 channels=RGB depth=8", shell_output("#{bin/"imx"} identify input.ppm")
+    system bin/"imx", "input.ppm", "output.qoi"
+    assert_match "format=QOI width=2 height=1 channels=RGBA depth=8", shell_output("#{bin/"imx"} identify output.qoi")
   end
 end
 EOF

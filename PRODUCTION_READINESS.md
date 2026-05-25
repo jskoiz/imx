@@ -1,8 +1,7 @@
 # IMX v0.4.0 Public Install Readiness
 
-Status: candidate release-readiness report for the standalone `jskoiz/imx`
-product repo. This report becomes final only after the `v0.4.0` tag workflow
-publishes the release and the release-archive smoke matrix passes.
+Status: v0.4.0 public install report after GitHub Release archive smoke and
+Homebrew tap install/test verification.
 
 ## Implemented Behavior
 
@@ -15,7 +14,7 @@ publishes the release and the release-archive smoke matrix passes.
   must not link to ImageMagick, MagickCore, MagickWand, delegates, modules,
   `policy.xml`, or ImageMagick's build system.
 - Public distribution artifacts are the three release tarballs, aggregate
-  `SHA256SUMS`, generated `imx.rb` Homebrew formula draft,
+  `SHA256SUMS`, `imx.rb` formula published through the `jskoiz/homebrew-imx` tap,
   `CONFORMANCE_REPORT.md`, and `conformance-summary.json`.
 
 ## Evidence Table
@@ -31,6 +30,7 @@ publishes the release and the release-archive smoke matrix passes.
 | Source install verify | `scripts/verify-install.sh` | `target/install-verify/install-summary.json` | fresh checkout install plus supported identify/transcode smoke | required before tag |
 | Package/SHA/no-link | `scripts/package-release.sh` and release workflow | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive smoke, no ImageMagick linkage | required before tag |
 | Published archive smoke | `scripts/verify-release-archive.sh` | `target/release-archive-smoke/<target>/summary.json` | downloads GitHub release assets, verifies aggregate SHA256SUMS, no-link, identify/transcode smoke | required after release publish |
+| Homebrew tap smoke | `brew install jskoiz/imx/imx` and `brew test jskoiz/imx/imx` | `jskoiz/homebrew-imx` workflow and local terminal output | formula SHA fetch, binary install, `imx 0.4.0` version check, PPM identify, PPM-to-QOI smoke | required for tap claim |
 | Conformance report | `scripts/generate-conformance-report.sh` | `CONFORMANCE_REPORT.md`, `conformance-summary.json` | generated from CI evidence and attached to the release | required release asset |
 
 ## Local Verification
@@ -57,6 +57,10 @@ IMX_INSTALL_REPO_URL=/Users/jk/Desktop/imx \
   bash scripts/verify-install.sh
 bash scripts/package-release.sh
 otool -L target/release/imx
+brew tap jskoiz/imx
+brew install imx
+brew test imx
+imx --version
 ```
 
 After the `v0.4.0` release is published, each supported platform must run:
@@ -75,6 +79,7 @@ IMX_VERSION=v0.4.0 IMX_RELEASE_TARGET=<target> \
 - Conformance report generator: `scripts/generate-conformance-report.sh`.
 - CI workflow: `.github/workflows/rust-standalone-preview.yml`.
 - Scheduled fuzz workflow: `.github/workflows/rust-fuzz-scheduled.yml`.
+- Homebrew tap workflow: `jskoiz/homebrew-imx/.github/workflows/tap-smoke.yml`.
 - Branch, pull-request, and tag CI build ImageMagick as an external oracle, run
   IMX release gates, generate differential corpus evidence, generate structured
   benchmark evidence, record v0.3.0 throughput ratios and enforce RSS budgets,
@@ -83,8 +88,10 @@ IMX_VERSION=v0.4.0 IMX_RELEASE_TARGET=<target> \
   and upload evidence artifacts.
 - Tag pushes matching `v*` run the preview gates, build native Linux/macOS
   release archives, generate aggregate checksums, generate a Homebrew formula
-  draft, attach the conformance report, publish the GitHub Release, then
-  download the published assets back for platform smoke tests.
+  snapshot, attach the conformance report, publish the GitHub Release, then
+  download the published assets back for platform smoke tests. The tap formula
+  is published through `jskoiz/homebrew-imx`; tap updates are committed there
+  from the generated formula rather than pushed by the tag workflow.
 - Release archives are written with deterministic tar/gzip metadata, sorted
   entries, fixed ownership, fixed mtimes, stable file modes, and aggregate
   `SHA256SUMS` entries.
@@ -109,7 +116,7 @@ IMX_VERSION=v0.4.0 IMX_RELEASE_TARGET=<target> \
 - Color to PGM/PBM is lossy and ignores alpha.
 - No PAM, PFM, PNG, or BMP.
 - No Windows, Linux arm64, crates.io, or Homebrew/core release is claimed for
-  v0.4.0.
+  v0.4.0; Homebrew support is tap-only through `jskoiz/imx`.
 
 ## Safety Wins
 
@@ -124,12 +131,13 @@ IMX_VERSION=v0.4.0 IMX_RELEASE_TARGET=<target> \
 - CLI writes remain atomic via temp file plus rename.
 - Release archive smoke tests verify the installed binary from the archive, not
   only a source checkout.
+- Homebrew tap smoke verifies formula installation only; compatibility remains
+  covered by CI differential corpus, fuzz, benchmark, and conformance gates.
 - Scheduled fuzz retains crash artifacts under the uploaded fuzz evidence.
 
 ## Next Smallest Milestone
 
-After v0.4.0, the smallest adoption-expanding next milestone is to turn the
-generated `imx.rb` into a real tap with documented install commands, or add a
-Linux arm64 archive if user demand points there. PNG, JPEG, TIFF, delegates,
-MagickCore, MagickWand, and full ImageMagick CLI compatibility remain too broad
-for the next milestone.
+After v0.4.0, the smallest adoption-expanding next milestone is Linux arm64
+release archive support or tap update automation if user demand points there.
+PNG, JPEG, TIFF, delegates, MagickCore, MagickWand, and full ImageMagick CLI
+compatibility remain too broad for the next milestone.

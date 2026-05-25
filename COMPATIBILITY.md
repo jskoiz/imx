@@ -10,6 +10,9 @@ This contract covers only the standalone developer-preview slice.
 - Runtime dependencies: none on ImageMagick, MagickCore, MagickWand, delegates,
   modules, policy.xml, or autotools.
 - Oracle dependency: ImageMagick may be invoked by tests and benchmarks only.
+- Public install surfaces: GitHub release archives, the one-command archive
+  installer, and the `jskoiz/imx` Homebrew tap for v0.4.0 archives.
+- No Homebrew/core formula is claimed.
 
 ## Supported Commands
 
@@ -114,7 +117,7 @@ PBM to FARBFELD/QOI/PGM/PPM:
 
 - Black/white samples replicate into gray or RGB channels.
 - Alpha is opaque where the destination has alpha.
-- PBM to QOI emits RGB8 QOI.
+- PBM to QOI emits RGBA8 QOI.
 - PBM to PGM emits GRAY8 PGM.
 - PBM to PPM emits RGB8 PPM.
 
@@ -130,14 +133,14 @@ PGM/PPM/FARBFELD/QOI to PBM:
 PPM to FARBFELD/QOI/PGM:
 
 - PPM RGB8 expands to opaque RGBA when the destination has alpha.
-- PPM to QOI emits RGB8 QOI.
+- PPM to QOI emits RGBA8 QOI.
 - PPM to PGM uses the Rec.709 luma rule above.
 
 PGM to FARBFELD/QOI/PPM:
 
 - Gray samples replicate into RGB channels.
 - Alpha is opaque where the destination has alpha.
-- PGM to QOI emits RGB8 QOI.
+- PGM to QOI emits RGBA8 QOI.
 - PGM to PPM emits RGB8 PPM.
 
 FARBFELD/QOI to PPM:
@@ -190,5 +193,5 @@ clamp.
 - No delegates, profiles, color management, resize/transform operations,
   MagickCore API, or MagickWand API.
 - No format beyond FARBFELD, QOI, PBM, PGM, and PPM.
-- No Windows, Linux arm64, crates.io, Homebrew/core, or full package-manager
-  distribution is claimed for v0.4.0.
+- No Windows, Linux arm64, crates.io, Homebrew/core, or package-manager
+  distribution beyond the `jskoiz/imx` Homebrew tap is claimed for v0.4.0.

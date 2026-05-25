@@ -11,7 +11,19 @@ used only as an external oracle in compatibility tests and benchmarks.
 
 ## Install
 
-Install the latest v0.4.0 release archive:
+Install the latest v0.4.0 release from the Homebrew tap:
+
+```sh
+brew tap jskoiz/imx
+brew install imx
+imx --version
+```
+
+This uses the `jskoiz/homebrew-imx` tap formula for the prebuilt v0.4.0
+archive. It supports macOS arm64, macOS x86_64, and Linux x86_64. It is not a
+Homebrew/core formula.
+
+Or install the release archive directly:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/jskoiz/imx/v0.4.0/scripts/install.sh | sh
@@ -25,15 +37,16 @@ archive targets are:
 - `imx-preview-0.4.0-aarch64-apple-darwin.tar.gz`
 - `imx-preview-0.4.0-x86_64-apple-darwin.tar.gz`
 
-No Windows, Linux arm64, crates.io, or broad package-manager release is claimed
-for v0.4.0. Release archives are published at:
+No Windows, Linux arm64, crates.io, Homebrew/core, or package-manager
+distribution beyond the `jskoiz/imx` tap is claimed for v0.4.0. Release
+archives are published at:
 
 ```text
 https://github.com/jskoiz/imx/releases/tag/v0.4.0
 ```
 
-A Homebrew formula draft is attached to the release as `imx.rb`. It is intended
-for a tap such as `jskoiz/homebrew-imx`; it is not a Homebrew/core submission.
+The release-attached `imx.rb` is the formula source published through the
+`jskoiz/homebrew-imx` tap.
 
 Or install from source:
 
@@ -172,6 +185,18 @@ Verify published release archives after GitHub release publication:
 IMX_VERSION=v0.4.0 IMX_RELEASE_TARGET=x86_64-unknown-linux-gnu ./scripts/verify-release-archive.sh
 ```
 
+Verify the Homebrew tap install smoke:
+
+```sh
+brew tap jskoiz/imx
+brew install imx
+brew test imx
+imx --version
+```
+
+`brew test` verifies installation only. Compatibility remains covered by the
+CI differential corpus, fuzz, benchmark, and conformance gates.
+
 ## Evidence
 
 The CI workflow builds ImageMagick as an external oracle, runs release gates,
@@ -193,7 +218,7 @@ Benchmark runs emit:
 Tag releases additionally attach:
 
 - `SHA256SUMS`
-- `imx.rb` Homebrew formula draft
+- `imx.rb` Homebrew tap formula snapshot
 - `CONFORMANCE_REPORT.md`
 - `conformance-summary.json`
 

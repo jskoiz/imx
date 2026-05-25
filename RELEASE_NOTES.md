@@ -31,8 +31,8 @@ imx input.ppm <output.ff|output.farbfeld|output.qoi|output.pbm|output.pgm>
   the installed binary version, and runs a small identify/transcode smoke test.
 - Added published release-archive smoke verification for Linux x86_64, macOS
   arm64, and macOS x86_64 after GitHub release publication.
-- Added a generated Homebrew formula draft (`imx.rb`) based on the aggregate
-  release `SHA256SUMS`.
+- Added Homebrew tap install: `brew install jskoiz/imx/imx`. The tap installs
+  the prebuilt v0.4.0 archive and is not a Homebrew/core submission.
 - Added a generated conformance report (`CONFORMANCE_REPORT.md`) sourced from
   CI evidence.
 - Added a corpus differential report that identifies all supported fixture
@@ -60,6 +60,8 @@ imx input.ppm <output.ff|output.farbfeld|output.qoi|output.pbm|output.pgm>
   enough pixels decode.
 - CLI input files larger than 513 MiB are rejected before reading.
 - Decoded pixel buffers larger than 512 MiB are rejected.
+- Homebrew support is tap-only; no Homebrew/core, crates.io, Windows, or Linux
+  arm64 package is claimed.
 - This is not a full ImageMagick CLI, MagickCore, or MagickWand replacement.
 
 ## Release Evidence
@@ -72,6 +74,8 @@ IMX_FUZZ_MAX_TOTAL_TIME=5 ./scripts/run-fuzz.sh
 IMAGEMAGICK_MAGICK=/path/to/magick ./scripts/bench-release.sh
 IMX_INSTALL_REPO_URL=https://github.com/jskoiz/imx.git ./scripts/verify-install.sh
 ./scripts/package-release.sh
+brew install jskoiz/imx/imx
+brew test jskoiz/imx/imx
 ```
 
 The GitHub Actions preview workflow uploads generated fixtures, fuzz results,
