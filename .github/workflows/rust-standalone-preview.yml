@@ -345,7 +345,10 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu libc6-arm64-cross libgcc-s1-arm64-cross qemu-user
           libgcc_path="$(aarch64-linux-gnu-gcc -print-file-name=libgcc_s.so.1)"
-          sudo cp -v "$libgcc_path" /usr/aarch64-linux-gnu/lib/
+          target_libgcc="/usr/aarch64-linux-gnu/lib/libgcc_s.so.1"
+          if [[ "$(readlink -f "$libgcc_path")" != "$(readlink -f "$target_libgcc")" ]]; then
+            sudo cp -v "$libgcc_path" "$target_libgcc"
+          fi
 
       - name: Verify published release archive
         env:
