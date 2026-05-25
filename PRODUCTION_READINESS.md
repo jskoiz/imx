@@ -34,7 +34,7 @@ unless explicitly approved in the current turn.
 | Source install verify | `scripts/verify-install.sh` | `target/install-verify/install-summary.json` | fresh checkout install plus supported identify/transcode smoke | required before tag |
 | Package/SHA/no-link | `scripts/package-release.sh` plus hosted Linux workflow; local macOS or explicitly approved manual evidence for macOS targets | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive smoke, no ImageMagick linkage for each claimed platform | required before publishing that platform archive |
 | Published archive smoke | `scripts/verify-release-archive.sh` | `target/release-archive-smoke/<target>/summary.json` | downloads the selected GitHub release archive, verifies that archive against aggregate SHA256SUMS, no-link, identify/transcode smoke; hosted CI covers Linux only | required after release publish |
-| Homebrew tap smoke | `brew install jskoiz/imx/imx` and `brew test jskoiz/imx/imx` | `jskoiz/homebrew-imx` Linux workflow plus local macOS or explicitly approved manual terminal output | formula SHA fetch, binary install, `imx 0.4.0` version check, PPM identify, PPM-to-QOI smoke | required for tap claim; no hosted macOS tap smoke is claimed |
+| Homebrew tap smoke | `brew install jskoiz/imx/imx` and `brew test jskoiz/imx/imx` | `jskoiz/homebrew-imx` Linux formula/archive workflow plus local macOS or explicitly approved manual terminal output | formula URL/SHA fetch, binary version check, PPM identify, PPM-to-QOI smoke; local/manual Homebrew install proof for tap claims | required for tap claim; no hosted macOS tap smoke is claimed |
 | Conformance report | `scripts/generate-conformance-report.sh` | `CONFORMANCE_REPORT.md`, `conformance-summary.json` | generated from CI evidence and attached to the release | required release asset |
 
 ## Local Verification
@@ -85,8 +85,8 @@ IMX_VERSION=v0.4.0 IMX_RELEASE_TARGET=<target> \
 - CI workflow: `.github/workflows/rust-standalone-preview.yml`.
 - Scheduled fuzz workflow: `.github/workflows/rust-fuzz-scheduled.yml`.
 - Homebrew tap workflow: `jskoiz/homebrew-imx/.github/workflows/tap-smoke.yml`
-  for Linux-only hosted smoke, plus local macOS or explicitly approved manual
-  smoke when making macOS tap claims.
+  for Linux-only hosted formula/archive smoke, plus local or explicitly
+  approved manual Homebrew install smoke when making tap claims.
 - Branch, pull-request, and tag CI build ImageMagick as an external oracle, run
   IMX release gates, generate differential corpus evidence, generate structured
   benchmark evidence, record v0.3.0 throughput ratios and enforce RSS budgets,
