@@ -13,6 +13,9 @@ case "$os:$arch" in
   Linux:x86_64)
     target="x86_64-unknown-linux-gnu"
     ;;
+  Linux:aarch64|Linux:arm64)
+    target="aarch64-unknown-linux-gnu"
+    ;;
   Darwin:arm64|Darwin:aarch64)
     target="aarch64-apple-darwin"
     ;;
@@ -43,12 +46,15 @@ download() {
   fi
 }
 
-download "$base_url/$archive" "$work_dir/$archive"
 download "$base_url/SHA256SUMS" "$work_dir/SHA256SUMS"
 
 (
   cd "$work_dir"
-  grep " $archive\$" SHA256SUMS > SHA256SUMS.selected
+  if ! grep " $archive\$" SHA256SUMS > SHA256SUMS.selected; then
+    echo "error: SHA256SUMS does not contain selected archive: $archive" >&2
+    exit 1
+  fi
+  download "$base_url/$archive" "$archive"
   if command -v shasum >/dev/null 2>&1; then
     shasum -a 256 -c SHA256SUMS.selected
   elif command -v sha256sum >/dev/null 2>&1; then

@@ -19,6 +19,7 @@ detect_target() {
   arch="$(uname -m)"
   case "$os:$arch" in
     Linux:x86_64) echo "x86_64-unknown-linux-gnu" ;;
+    Linux:aarch64|Linux:arm64) echo "aarch64-unknown-linux-gnu" ;;
     Darwin:arm64|Darwin:aarch64) echo "aarch64-apple-darwin" ;;
     Darwin:x86_64) echo "x86_64-apple-darwin" ;;
     *)
@@ -28,7 +29,18 @@ detect_target() {
   esac
 }
 
-target="${IMX_RELEASE_TARGET:-$(detect_target)}"
+host_target="$(detect_target)"
+target="${IMX_RELEASE_TARGET:-$host_target}"
+if [[ "$target" != "$host_target" ]]; then
+  if [[ -z "${IMX_RELEASE_RUNNER:-}" ]]; then
+    echo "error: IMX_RELEASE_RUNNER is required to smoke release archive $target on host $host_target" >&2
+    exit 2
+  fi
+  if [[ -z "${IMX_LINKAGE_COMMAND:-}" ]]; then
+    echo "error: IMX_LINKAGE_COMMAND is required to inspect release archive $target on host $host_target" >&2
+    exit 2
+  fi
+fi
 archive="imx-preview-${version#v}-$target.tar.gz"
 work_dir="${IMX_RELEASE_SMOKE_DIR:-$root/target/release-archive-smoke/$target}"
 download_dir="$work_dir/downloads"
@@ -92,15 +104,39 @@ fi
 )
 
 binary="$extract_dir/imx-preview-${version#v}-$target/imx"
-"$binary" --version
+runner=()
+if [[ -n "${IMX_RELEASE_RUNNER:-}" ]]; then
+  read -r -a runner <<<"$IMX_RELEASE_RUNNER"
+fi
+run_archive_binary() {
+  if ((${#runner[@]})); then
+    "${runner[@]}" "$binary" "$@"
+  else
+    "$binary" "$@"
+  fi
+}
 
-if [[ "$(uname -s)" == "Darwin" ]]; then
+archive_version="$(run_archive_binary --version)"
+if [[ "$archive_version" != "imx ${version#v}" ]]; then
+  echo "error: archive binary version mismatch: expected imx ${version#v}, got $archive_version" >&2
+  exit 1
+fi
+file "$binary" >"$work_dir/file.txt"
+case "$target" in
+  aarch64-unknown-linux-gnu)
+    grep -E 'ARM aarch64|AArch64|ARM64' "$work_dir/file.txt" >/dev/null
+    ;;
+esac
+
+if [[ -n "${IMX_LINKAGE_COMMAND:-}" ]]; then
+  read -r -a linkage_command <<<"$IMX_LINKAGE_COMMAND"
+  "${linkage_command[@]}" "$binary" >"$work_dir/linkage.txt"
+elif [[ "$(uname -s)" == "Darwin" ]]; then
   otool -L "$binary" >"$work_dir/linkage.txt"
-  ! grep -E 'Magick(Core|Wand)|ImageMagick' "$work_dir/linkage.txt"
 else
   ldd "$binary" >"$work_dir/linkage.txt"
-  ! grep -E 'Magick(Core|Wand)|ImageMagick' "$work_dir/linkage.txt"
 fi
+! grep -E 'Magick(Core|Wand)|ImageMagick' "$work_dir/linkage.txt"
 
 smoke_dir="$work_dir/smoke"
 mkdir -p "$smoke_dir"
@@ -108,19 +144,19 @@ printf 'P3\n2 2\n255\n255 0 0 0 255 0 0 0 255 255 255 255\n' >"$smoke_dir/input.
 printf 'P2\n2 2\n255\n0 85 170 255\n' >"$smoke_dir/input.pgm"
 printf 'P1\n2 2\n0 1\n1 0\n' >"$smoke_dir/input.pbm"
 
-"$binary" identify "$smoke_dir/input.ppm" >"$smoke_dir/identify-ppm.txt"
-"$binary" identify "$smoke_dir/input.pgm" >"$smoke_dir/identify-pgm.txt"
-"$binary" identify "$smoke_dir/input.pbm" >"$smoke_dir/identify-pbm.txt"
-"$binary" "$smoke_dir/input.ppm" "$smoke_dir/output.qoi"
-"$binary" identify "$smoke_dir/output.qoi" >"$smoke_dir/identify-qoi.txt"
-"$binary" "$smoke_dir/output.qoi" "$smoke_dir/output.ff"
-"$binary" identify "$smoke_dir/output.ff" >"$smoke_dir/identify-farbfeld.txt"
-"$binary" "$smoke_dir/output.ff" "$smoke_dir/output.pbm"
-"$binary" "$smoke_dir/output.ff" "$smoke_dir/output.pgm"
-"$binary" "$smoke_dir/output.ff" "$smoke_dir/output.ppm"
-"$binary" identify "$smoke_dir/output.pbm" >"$smoke_dir/identify-output-pbm.txt"
-"$binary" identify "$smoke_dir/output.pgm" >"$smoke_dir/identify-output-pgm.txt"
-"$binary" identify "$smoke_dir/output.ppm" >"$smoke_dir/identify-output-ppm.txt"
+run_archive_binary identify "$smoke_dir/input.ppm" >"$smoke_dir/identify-ppm.txt"
+run_archive_binary identify "$smoke_dir/input.pgm" >"$smoke_dir/identify-pgm.txt"
+run_archive_binary identify "$smoke_dir/input.pbm" >"$smoke_dir/identify-pbm.txt"
+run_archive_binary "$smoke_dir/input.ppm" "$smoke_dir/output.qoi"
+run_archive_binary identify "$smoke_dir/output.qoi" >"$smoke_dir/identify-qoi.txt"
+run_archive_binary "$smoke_dir/output.qoi" "$smoke_dir/output.ff"
+run_archive_binary identify "$smoke_dir/output.ff" >"$smoke_dir/identify-farbfeld.txt"
+run_archive_binary "$smoke_dir/output.ff" "$smoke_dir/output.pbm"
+run_archive_binary "$smoke_dir/output.ff" "$smoke_dir/output.pgm"
+run_archive_binary "$smoke_dir/output.ff" "$smoke_dir/output.ppm"
+run_archive_binary identify "$smoke_dir/output.pbm" >"$smoke_dir/identify-output-pbm.txt"
+run_archive_binary identify "$smoke_dir/output.pgm" >"$smoke_dir/identify-output-pgm.txt"
+run_archive_binary identify "$smoke_dir/output.ppm" >"$smoke_dir/identify-output-ppm.txt"
 
 cat >"$summary" <<EOF
 {

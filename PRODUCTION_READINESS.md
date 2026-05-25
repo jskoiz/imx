@@ -32,7 +32,7 @@ unless explicitly approved in the current turn.
 | Bench/RSS thresholds | `scripts/bench-release.sh` | `target/release-bench-*/threshold-summary.json` | throughput and process/library RSS sanity budgets | required before tag |
 | Bench regression | `scripts/bench-regression.sh` | `target/bench-regression-*/regression-report.json` | current candidate vs v0.3.0 throughput/RSS baseline; throughput ratios are tracked as warnings, RSS growth is enforced | required before tag |
 | Source install verify | `scripts/verify-install.sh` | `target/install-verify/install-summary.json` | fresh checkout install plus supported identify/transcode smoke | required before tag |
-| Package/SHA/no-link | `scripts/package-release.sh` plus hosted Linux workflow; local macOS or explicitly approved manual evidence for macOS targets | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive smoke, no ImageMagick linkage for each claimed platform | required before publishing that platform archive |
+| Package/SHA/no-link | `scripts/package-release.sh` plus hosted Linux workflow; local macOS or explicitly approved manual evidence for macOS targets | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive smoke, no ImageMagick linkage for each claimed platform; post-v0.4.0 workflow prepares Linux arm64 preview artifacts | required before publishing that platform archive |
 | Published archive smoke | `scripts/verify-release-archive.sh` | `target/release-archive-smoke/<target>/summary.json` | downloads the selected GitHub release archive, verifies that archive against aggregate SHA256SUMS, no-link, identify/transcode smoke; hosted CI covers Linux only | required after release publish |
 | Homebrew tap smoke | `brew install jskoiz/imx/imx` and `brew test jskoiz/imx/imx` | `jskoiz/homebrew-imx` Linux formula/archive workflow plus local macOS or explicitly approved manual terminal output | formula URL/SHA fetch, binary version check, PPM identify, PPM-to-QOI smoke; local/manual Homebrew install proof for tap claims | required for tap claim; no hosted macOS tap smoke is claimed |
 | Conformance report | `scripts/generate-conformance-report.sh` | `CONFORMANCE_REPORT.md`, `conformance-summary.json` | generated from CI evidence and attached to the release | required release asset |
@@ -90,13 +90,16 @@ IMX_VERSION=v0.4.0 IMX_RELEASE_TARGET=<target> \
 - Branch, pull-request, and tag CI build ImageMagick as an external oracle, run
   IMX release gates, generate differential corpus evidence, generate structured
   benchmark evidence, record v0.3.0 throughput ratios and enforce RSS budgets,
-  package Linux release artifacts, verify fresh-checkout installation,
-  generate conformance reports, and upload evidence artifacts.
-- Tag pushes matching `v*` run the preview gates, build the native Linux release
-  archive, generate aggregate checksums, attach the conformance report, publish
-  the GitHub Release, then download the published Linux asset back for smoke
-  tests. The tap formula is published through `jskoiz/homebrew-imx`; tap updates
-  are committed there without hosted macOS GitHub Actions.
+  package Linux x86_64 release artifacts and post-v0.4.0 Linux arm64 preview
+  artifacts, verify fresh-checkout installation, generate conformance reports,
+  and upload evidence artifacts.
+- Tag pushes matching `v*` run the preview gates, build native Linux x86_64 and
+  cross-built Linux arm64 release archives, generate aggregate checksums, attach
+  the conformance report, publish the GitHub Release, then download the
+  published Linux assets back for smoke tests. The tap formula is published
+  through `jskoiz/homebrew-imx`; tap updates are committed there without hosted
+  macOS GitHub Actions. Linux arm64 is not claimed for the already-published
+  v0.4.0 assets unless that archive is explicitly published and verified.
 - macOS archive or tap proof must run locally or manually after explicit
   approval in the current turn; normal pushes, tags, schedules, and tap updates
   must not start hosted macOS or iOS runners.
@@ -145,7 +148,8 @@ IMX_VERSION=v0.4.0 IMX_RELEASE_TARGET=<target> \
 
 ## Next Smallest Milestone
 
-After v0.4.0, the smallest adoption-expanding next milestone is Linux arm64
-release archive support or tap update automation if user demand points there.
+After v0.4.0, Linux arm64 release archive support is the active
+adoption-expanding milestone. Tap update automation remains the next packaging
+milestone after the Linux arm64 archive proof is recorded.
 PNG, JPEG, TIFF, delegates, MagickCore, MagickWand, and full ImageMagick CLI
 compatibility remain too broad for the next milestone.

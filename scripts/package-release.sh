@@ -26,26 +26,46 @@ if ! grep -q "version=\"\${IMX_VERSION:-v$version}\"" scripts/install.sh; then
   echo "error: scripts/install.sh default version does not match v$version" >&2
   exit 1
 fi
-target="$(rustc -vV | sed -n 's/^host: //p')"
+host_target="$(rustc -vV | sed -n 's/^host: //p')"
+target="${IMX_PACKAGE_TARGET:-$host_target}"
 if [[ -n "${IMX_EXPECTED_TARGET:-}" && "$target" != "$IMX_EXPECTED_TARGET" ]]; then
-  echo "error: expected Rust host target $IMX_EXPECTED_TARGET, got $target" >&2
+  echo "error: expected release target $IMX_EXPECTED_TARGET, got $target" >&2
   exit 1
 fi
-artifact_dir="$root/target/release-artifacts"
+if [[ "$target" != "$host_target" ]]; then
+  if [[ -z "${IMX_PACKAGE_RUNNER:-}" ]]; then
+    echo "error: IMX_PACKAGE_RUNNER is required to smoke cross-target release archive $target on host $host_target" >&2
+    exit 2
+  fi
+  if [[ -z "${IMX_LINKAGE_COMMAND:-}" ]]; then
+    echo "error: IMX_LINKAGE_COMMAND is required to inspect cross-target release archive $target on host $host_target" >&2
+    exit 2
+  fi
+fi
+artifact_dir="${IMX_ARTIFACT_DIR:-$root/target/release-artifacts}"
+if [[ "$artifact_dir" != /* ]]; then
+  artifact_dir="$root/$artifact_dir"
+fi
 staging="$root/target/imx-preview-$version-$target"
 archive_name="imx-preview-$version-$target.tar.gz"
 archive_path="$artifact_dir/$archive_name"
 rm -rf "$artifact_dir" "$staging"
 mkdir -p "$artifact_dir" "$staging"
 
-cargo build --release -p imx-cli --bin imx
+build_args=(--release --locked -p imx-cli --bin imx)
+binary_dir="$root/target/release"
+if [[ "$target" != "$host_target" ]]; then
+  build_args+=(--target "$target")
+  binary_dir="$root/target/$target/release"
+fi
+cargo build "${build_args[@]}"
 
 if ! command -v python3 >/dev/null 2>&1; then
   echo "error: python3 is required for deterministic release packaging" >&2
   exit 1
 fi
 
-cp "$root/target/release/imx" "$staging/"
+cp "$binary_dir/imx" "$staging/"
 cp "$root/README.md" "$staging/"
 cp "$root/COMPATIBILITY.md" "$staging/"
 cp "$root/RELEASE_NOTES.md" "$staging/"
@@ -103,24 +123,44 @@ verify_dir="$(mktemp -d "$root/target/package-smoke.XXXXXX")"
 trap 'rm -rf "$verify_dir"' EXIT
 tar -xzf "$archive_path" -C "$verify_dir"
 packaged_binary="$verify_dir/imx-preview-$version-$target/imx"
-packaged_version="$("$packaged_binary" --version)"
+runner=()
+if [[ -n "${IMX_PACKAGE_RUNNER:-}" ]]; then
+  read -r -a runner <<<"$IMX_PACKAGE_RUNNER"
+fi
+run_packaged_binary() {
+  if ((${#runner[@]})); then
+    "${runner[@]}" "$packaged_binary" "$@"
+  else
+    "$packaged_binary" "$@"
+  fi
+}
+
+packaged_version="$(run_packaged_binary --version)"
 if [[ "$packaged_version" != "imx $version" ]]; then
   echo "error: packaged binary version mismatch: expected imx $version, got $packaged_version" >&2
   exit 1
 fi
-if [[ "$(uname -s)" == "Darwin" ]]; then
+file "$packaged_binary" >"$artifact_dir/file-$target.txt"
+case "$target" in
+  aarch64-unknown-linux-gnu)
+    grep -E 'ARM aarch64|AArch64|ARM64' "$artifact_dir/file-$target.txt" >/dev/null
+    ;;
+esac
+if [[ -n "${IMX_LINKAGE_COMMAND:-}" ]]; then
+  read -r -a linkage_command <<<"$IMX_LINKAGE_COMMAND"
+  "${linkage_command[@]}" "$packaged_binary" >"$artifact_dir/linkage-$target.txt"
+elif [[ "$(uname -s)" == "Darwin" ]]; then
   otool -L "$packaged_binary" >"$artifact_dir/linkage-$target.txt"
-  ! grep -E 'Magick(Core|Wand)|ImageMagick' "$artifact_dir/linkage-$target.txt"
 else
   ldd "$packaged_binary" >"$artifact_dir/linkage-$target.txt"
-  ! grep -E 'Magick(Core|Wand)|ImageMagick' "$artifact_dir/linkage-$target.txt"
 fi
+! grep -E 'Magick(Core|Wand)|ImageMagick' "$artifact_dir/linkage-$target.txt"
 printf 'P3\n2 1\n255\n255 0 0 0 0 255\n' >"$verify_dir/input.ppm"
-"$packaged_binary" identify "$verify_dir/input.ppm" >/dev/null
-"$packaged_binary" "$verify_dir/input.ppm" "$verify_dir/output.ff"
-"$packaged_binary" identify "$verify_dir/output.ff" >/dev/null
-"$packaged_binary" "$verify_dir/output.ff" "$verify_dir/output.qoi"
-"$packaged_binary" identify "$verify_dir/output.qoi" >/dev/null
+run_packaged_binary identify "$verify_dir/input.ppm" >/dev/null
+run_packaged_binary "$verify_dir/input.ppm" "$verify_dir/output.ff"
+run_packaged_binary identify "$verify_dir/output.ff" >/dev/null
+run_packaged_binary "$verify_dir/output.ff" "$verify_dir/output.qoi"
+run_packaged_binary identify "$verify_dir/output.qoi" >/dev/null
 
 if command -v shasum >/dev/null 2>&1; then
   (cd "$artifact_dir" && shasum -a 256 "$archive_name" >SHA256SUMS)

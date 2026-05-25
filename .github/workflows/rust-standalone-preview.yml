@@ -99,6 +99,24 @@ jobs:
           set -euo pipefail
           bash scripts/package-release.sh
 
+      - name: Install Linux arm64 packaging dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu qemu-user
+          rustup target add aarch64-unknown-linux-gnu
+
+      - name: Package Linux arm64 preview
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+          IMX_ARTIFACT_DIR: target/release-artifacts-linux-arm64
+          IMX_EXPECTED_TARGET: aarch64-unknown-linux-gnu
+          IMX_LINKAGE_COMMAND: aarch64-linux-gnu-readelf -d
+          IMX_PACKAGE_RUNNER: qemu-aarch64 -L /usr/aarch64-linux-gnu
+          IMX_PACKAGE_TARGET: aarch64-unknown-linux-gnu
+        run: |
+          set -euo pipefail
+          bash scripts/package-release.sh
+
       - name: Verify fresh checkout install
         run: |
           set -euo pipefail
@@ -132,6 +150,7 @@ jobs:
             target/release-bench-*
             target/bench-regression-*
             target/release-artifacts
+            target/release-artifacts-linux-arm64
             target/conformance
 
   package:
@@ -146,6 +165,13 @@ jobs:
           - name: linux-x86_64
             runner: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
+            package_runner: ""
+            linkage_command: ""
+          - name: linux-arm64
+            runner: ubuntu-24.04
+            target: aarch64-unknown-linux-gnu
+            package_runner: qemu-aarch64 -L /usr/aarch64-linux-gnu
+            linkage_command: aarch64-linux-gnu-readelf -d
 
     steps:
       - uses: actions/checkout@v6
@@ -157,16 +183,30 @@ jobs:
           set -euo pipefail
           bash scripts/check-no-hosted-apple-actions.sh
 
-      - name: Package standalone preview
+      - name: Install Linux arm64 packaging dependencies
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
           set -euo pipefail
-          IMX_EXPECTED_TARGET="${{ matrix.target }}" bash scripts/package-release.sh
+          sudo apt-get update -y
+          sudo apt-get install -y binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu qemu-user
+          rustup target add aarch64-unknown-linux-gnu
+
+      - name: Package standalone preview
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+          IMX_EXPECTED_TARGET: ${{ matrix.target }}
+          IMX_LINKAGE_COMMAND: ${{ matrix.linkage_command }}
+          IMX_PACKAGE_RUNNER: ${{ matrix.package_runner }}
+          IMX_PACKAGE_TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          bash scripts/package-release.sh
 
       - name: Verify standalone binary does not link ImageMagick
         run: |
           set -euo pipefail
-          ldd target/release/imx
-          ! ldd target/release/imx | grep -E 'Magick(Core|Wand)|ImageMagick'
+          cat target/release-artifacts/linkage-${{ matrix.target }}.txt
+          ! grep -E 'Magick(Core|Wand)|ImageMagick' target/release-artifacts/linkage-${{ matrix.target }}.txt
 
       - name: Upload release artifact
         uses: actions/upload-artifact@v7
@@ -255,6 +295,13 @@ jobs:
           - name: linux-x86_64
             runner: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
+            release_runner: ""
+            linkage_command: ""
+          - name: linux-arm64
+            runner: ubuntu-24.04
+            target: aarch64-unknown-linux-gnu
+            release_runner: qemu-aarch64 -L /usr/aarch64-linux-gnu
+            linkage_command: aarch64-linux-gnu-readelf -d
 
     steps:
       - uses: actions/checkout@v6
@@ -266,7 +313,17 @@ jobs:
           set -euo pipefail
           bash scripts/check-no-hosted-apple-actions.sh
 
+      - name: Install Linux arm64 smoke dependencies
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          set -euo pipefail
+          sudo apt-get update -y
+          sudo apt-get install -y binutils-aarch64-linux-gnu qemu-user
+
       - name: Verify published release archive
+        env:
+          IMX_LINKAGE_COMMAND: ${{ matrix.linkage_command }}
+          IMX_RELEASE_RUNNER: ${{ matrix.release_runner }}
         run: |
           set -euo pipefail
           IMX_REPO="$GITHUB_REPOSITORY" \

@@ -172,6 +172,12 @@ Package a release archive:
 ./scripts/package-release.sh
 ```
 
+For tags created after the Linux arm64 workflow change, hosted Linux release
+automation also packages `aarch64-unknown-linux-gnu` with the Rust cross target,
+QEMU smoke, architecture checks, and `readelf` linkage checks. That archive is
+not claimed for the already-published v0.4.0 release. No hosted macOS or iOS
+runner is used for the Linux arm64 proof.
+
 Release archives use deterministic tar/gzip metadata and aggregate
 `SHA256SUMS` entries so repeated packaging of the same built payload is
 byte-for-byte comparable.
@@ -203,13 +209,13 @@ CI differential corpus, fuzz, benchmark, and conformance gates.
 ## Evidence
 
 The hosted CI workflow builds ImageMagick as an external oracle, runs release
-gates, runs fuzz targets, verifies install from a fresh checkout, packages the
-Linux release archive, checks hosted-built binaries for ImageMagick linkage,
-generates the release conformance report, and downloads the published Linux
-asset back for archive smoke. macOS archive and tap proof must be recorded
-locally or through an explicitly approved manual run before new macOS claims are
-made. Hosted GitHub Actions must not run macOS or iOS jobs without explicit
-approval in the current turn.
+gates, runs fuzz targets, verifies install from a fresh checkout, packages Linux
+x86_64 release archives and post-v0.4.0 Linux arm64 preview archives, checks
+hosted-built binaries for ImageMagick linkage, generates the release conformance
+report, and downloads published Linux assets back for archive smoke. macOS
+archive and tap proof must be recorded locally or through an explicitly approved
+manual run before new macOS claims are made. Hosted GitHub Actions must not run
+macOS or iOS jobs without explicit approval in the current turn.
 
 Benchmark runs emit:
 
