@@ -117,6 +117,16 @@ jobs:
           set -euo pipefail
           bash scripts/package-release.sh
 
+      - name: Verify Linux arm64 archive preview
+        env:
+          IMX_LINKAGE_COMMAND: aarch64-linux-gnu-readelf -d
+          IMX_RELEASE_DIR: target/release-artifacts-linux-arm64
+          IMX_RELEASE_RUNNER: qemu-aarch64 -L /usr/aarch64-linux-gnu
+          IMX_RELEASE_TARGET: aarch64-unknown-linux-gnu
+        run: |
+          set -euo pipefail
+          bash scripts/verify-release-archive.sh
+
       - name: Verify fresh checkout install
         run: |
           set -euo pipefail
@@ -151,6 +161,7 @@ jobs:
             target/bench-regression-*
             target/release-artifacts
             target/release-artifacts-linux-arm64
+            target/release-archive-smoke/aarch64-unknown-linux-gnu
             target/conformance
 
   package:
