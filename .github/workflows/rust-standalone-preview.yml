@@ -343,7 +343,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -y
-          sudo apt-get install -y binutils-aarch64-linux-gnu qemu-user
+          sudo apt-get install -y binutils-aarch64-linux-gnu libc6-arm64-cross qemu-user
 
       - name: Verify published release archive
         env:
