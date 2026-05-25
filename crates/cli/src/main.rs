@@ -10,7 +10,7 @@ const MAX_INPUT_BYTES: u64 = MAX_PIXEL_BYTES as u64 + 1024 * 1024;
 
 fn usage() -> ! {
     eprintln!(
-        "usage:\n  imx --help\n  imx --version\n  imx identify <input.ff|input.qoi|input.pbm|input.pgm|input.ppm>\n  imx <input> <output>\n\nsupported formats: farbfeld (.ff, .farbfeld), qoi (.qoi), pbm (.pbm), pgm (.pgm), ppm (.ppm)"
+        "usage:\n  imx --help\n  imx --version\n  imx identify [FORMAT:]<input.ff|input.qoi|input.pbm|input.pgm|input.ppm>\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported formats: farbfeld (.ff, .farbfeld), qoi (.qoi), pbm (.pbm), pgm (.pgm), ppm (.ppm)\nsupported prefixes: FARBFELD:, QOI:, PBM:, PGM:, PPM:"
     );
     process::exit(2);
 }
@@ -25,7 +25,7 @@ fn main() {
     match args.as_slice() {
         [_, flag] if flag == "--help" || flag == "-h" || flag == "help" => {
             println!(
-                "IMX Developer Preview\n\nusage:\n  imx identify <input.ff|input.qoi|input.pbm|input.pgm|input.ppm>\n  imx <input> <output>\n\nsupported transcodes: FARBFELD/QOI/PBM/PGM/PPM, including deterministic same-format rewrites\nunsupported: format prefixes, stdin/stdout, transforms, delegates, and formats beyond FARBFELD/QOI/PBM/PGM/PPM"
+                "IMX Developer Preview\n\nusage:\n  imx identify [FORMAT:]<input.ff|input.qoi|input.pbm|input.pgm|input.ppm>\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported transcodes: FARBFELD/QOI/PBM/PGM/PPM, including deterministic same-format rewrites\nsupported prefixes: FARBFELD:, QOI:, PBM:, PGM:, PPM:\nunsupported: stdin/stdout, transforms, delegates, and formats beyond FARBFELD/QOI/PBM/PGM/PPM"
             );
             process::exit(0);
         }
@@ -40,8 +40,9 @@ fn main() {
 }
 
 fn identify(input_path: &str) -> ! {
-    let input = read(input_path);
-    let format = detect_input_format(input_path, &input).unwrap_or_else(|err| fail(err));
+    let input_path = parse_cli_path(input_path).unwrap_or_else(|err| fail(err));
+    let input = read(input_path.path);
+    let format = detect_input_format(&input_path, &input).unwrap_or_else(|err| fail(err));
     let info = match format {
         Format::Farbfeld => imx_codec_farbfeld::identify(&input),
         Format::Pbm => imx_codec_pnm::identify_pbm(&input),
@@ -55,15 +56,17 @@ fn identify(input_path: &str) -> ! {
 }
 
 fn transcode(input_path: &str, output_path: &str) -> ! {
-    reject_same_path(input_path, output_path);
-    let input = read(input_path);
-    let input_format = detect_input_format(input_path, &input).unwrap_or_else(|err| fail(err));
-    let output_format = detect_output_format(output_path).unwrap_or_else(|err| fail(err));
+    let input_path = parse_cli_path(input_path).unwrap_or_else(|err| fail(err));
+    let output_path = parse_cli_path(output_path).unwrap_or_else(|err| fail(err));
+    reject_same_path(input_path.path, output_path.path);
+    let input = read(input_path.path);
+    let input_format = detect_input_format(&input_path, &input).unwrap_or_else(|err| fail(err));
+    let output_format = detect_output_format(&output_path).unwrap_or_else(|err| fail(err));
 
     let image = decode_image(input_format, &input).unwrap_or_else(|err| fail(err));
     let output = encode_image(output_format, &image).unwrap_or_else(|err| fail(err));
 
-    write_atomic(output_path, &output);
+    write_atomic(output_path.path, &output);
     process::exit(0);
 }
 
@@ -154,7 +157,54 @@ fn write_atomic(output_path: &str, bytes: &[u8]) {
     ));
 }
 
-fn detect_input_format(path: &str, bytes: &[u8]) -> Result<Format, ImageError> {
+#[derive(Debug, Clone, Copy)]
+struct CliPath<'a> {
+    original: &'a str,
+    path: &'a str,
+    prefix: Option<Format>,
+}
+
+fn parse_cli_path(value: &str) -> Result<CliPath<'_>, String> {
+    if let Some((prefix, path)) = value.split_once(':') {
+        if !prefix.is_empty() && prefix.bytes().all(|byte| byte.is_ascii_uppercase()) {
+            let Some(format) = parse_format_prefix(prefix) else {
+                return Err(format!("unsupported format prefix: {prefix}"));
+            };
+            if path.is_empty() {
+                return Err(format!("missing path after format prefix {prefix}:"));
+            }
+            return Ok(CliPath {
+                original: value,
+                path,
+                prefix: Some(format),
+            });
+        }
+    }
+
+    Ok(CliPath {
+        original: value,
+        path: value,
+        prefix: None,
+    })
+}
+
+fn parse_format_prefix(prefix: &str) -> Option<Format> {
+    match prefix {
+        "FARBFELD" => Some(Format::Farbfeld),
+        "PBM" => Some(Format::Pbm),
+        "PGM" => Some(Format::Pgm),
+        "PPM" => Some(Format::Ppm),
+        "QOI" => Some(Format::Qoi),
+        _ => None,
+    }
+}
+
+fn detect_input_format(path: &CliPath<'_>, bytes: &[u8]) -> Result<Format, String> {
+    let detected = detect_unprefixed_input_format(path.path, bytes)?;
+    enforce_prefix(path, detected, "detected format")
+}
+
+fn detect_unprefixed_input_format(path: &str, bytes: &[u8]) -> Result<Format, String> {
     if bytes.len() >= imx_codec_farbfeld::MAGIC.len()
         && &bytes[..imx_codec_farbfeld::MAGIC.len()] == imx_codec_farbfeld::MAGIC
     {
@@ -183,10 +233,15 @@ fn detect_input_format(path: &str, bytes: &[u8]) -> Result<Format, ImageError> {
     {
         return Ok(Format::Pgm);
     }
-    detect_output_format(path)
+    detect_path_format(path)
 }
 
-fn detect_output_format(path: &str) -> Result<Format, ImageError> {
+fn detect_output_format(path: &CliPath<'_>) -> Result<Format, String> {
+    let detected = detect_path_format(path.path)?;
+    enforce_prefix(path, detected, "path format")
+}
+
+fn detect_path_format(path: &str) -> Result<Format, String> {
     match Path::new(path)
         .extension()
         .and_then(|extension| extension.to_str())
@@ -198,6 +253,24 @@ fn detect_output_format(path: &str) -> Result<Format, ImageError> {
         Some("pgm") => Ok(Format::Pgm),
         Some("ppm") => Ok(Format::Ppm),
         Some("qoi") => Ok(Format::Qoi),
-        _ => Err(ImageError::UnsupportedFormat(path.to_string())),
+        _ => Err(format!("unsupported format: {path}")),
     }
+}
+
+fn enforce_prefix(
+    path: &CliPath<'_>,
+    detected: Format,
+    detected_source: &str,
+) -> Result<Format, String> {
+    if let Some(prefix) = path.prefix {
+        if prefix != detected {
+            return Err(format!(
+                "format prefix {} does not match {detected_source} {} for {}",
+                prefix.name(),
+                detected.name(),
+                path.original
+            ));
+        }
+    }
+    Ok(detected)
 }

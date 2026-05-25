@@ -50,9 +50,10 @@ Git revision: \`$git_rev\`
 
 - Binary: \`imx\`
 - Formats: FARBFELD, QOI, PBM, PGM, PPM
-- Commands: \`imx --help\`, \`imx --version\`, \`imx identify <input>\`, and
-  two-argument transcodes between supported formats, including deterministic
-  same-format rewrites when input and output paths differ.
+- Commands: \`imx --help\`, \`imx --version\`, \`imx identify [FORMAT:]<input>\`,
+  and two-argument transcodes between supported formats, including exact
+  \`FARBFELD:\`, \`QOI:\`, \`PBM:\`, \`PGM:\`, and \`PPM:\` operand prefixes and
+  deterministic same-format rewrites when input and output paths differ.
 - Runtime dependency policy: no ImageMagick, MagickCore, MagickWand, delegates,
   modules, \`policy.xml\`, or ImageMagick build system linkage.
 
@@ -78,8 +79,8 @@ $archive_table
 - Malformed-input tests cover invalid headers, truncation, oversized dimensions,
   unsupported max values, and failed CLI output behavior.
 - ImageMagick differential tests cover decoded-pixel compatibility for
-  FARBFELD/QOI/PBM/PGM/PPM identify and transcode paths, including
-  deterministic same-format rewrites.
+  FARBFELD/QOI/PBM/PGM/PPM identify, prefixed identify, transcode, prefixed
+  transcode, and deterministic same-format rewrite paths.
 - Cargo-fuzz targets exercise FARBFELD, QOI, and shared PNM identify/decode
   entrypoints with seeded corpora.
 - Benchmarks record library throughput, process timing, process RSS, and output
@@ -90,7 +91,10 @@ $archive_table
 - No full ImageMagick CLI parser or \`magick\` alias.
 - No stdin/stdout streaming, delegates, profiles, color management, transforms,
   MagickCore, or MagickWand.
-- No PNG, JPEG, TIFF, PAM, PFM, BMP, or high-depth PPM support in this release.
+- No prefixes beyond exact \`FARBFELD:\`, \`QOI:\`, \`PBM:\`, \`PGM:\`, and
+  \`PPM:\`.
+- No PNG, JPEG, TIFF, PAM, PFM, BMP, or high-depth PPM support in this
+  conformance surface.
 EOF
 
 cat >"$out_dir/conformance-summary.json" <<EOF

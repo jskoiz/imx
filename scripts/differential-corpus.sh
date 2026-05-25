@@ -115,20 +115,48 @@ run_identify_case() {
   fi
 }
 
+run_prefixed_identify_case() {
+  local fmt="$1"
+  local label input imx_out oracle_out
+  label="$(format_label "$fmt")"
+  input="$(fixture_path "$fmt")"
+  imx_out="$out_dir/identify-prefixed-$fmt.imx.txt"
+  oracle_out="$out_dir/identify-prefixed-$fmt.oracle.txt"
+
+  if "$imx" identify "$label:$input" >"$imx_out" 2>"$out_dir/identify-prefixed-$fmt.imx.stderr" &&
+    "$oracle" identify -format '%m %w %h %[colorspace] %[depth]' "$label:$input" >"$oracle_out" 2>"$out_dir/identify-prefixed-$fmt.oracle.stderr"; then
+    record "identify-prefixed.$fmt" passed "$label-prefixed identify accepted by IMX and ImageMagick"
+    passes=$((passes + 1))
+  else
+    record "identify-prefixed.$fmt" failed "$label-prefixed identify failed in IMX or ImageMagick"
+    failures=$((failures + 1))
+  fi
+}
+
 run_transcode_case() {
   local src="$1"
   local dst="$2"
-  local src_label dst_label input imx_output oracle_output imx_raw oracle_raw case_id
+  local mode="${3:-plain}"
+  local src_label dst_label input imx_input imx_output imx_output_arg oracle_output imx_raw oracle_raw case_id
   src_label="$(format_label "$src")"
   dst_label="$(format_label "$dst")"
   input="$(fixture_path_for_case "$src" "$dst")"
   case_id="transcode.$src.$dst"
+  imx_input="$input"
+  if [[ "$mode" == "prefixed" ]]; then
+    case_id="transcode-prefixed.$src.$dst"
+    imx_input="$src_label:$input"
+  fi
   imx_output="$out_dir/$case_id.imx.$(format_ext "$dst")"
+  imx_output_arg="$imx_output"
+  if [[ "$mode" == "prefixed" ]]; then
+    imx_output_arg="$dst_label:$imx_output"
+  fi
   oracle_output="$out_dir/$case_id.oracle.$(format_ext "$dst")"
   imx_raw="$out_dir/$case_id.imx.rgba"
   oracle_raw="$out_dir/$case_id.oracle.rgba"
 
-  if ! "$imx" "$input" "$imx_output" >"$out_dir/$case_id.imx.stdout" 2>"$out_dir/$case_id.imx.stderr"; then
+  if ! "$imx" "$imx_input" "$imx_output_arg" >"$out_dir/$case_id.imx.stdout" 2>"$out_dir/$case_id.imx.stderr"; then
     record "$case_id" failed "IMX transcode failed"
     failures=$((failures + 1))
     return
@@ -163,12 +191,17 @@ run_transcode_case() {
 
 for fmt in "${formats[@]}"; do
   run_identify_case "$fmt"
+  run_prefixed_identify_case "$fmt"
 done
 
 for src in "${formats[@]}"; do
   for dst in "${formats[@]}"; do
     run_transcode_case "$src" "$dst"
   done
+done
+
+for prefixed_pair in farbfeld:qoi qoi:ppm ppm:pgm pgm:pbm pbm:farbfeld; do
+  run_transcode_case "${prefixed_pair%%:*}" "${prefixed_pair##*:}" prefixed
 done
 
 status="passed"
@@ -184,8 +217,8 @@ cat >"$summary" <<EOF
   "oracle": "$oracle",
   "fixture_manifest": "fixtures/manifest.json",
   "results": "results.jsonl",
-  "identify_cases": 5,
-  "transcode_cases": 25,
+  "identify_cases": 10,
+  "transcode_cases": 30,
   "passes": $passes,
   "failures": $failures
 }

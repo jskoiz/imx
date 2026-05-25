@@ -1,4 +1,19 @@
-# IMX v0.5.0 Developer Preview
+# IMX Release Notes
+
+## Unreleased v0.6.0 Prefix Compatibility
+
+- Adds exact uppercase `FARBFELD:`, `QOI:`, `PBM:`, `PGM:`, and `PPM:`
+  prefixes for the existing identify and two-path transcode operands.
+- Prefixes are stripped before file IO and must match detected input format or
+  output path extension. Unknown prefixes, missing prefixed paths, mismatched
+  prefixes, and prefixed same-path writes fail with `error: ...`.
+- Extends the ImageMagick oracle corpus with prefixed identify cases and a
+  prefixed transcode ring across the existing FARBFELD/QOI/PBM/PGM/PPM surface.
+- Keeps the boundary unchanged: no new image formats, no stdin/stdout
+  streaming, no full ImageMagick CLI, no delegates, no MagickCore, and no
+  MagickWand.
+
+## IMX v0.5.0 Developer Preview
 
 This preview ships a standalone Rust image-tool binary named `imx`.
 

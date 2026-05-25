@@ -21,9 +21,9 @@ This contract covers only the standalone developer-preview slice.
 ```sh
 imx --help
 imx --version
-imx identify <input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm>
-imx <input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm> \
-  <output.ff|output.farbfeld|output.qoi|output.pbm|output.pgm|output.ppm>
+imx identify [FORMAT:]<input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm>
+imx [FORMAT:]<input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm> \
+  [FORMAT:]<output.ff|output.farbfeld|output.qoi|output.pbm|output.pgm|output.ppm>
 ```
 
 `identify` outputs:
@@ -31,6 +31,24 @@ imx <input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm> \
 ```text
 format=<FORMAT> width=<WIDTH> height=<HEIGHT> channels=<GRAY|RGB|RGBA> depth=<1|8|16>
 ```
+
+## Format Prefix Behavior
+
+IMX accepts exact uppercase ImageMagick-style prefixes for the existing
+supported formats only:
+
+- `FARBFELD:input.ff`
+- `QOI:input.qoi`
+- `PBM:input.pbm`
+- `PGM:input.pgm`
+- `PPM:input.ppm`
+
+Prefixes are a CLI path adapter for `identify` and two-path transcodes only.
+They are stripped before file IO, then checked against the detected input format
+or output path extension. Unknown uppercase prefixes, empty prefixed paths, and
+prefix/format mismatches fail with an `error: ...` message. Output paths still
+need a supported extension, so `QOI:output` is not a supported way to select an
+extensionless output format. Same-path rejection compares stripped paths.
 
 ## Format Behavior
 
@@ -171,11 +189,12 @@ FARBFELD/QOI to PGM:
 
 ## Corpus Differential Coverage
 
-The v0.5.0 release keeps `scripts/differential-corpus.sh` as a report-producing
-ImageMagick oracle lane. It generates the deterministic fixture corpus, runs
-`imx identify` for FARBFELD, QOI, PBM, PGM, and PPM fixtures, then checks all
-25 directed transcodes between the five supported formats, including
-same-format deterministic rewrites.
+The compatibility lane keeps `scripts/differential-corpus.sh` as a
+report-producing ImageMagick oracle lane. It generates the deterministic fixture
+corpus, runs `imx identify` for FARBFELD, QOI, PBM, PGM, and PPM fixtures, runs
+prefixed identify cases for the same five formats, then checks all 25 directed
+transcodes between the five supported formats plus a prefixed transcode ring
+that exercises every supported prefix as input and output.
 
 Each transcode result is decoded through ImageMagick to canonical 8-bit RGBA
 raw pixels and compared with the ImageMagick oracle output for the same source
@@ -195,7 +214,7 @@ clamp.
 - No full ImageMagick command parser.
 - No `magick` binary alias; the shipped command is `imx`.
 - No stdin/stdout streaming.
-- No format prefixes such as `QOI:out.qoi`.
+- No prefixes beyond exact `FARBFELD:`, `QOI:`, `PBM:`, `PGM:`, and `PPM:`.
 - No PAM/PFM support.
 - No high-depth PPM support.
 - No delegates, profiles, color management, resize/transform operations,

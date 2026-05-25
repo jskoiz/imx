@@ -1,7 +1,9 @@
-# IMX v0.5.0 Compatibility Readiness
+# IMX Compatibility Readiness
 
-Status: v0.5.0 release surface. Hosted release proof is Linux-only; Homebrew tap
-support is claimed only after the tap formula is regenerated from the published
+Status: v0.5.0 is the latest published release surface. The current unreleased
+v0.6.0 development slice adds exact format-prefix parsing for the existing five
+formats only. Hosted release proof is Linux-only; Homebrew tap support is
+claimed only after the tap formula is regenerated from the published
 `SHA256SUMS` and Linux tap smoke passes.
 Automatic hosted macOS/iOS GitHub Actions remain disabled; macOS proof is
 local/manual only unless explicitly approved in the current turn.
@@ -13,6 +15,11 @@ local/manual only unless explicitly approved in the current turn.
 - v0.5.0 does not add a new image format. It adds deterministic same-format
   rewrites for the existing FARBFELD/QOI/PBM/PGM/PPM slice when input and
   output paths are different.
+- The unreleased v0.6.0 slice adds exact uppercase `FARBFELD:`, `QOI:`,
+  `PBM:`, `PGM:`, and `PPM:` prefixes for existing identify/transcode operands
+  only. Prefixes confirm detected input or output path format; they do not add
+  new formats, extensionless output selection, stdin/stdout, or full
+  ImageMagick CLI parsing.
 - Published v0.4.0 release targets are Linux x86_64, macOS arm64, and macOS
   x86_64. The v0.5.0 hosted release targets are Linux x86_64 and Linux arm64
   only, without hosted macOS/iOS Actions.
@@ -30,7 +37,7 @@ local/manual only unless explicitly approved in the current turn.
 | Gate | Producer | Artifact Path | Coverage | Result |
 | --- | --- | --- | --- | --- |
 | Release gates | `scripts/ci.sh` | terminal plus CI logs | fmt, clippy, tests, fixture generation, fuzz smoke, benchmark smoke, differential tests | required before tag |
-| Differential corpus | `scripts/differential-corpus.sh` | `target/differential-corpus-*/summary.json` | identify for 5 formats plus 25 directed transcodes, including same-format rewrites | required before tag |
+| Differential corpus | `scripts/differential-corpus.sh` | `target/differential-corpus-*/summary.json` | identify for 5 formats, prefixed identify for 5 formats, 25 directed transcodes, and a prefixed transcode ring covering every supported prefix as input/output | required before tag |
 | Fuzz smoke | `scripts/run-fuzz.sh` | `target/fuzz-runs/*/summary.json` | FARBFELD, QOI, and PNM identify/decode with retained crash artifacts | required before tag |
 | Scheduled fuzz | `.github/workflows/rust-fuzz-scheduled.yml` | `scheduled-fuzz-evidence` artifact | longer cargo-fuzz run with artifact retention | required CI lane |
 | Bench/RSS thresholds | `scripts/bench-release.sh` | `target/release-bench-*/threshold-summary.json` | throughput and process/library RSS sanity budgets | required before tag |
@@ -117,7 +124,7 @@ IMX_VERSION=v0.5.0 IMX_RELEASE_TARGET=<target> \
 
 - IMX is not a full ImageMagick CLI.
 - No stdin/stdout streaming.
-- No format prefixes such as `QOI:out.qoi`.
+- No prefixes beyond exact `FARBFELD:`, `QOI:`, `PBM:`, `PGM:`, and `PPM:`.
 - No delegates, profiles, color management, resize/transform operations,
   MagickCore API, or MagickWand API.
 - PBM source form is not preserved; output PBM is deterministic binary P4.
@@ -156,8 +163,7 @@ IMX_VERSION=v0.5.0 IMX_RELEASE_TARGET=<target> \
 
 ## Next Smallest Milestone
 
-After v0.5.0, the next compatibility slice should stay similarly bounded, such
-as exact format-prefix parsing for the existing five formats or one Netpbm
-behavior backed by oracle fixtures. PNG, JPEG, TIFF, delegates, MagickCore,
-MagickWand, and full ImageMagick CLI compatibility remain too broad for the
-next milestone.
+After the exact prefix slice, the next compatibility slice should stay similarly
+bounded, such as one Netpbm behavior backed by oracle fixtures. PNG, JPEG,
+TIFF, delegates, MagickCore, MagickWand, and full ImageMagick CLI compatibility
+remain too broad for the next milestone.

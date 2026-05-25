@@ -9,6 +9,11 @@ IMX is not an ImageMagick fork and does not link to MagickCore, MagickWand,
 delegates, modules, `policy.xml`, or ImageMagick's build system. ImageMagick is
 used only as an external oracle in compatibility tests and benchmarks.
 
+The current unreleased v0.6.0 development slice adds exact uppercase
+ImageMagick-style format prefixes for the existing FARBFELD/QOI/PBM/PGM/PPM
+formats only. The latest published release remains v0.5.0 until a future tag is
+created explicitly.
+
 ## Install
 
 After the tap formula is updated from the published release checksums, install
@@ -75,10 +80,17 @@ checkout in CI.
 ```sh
 imx --help
 imx --version
-imx identify <input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm>
-imx <input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm> \
-  <output.ff|output.farbfeld|output.qoi|output.pbm|output.pgm|output.ppm>
+imx identify [FORMAT:]<input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm>
+imx [FORMAT:]<input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm> \
+  [FORMAT:]<output.ff|output.farbfeld|output.qoi|output.pbm|output.pgm|output.ppm>
 ```
+
+Supported exact prefixes are `FARBFELD:`, `QOI:`, `PBM:`, `PGM:`, and `PPM:`.
+Prefixes are accepted only on `identify` and two-path transcode operands. They
+are stripped before file IO, must match the detected input format or output
+path extension, and do not add extensionless output selection. Unknown,
+missing-path, and mismatched prefixes fail with `error: ...`; same-path
+rejection still compares the stripped real paths.
 
 Successful `identify` prints one stable key-value line:
 
@@ -117,8 +129,8 @@ Known lossy paths:
 - Any output to PPM drops alpha; any output to PGM drops color/alpha; any
   output to PBM drops color, alpha, and grayscale precision.
 
-Unsupported by design in `v0.5.0`: full ImageMagick CLI parsing, stdin/stdout
-streaming, format prefixes such as `QOI:out.qoi`, delegates, profiles, color
+Unsupported by design: full ImageMagick CLI parsing, stdin/stdout streaming,
+prefixes outside the exact five listed above, delegates, profiles, color
 management, resizing/transforms, MagickCore, MagickWand, PAM, PFM, high-depth
 PPM, PNG, BMP, and other image formats.
 
