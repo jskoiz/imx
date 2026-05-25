@@ -133,11 +133,12 @@ jobs:
           bash scripts/verify-release-archive.sh
 
       - name: Verify fresh checkout install
+        env:
+          IMX_INSTALL_REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
+          IMX_INSTALL_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          IMX_INSTALL_REPO_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" \
-            IMX_INSTALL_REVISION="$GITHUB_SHA" \
-            bash scripts/verify-install.sh
+          bash scripts/verify-install.sh
 
       - name: Verify standalone binary does not link ImageMagick
         run: |
