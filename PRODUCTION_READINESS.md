@@ -1,6 +1,8 @@
 # IMX v0.5.0 Compatibility Readiness
 
-Status: v0.5.0 compatibility candidate pending explicit tag approval.
+Status: v0.5.0 release surface. Hosted release proof is Linux-only; Homebrew tap
+support is claimed only after the tap formula is regenerated from the published
+`SHA256SUMS` and Linux tap smoke passes.
 Automatic hosted macOS/iOS GitHub Actions remain disabled; macOS proof is
 local/manual only unless explicitly approved in the current turn.
 
@@ -32,7 +34,7 @@ local/manual only unless explicitly approved in the current turn.
 | Fuzz smoke | `scripts/run-fuzz.sh` | `target/fuzz-runs/*/summary.json` | FARBFELD, QOI, and PNM identify/decode with retained crash artifacts | required before tag |
 | Scheduled fuzz | `.github/workflows/rust-fuzz-scheduled.yml` | `scheduled-fuzz-evidence` artifact | longer cargo-fuzz run with artifact retention | required CI lane |
 | Bench/RSS thresholds | `scripts/bench-release.sh` | `target/release-bench-*/threshold-summary.json` | throughput and process/library RSS sanity budgets | required before tag |
-| Bench regression | `scripts/bench-regression.sh` | `target/bench-regression-*/regression-report.json` | current candidate vs v0.4.0 throughput/RSS baseline; throughput ratios are tracked as warnings, RSS growth is enforced | required before tag |
+| Bench regression | `scripts/bench-regression.sh` | `target/bench-regression-*/regression-report.json` | v0.5.0 vs v0.4.0 throughput/RSS baseline; throughput ratios are tracked as warnings, RSS growth is enforced | required before tag |
 | Source install verify | `scripts/verify-install.sh` | `target/install-verify/install-summary.json` | fresh checkout install plus supported identify/transcode smoke | required before tag |
 | Package/SHA/no-link | `scripts/package-release.sh` plus hosted Linux workflow; local macOS or explicitly approved manual evidence for macOS targets | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive smoke, no ImageMagick linkage for each claimed platform; post-v0.4.0 workflow prepares Linux arm64 preview artifacts | required before publishing that platform archive |
 | Published archive smoke | `scripts/verify-release-archive.sh` | `target/release-archive-smoke/<target>/summary.json` | downloads the selected GitHub release archive, verifies that archive against aggregate SHA256SUMS, no-link, identify/transcode smoke; hosted CI covers Linux only | required after release publish |

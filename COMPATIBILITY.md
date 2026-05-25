@@ -171,9 +171,8 @@ FARBFELD/QOI to PGM:
 
 ## Corpus Differential Coverage
 
-The v0.5.0 candidate keeps `scripts/differential-corpus.sh` as a
-report-producing ImageMagick oracle lane. It generates the deterministic fixture
-corpus, runs
+The v0.5.0 release keeps `scripts/differential-corpus.sh` as a report-producing
+ImageMagick oracle lane. It generates the deterministic fixture corpus, runs
 `imx identify` for FARBFELD, QOI, PBM, PGM, and PPM fixtures, then checks all
 25 directed transcodes between the five supported formats, including
 same-format deterministic rewrites.

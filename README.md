@@ -1,7 +1,7 @@
 # IMX Developer Preview
 
 IMX is a standalone Rust image tool built one ImageMagick-compatible slice at a
-time. The current `v0.5.0` candidate supports deterministic identify,
+time. The `v0.5.0` release supports deterministic identify,
 cross-format transcode, and same-format rewrite workflows across FARBFELD, QOI,
 and Netpbm PBM/PGM/PPM through the `imx` binary.
 
@@ -27,8 +27,7 @@ Homebrew/core formula.
 Hosted GitHub Actions for the tap are Linux-only; macOS install proof must be
 run locally or manually after explicit approval.
 
-After v0.5.0 is tagged and published, install a published release archive
-directly:
+After v0.5.0 release assets are published, install a release archive directly:
 
 ```sh
 IMX_VERSION=v0.5.0
@@ -57,7 +56,7 @@ The release-attached `imx.rb` is the formula source published through the
 release's `SHA256SUMS`, plus Linux-only tap smoke verification of the formula
 entry.
 
-Or install the current v0.5.0 candidate from source:
+Or install v0.5.0 from source:
 
 ```sh
 git clone https://github.com/jskoiz/imx.git
@@ -248,7 +247,7 @@ targets are present in that release's `SHA256SUMS`. Tap updates are handled in
 See [COMPATIBILITY.md](COMPATIBILITY.md) for the exact behavior contract and
 [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) for current release evidence,
 known gaps, and the next adoption milestone.
-The current pre-tag release checklist is tracked in
+The v0.5.0 release checklist is tracked in
 [docs/v0.5.0-release-ready.md](docs/v0.5.0-release-ready.md), and the next
 bounded compatibility recommendation is tracked in
 [docs/v0.6.0-compatibility-recommendation.md](docs/v0.6.0-compatibility-recommendation.md).
