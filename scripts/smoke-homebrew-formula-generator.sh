@@ -4,6 +4,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
+mkdir -p "$root/target"
 work_dir="$(mktemp -d "$root/target/homebrew-formula-generator.XXXXXX")"
 trap 'rm -rf "$work_dir"' EXIT
 

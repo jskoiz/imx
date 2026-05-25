@@ -8,11 +8,16 @@ if [[ ! -d "$workflow_dir" ]]; then
   exit 1
 fi
 
-if rg -n -i 'runs-on:[[:space:]]*.*macos|runner:[[:space:]]*macos-|macos-[0-9]|macos-latest|xcodebuild|xcrun|simctl|iphonesimulator|platform[=:]iOS|destination=.*iOS' \
-  "$workflow_dir" \
-  -g '*.yml' \
-  -g '*.yaml'
-then
+pattern='runs-on:[[:space:]]*.*macos|runner:[[:space:]]*macos-|macos-[0-9]|macos-latest|xcodebuild|xcrun|simctl|iphonesimulator|platform[=:]iOS|destination=.*iOS'
+
+if command -v rg >/dev/null 2>&1; then
+  matches="$(rg -n -i "$pattern" "$workflow_dir" -g '*.yml' -g '*.yaml' || true)"
+else
+  matches="$(grep -RInE --include='*.yml' --include='*.yaml' "$pattern" "$workflow_dir" || true)"
+fi
+
+if [[ -n "$matches" ]]; then
+  printf '%s\n' "$matches"
   echo "hosted Apple GitHub Actions runner reference found in $workflow_dir" >&2
   exit 1
 fi
