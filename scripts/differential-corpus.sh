@@ -167,9 +167,6 @@ done
 
 for src in "${formats[@]}"; do
   for dst in "${formats[@]}"; do
-    if [[ "$src" == "$dst" ]]; then
-      continue
-    fi
     run_transcode_case "$src" "$dst"
   done
 done
@@ -188,7 +185,7 @@ cat >"$summary" <<EOF
   "fixture_manifest": "fixtures/manifest.json",
   "results": "results.jsonl",
   "identify_cases": 5,
-  "transcode_cases": 20,
+  "transcode_cases": 25,
   "passes": $passes,
   "failures": $failures
 }

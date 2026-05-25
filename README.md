@@ -1,9 +1,9 @@
 # IMX Developer Preview
 
 IMX is a standalone Rust image tool built one ImageMagick-compatible slice at a
-time. The current `v0.4.0` preview supports deterministic identify and
-transcode workflows across FARBFELD, QOI, and Netpbm PBM/PGM/PPM through the
-`imx` binary.
+time. The current `v0.5.0` candidate supports deterministic identify,
+cross-format transcode, and same-format rewrite workflows across FARBFELD, QOI,
+and Netpbm PBM/PGM/PPM through the `imx` binary.
 
 IMX is not an ImageMagick fork and does not link to MagickCore, MagickWand,
 delegates, modules, `policy.xml`, or ImageMagick's build system. ImageMagick is
@@ -11,7 +11,7 @@ used only as an external oracle in compatibility tests and benchmarks.
 
 ## Install
 
-Install the latest v0.4.0 release from the Homebrew tap:
+Install the latest published v0.4.0 release from the Homebrew tap:
 
 ```sh
 brew tap jskoiz/imx
@@ -54,12 +54,11 @@ The release-attached `imx.rb` is the formula source published through the
 release's `SHA256SUMS`, plus Linux-only tap smoke verification of the formula
 entry.
 
-Or install from source:
+Or install the current v0.5.0 candidate from source:
 
 ```sh
 git clone https://github.com/jskoiz/imx.git
 cd imx
-git checkout v0.4.0
 cargo install --path crates/cli --bin imx --locked
 imx --version
 ```
@@ -73,11 +72,8 @@ checkout in CI.
 imx --help
 imx --version
 imx identify <input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm>
-imx <input.ff|input.farbfeld> <output.qoi|output.pbm|output.pgm|output.ppm>
-imx input.qoi <output.ff|output.farbfeld|output.pbm|output.pgm|output.ppm>
-imx input.pbm <output.ff|output.farbfeld|output.qoi|output.pgm|output.ppm>
-imx input.pgm <output.ff|output.farbfeld|output.qoi|output.pbm|output.ppm>
-imx input.ppm <output.ff|output.farbfeld|output.qoi|output.pbm|output.pgm>
+imx <input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm> \
+  <output.ff|output.farbfeld|output.qoi|output.pbm|output.pgm|output.ppm>
 ```
 
 Successful `identify` prints one stable key-value line:
@@ -88,6 +84,11 @@ format=<FORMAT> width=<WIDTH> height=<HEIGHT> channels=<GRAY|RGB|RGBA> depth=<1|
 
 Successful transcodes are silent and write the output file. Data and IO
 failures exit `1`; unsupported command shapes exit `2`.
+
+Same-format rewrites are deterministic decode/re-encode operations for
+different input and output paths. They do not preserve source bytes, comments,
+whitespace, Netpbm ASCII/binary source form, QOI opcode choices, or other
+incidental representation details.
 
 ## Format Scope
 
@@ -112,10 +113,10 @@ Known lossy paths:
 - Any output to PPM drops alpha; any output to PGM drops color/alpha; any
   output to PBM drops color, alpha, and grayscale precision.
 
-Unsupported by design in `v0.4.0`: full ImageMagick CLI parsing, same-format
-rewrites, stdin/stdout streaming, format prefixes such as `QOI:out.qoi`,
-delegates, profiles, color management, resizing/transforms, MagickCore,
-MagickWand, PAM, PFM, high-depth PPM, PNG, BMP, and other image formats.
+Unsupported by design in `v0.5.0`: full ImageMagick CLI parsing, stdin/stdout
+streaming, format prefixes such as `QOI:out.qoi`, delegates, profiles, color
+management, resizing/transforms, MagickCore, MagickWand, PAM, PFM, high-depth
+PPM, PNG, BMP, and other image formats.
 
 ## Safety Posture
 
@@ -163,10 +164,10 @@ Generate machine-readable benchmark evidence:
 IMAGEMAGICK_MAGICK=/path/to/magick ./scripts/bench-release.sh
 ```
 
-Compare current benchmark/RSS evidence against the v0.3.0 baseline:
+Compare current benchmark/RSS evidence against the v0.4.0 baseline:
 
 ```sh
-IMAGEMAGICK_MAGICK=/path/to/magick IMX_BENCH_BASE_REF=v0.3.0 ./scripts/bench-regression.sh
+IMAGEMAGICK_MAGICK=/path/to/magick IMX_BENCH_BASE_REF=v0.4.0 ./scripts/bench-regression.sh
 ```
 
 Package a release archive:

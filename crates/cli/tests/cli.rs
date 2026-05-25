@@ -278,6 +278,108 @@ fn transcodes_pgm_to_farbfeld_and_farbfeld_to_pgm() {
 }
 
 #[test]
+fn rewrites_same_format_outputs_for_supported_formats() {
+    let dir = temp_dir("same_format_rewrite");
+    let image = Image::new(
+        2,
+        1,
+        PixelFormat::Rgba16Be,
+        vec![
+            0x00, 0x00, 0x80, 0x80, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x80, 0x80,
+            0xff, 0xff,
+        ],
+    )
+    .unwrap();
+
+    let ff = dir.join("input.ff");
+    let qoi = dir.join("input.qoi");
+    let pbm = dir.join("input.pbm");
+    let pgm = dir.join("input.pgm");
+    let ppm = dir.join("input.ppm");
+
+    fs::write(&ff, imx_codec_farbfeld::encode(&image).unwrap()).unwrap();
+    fs::write(
+        &qoi,
+        imx_codec_qoi::encode_image(&image, imx_codec_qoi::QOI_SRGB).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        &pbm,
+        imx_codec_pnm::encode_pbm(&Image::new(2, 1, PixelFormat::Bilevel, vec![0, 255]).unwrap())
+            .unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        &pgm,
+        imx_codec_pnm::encode_pgm(&Image::new(2, 1, PixelFormat::Gray8, vec![0, 255]).unwrap())
+            .unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        &ppm,
+        imx_codec_pnm::encode_ppm(
+            &Image::new(2, 1, PixelFormat::Rgb8, vec![255, 0, 0, 0, 0, 255]).unwrap(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+
+    for (name, input, output_name, expected_identify) in [
+        (
+            "farbfeld",
+            ff.as_path(),
+            "output.ff",
+            "format=FARBFELD width=2 height=1 channels=RGBA depth=16",
+        ),
+        (
+            "qoi",
+            qoi.as_path(),
+            "output.qoi",
+            "format=QOI width=2 height=1 channels=RGBA depth=8",
+        ),
+        (
+            "pbm",
+            pbm.as_path(),
+            "output.pbm",
+            "format=PBM width=2 height=1 channels=GRAY depth=1",
+        ),
+        (
+            "pgm",
+            pgm.as_path(),
+            "output.pgm",
+            "format=PGM width=2 height=1 channels=GRAY depth=8",
+        ),
+        (
+            "ppm",
+            ppm.as_path(),
+            "output.ppm",
+            "format=PPM width=2 height=1 channels=RGB depth=8",
+        ),
+    ] {
+        let output_path = dir.join(output_name);
+        let output = Command::new(imx())
+            .args([input.to_str().unwrap(), output_path.to_str().unwrap()])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{name} same-format rewrite failed with stderr={}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let identify = Command::new(imx())
+            .args(["identify", output_path.to_str().unwrap()])
+            .output()
+            .unwrap();
+        assert!(identify.status.success());
+        assert_eq!(
+            String::from_utf8(identify.stdout).unwrap().trim(),
+            expected_identify
+        );
+    }
+}
+
+#[test]
 fn help_and_version_are_available() {
     for flag in ["--help", "--version"] {
         let output = Command::new(imx()).arg(flag).output().unwrap();

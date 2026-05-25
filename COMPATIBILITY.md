@@ -11,7 +11,8 @@ This contract covers only the standalone developer-preview slice.
   modules, policy.xml, or autotools.
 - Oracle dependency: ImageMagick may be invoked by tests and benchmarks only.
 - Public install surfaces: GitHub release archives, the one-command archive
-  installer, and the `jskoiz/imx` Homebrew tap for v0.4.0 archives.
+  installer, and the `jskoiz/imx` Homebrew tap. The published tap currently
+  tracks v0.4.0 archives until a v0.5.0 release is published and verified.
 - No Homebrew/core formula is claimed.
 
 ## Supported Commands
@@ -20,11 +21,8 @@ This contract covers only the standalone developer-preview slice.
 imx --help
 imx --version
 imx identify <input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm>
-imx <input.ff|input.farbfeld> <output.qoi|output.pbm|output.pgm|output.ppm>
-imx input.qoi <output.ff|output.farbfeld|output.pbm|output.pgm|output.ppm>
-imx input.pbm <output.ff|output.farbfeld|output.qoi|output.pgm|output.ppm>
-imx input.pgm <output.ff|output.farbfeld|output.qoi|output.pbm|output.ppm>
-imx input.ppm <output.ff|output.farbfeld|output.qoi|output.pbm|output.pgm>
+imx <input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm> \
+  <output.ff|output.farbfeld|output.qoi|output.pbm|output.pgm|output.ppm>
 ```
 
 `identify` outputs:
@@ -100,6 +98,15 @@ PPM:
 
 ## Transcode Rules
 
+Same-format rewrites:
+
+- `imx input output` accepts same-format input and output extensions for
+  FARBFELD, QOI, PBM, PGM, and PPM when the paths are different.
+- Same-format rewrites are deterministic decode/re-encode operations, not
+  source preservation. They may normalize Netpbm source form to deterministic
+  binary output, regenerate QOI opcode streams, and drop comments, whitespace,
+  padding-bit values, or other incidental representation details.
+
 FARBFELD to QOI:
 
 - RGBA16BE samples are quantized to RGBA8.
@@ -163,10 +170,11 @@ FARBFELD/QOI to PGM:
 
 ## Corpus Differential Coverage
 
-The v0.4.0 release adds `scripts/differential-corpus.sh` as a report-producing
+The v0.5.0 release keeps `scripts/differential-corpus.sh` as a report-producing
 ImageMagick oracle lane. It generates the deterministic fixture corpus, runs
 `imx identify` for FARBFELD, QOI, PBM, PGM, and PPM fixtures, then checks all
-20 directed cross-format transcodes between the five supported formats.
+25 directed transcodes between the five supported formats, including
+same-format deterministic rewrites.
 
 Each transcode result is decoded through ImageMagick to canonical 8-bit RGBA
 raw pixels and compared with the ImageMagick oracle output for the same source
@@ -185,7 +193,6 @@ clamp.
 
 - No full ImageMagick command parser.
 - No `magick` binary alias; the shipped command is `imx`.
-- No same-format rewrites.
 - No stdin/stdout streaming.
 - No format prefixes such as `QOI:out.qoi`.
 - No PAM/PFM support.
@@ -193,5 +200,6 @@ clamp.
 - No delegates, profiles, color management, resize/transform operations,
   MagickCore API, or MagickWand API.
 - No format beyond FARBFELD, QOI, PBM, PGM, and PPM.
-- No Windows, Linux arm64, crates.io, Homebrew/core, or package-manager
-  distribution beyond the `jskoiz/imx` Homebrew tap is claimed for v0.4.0.
+- No Windows, crates.io, Homebrew/core, or package-manager distribution beyond
+  the `jskoiz/imx` Homebrew tap is claimed for this slice. Linux arm64 remains
+  gated on published archive and tap smoke proof.

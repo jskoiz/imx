@@ -51,7 +51,8 @@ Git revision: \`$git_rev\`
 - Binary: \`imx\`
 - Formats: FARBFELD, QOI, PBM, PGM, PPM
 - Commands: \`imx --help\`, \`imx --version\`, \`imx identify <input>\`, and
-  two-argument transcodes between different supported formats.
+  two-argument transcodes between supported formats, including deterministic
+  same-format rewrites when input and output paths differ.
 - Runtime dependency policy: no ImageMagick, MagickCore, MagickWand, delegates,
   modules, \`policy.xml\`, or ImageMagick build system linkage.
 
@@ -86,8 +87,8 @@ $archive_table
 ## Confirmed Non-Goals
 
 - No full ImageMagick CLI parser or \`magick\` alias.
-- No same-format rewrites, stdin/stdout streaming, delegates, profiles, color
-  management, transforms, MagickCore, or MagickWand.
+- No stdin/stdout streaming, delegates, profiles, color management, transforms,
+  MagickCore, or MagickWand.
 - No PNG, JPEG, TIFF, PAM, PFM, BMP, or high-depth PPM support in this release.
 EOF
 

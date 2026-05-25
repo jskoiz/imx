@@ -4,7 +4,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
-base_ref="${IMX_BENCH_BASE_REF:-v0.3.0}"
+base_ref="${IMX_BENCH_BASE_REF:-v0.4.0}"
 stamp="$(date +%Y%m%d-%H%M%S)"
 out_dir="${IMX_BENCH_REGRESSION_OUT:-$root/target/bench-regression-$stamp}"
 baseline_checkout="$out_dir/baseline-checkout"

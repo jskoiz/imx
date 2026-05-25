@@ -2,7 +2,7 @@
 set -eu
 
 repo="${IMX_REPO:-jskoiz/imx}"
-version="${IMX_VERSION:-v0.4.0}"
+version="${IMX_VERSION:-v0.5.0}"
 install_dir="${IMX_INSTALL_DIR:-$HOME/.local/bin}"
 run_smoke="${IMX_INSTALL_SMOKE:-1}"
 

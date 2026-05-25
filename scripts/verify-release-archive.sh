@@ -154,9 +154,11 @@ run_archive_binary identify "$smoke_dir/output.ff" >"$smoke_dir/identify-farbfel
 run_archive_binary "$smoke_dir/output.ff" "$smoke_dir/output.pbm"
 run_archive_binary "$smoke_dir/output.ff" "$smoke_dir/output.pgm"
 run_archive_binary "$smoke_dir/output.ff" "$smoke_dir/output.ppm"
+run_archive_binary "$smoke_dir/input.ppm" "$smoke_dir/rewrite.ppm"
 run_archive_binary identify "$smoke_dir/output.pbm" >"$smoke_dir/identify-output-pbm.txt"
 run_archive_binary identify "$smoke_dir/output.pgm" >"$smoke_dir/identify-output-pgm.txt"
 run_archive_binary identify "$smoke_dir/output.ppm" >"$smoke_dir/identify-output-ppm.txt"
+run_archive_binary identify "$smoke_dir/rewrite.ppm" >"$smoke_dir/identify-rewrite-ppm.txt"
 
 cat >"$summary" <<EOF
 {

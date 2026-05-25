@@ -25,7 +25,7 @@ fn main() {
     match args.as_slice() {
         [_, flag] if flag == "--help" || flag == "-h" || flag == "help" => {
             println!(
-                "IMX Developer Preview\n\nusage:\n  imx identify <input.ff|input.qoi|input.pbm|input.pgm|input.ppm>\n  imx <input> <output>\n\nsupported transcodes: FARBFELD/QOI/PBM/PGM/PPM between different formats\nunsupported: format prefixes, stdin/stdout, same-format rewrites, transforms, delegates, and formats beyond FARBFELD/QOI/PBM/PGM/PPM"
+                "IMX Developer Preview\n\nusage:\n  imx identify <input.ff|input.qoi|input.pbm|input.pgm|input.ppm>\n  imx <input> <output>\n\nsupported transcodes: FARBFELD/QOI/PBM/PGM/PPM, including deterministic same-format rewrites\nunsupported: format prefixes, stdin/stdout, transforms, delegates, and formats beyond FARBFELD/QOI/PBM/PGM/PPM"
             );
             process::exit(0);
         }
@@ -59,14 +59,6 @@ fn transcode(input_path: &str, output_path: &str) -> ! {
     let input = read(input_path);
     let input_format = detect_input_format(input_path, &input).unwrap_or_else(|err| fail(err));
     let output_format = detect_output_format(output_path).unwrap_or_else(|err| fail(err));
-
-    if input_format == output_format {
-        fail(format!(
-            "unsupported transcode {} -> {}",
-            input_format.name(),
-            output_format.name()
-        ));
-    }
 
     let image = decode_image(input_format, &input).unwrap_or_else(|err| fail(err));
     let output = encode_image(output_format, &image).unwrap_or_else(|err| fail(err));

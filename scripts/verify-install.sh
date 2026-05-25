@@ -31,6 +31,11 @@ git clone "$repo_url" "$checkout" >/dev/null
   "$install_root/bin/imx" "$fixture_dir/gradient-64.pbm" "$work_dir/pbm-gradient.ff"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.ppm" "$work_dir/gradient.ff"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.pgm" "$work_dir/pgm-gradient.ff"
+  "$install_root/bin/imx" "$fixture_dir/gradient-64.ff" "$work_dir/rewrite.ff"
+  "$install_root/bin/imx" "$fixture_dir/gradient-64.qoi" "$work_dir/rewrite.qoi"
+  "$install_root/bin/imx" "$fixture_dir/gradient-64.pbm" "$work_dir/rewrite.pbm"
+  "$install_root/bin/imx" "$fixture_dir/gradient-64.pgm" "$work_dir/rewrite.pgm"
+  "$install_root/bin/imx" "$fixture_dir/gradient-64.ppm" "$work_dir/rewrite.ppm"
 )
 
 cat >"$work_dir/install-summary.json" <<EOF

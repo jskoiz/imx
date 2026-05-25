@@ -161,6 +161,8 @@ run_packaged_binary "$verify_dir/input.ppm" "$verify_dir/output.ff"
 run_packaged_binary identify "$verify_dir/output.ff" >/dev/null
 run_packaged_binary "$verify_dir/output.ff" "$verify_dir/output.qoi"
 run_packaged_binary identify "$verify_dir/output.qoi" >/dev/null
+run_packaged_binary "$verify_dir/input.ppm" "$verify_dir/rewrite.ppm"
+run_packaged_binary identify "$verify_dir/rewrite.ppm" >/dev/null
 
 if command -v shasum >/dev/null 2>&1; then
   (cd "$artifact_dir" && shasum -a 256 "$archive_name" >SHA256SUMS)
