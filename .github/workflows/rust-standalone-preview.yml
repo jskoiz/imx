@@ -144,5 +144,6 @@ jobs:
             gh release create "$GITHUB_REF_NAME" target/release-artifacts/* \
               --title "IMX Developer Preview $GITHUB_REF_NAME" \
               --notes-file RELEASE_NOTES.md \
+              --target "$GITHUB_SHA" \
               --verify-tag
           fi
