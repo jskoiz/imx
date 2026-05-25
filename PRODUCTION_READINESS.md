@@ -95,11 +95,13 @@ IMX_VERSION=v0.4.0 IMX_RELEASE_TARGET=<target> \
   and upload evidence artifacts.
 - Tag pushes matching `v*` run the preview gates, build native Linux x86_64 and
   cross-built Linux arm64 release archives, generate aggregate checksums, attach
-  the conformance report, publish the GitHub Release, then download the
-  published Linux assets back for smoke tests. The tap formula is published
-  through `jskoiz/homebrew-imx`; tap updates are committed there without hosted
-  macOS GitHub Actions. Linux arm64 is not claimed for the already-published
-  v0.4.0 assets unless that archive is explicitly published and verified.
+  the generated tap formula and conformance report, publish the GitHub Release,
+  then download the published Linux assets back for smoke tests. The tap formula
+  is published through `jskoiz/homebrew-imx`; tap updates are tap-only
+  automation, not Homebrew/core submissions, and must not use hosted macOS or
+  iOS GitHub Actions. Linux arm64 is not claimed for the already-published
+  v0.4.0 assets unless the formula contains a checked URL and SHA generated
+  from a published `SHA256SUMS` entry and Linux-only tap smoke verifies it.
 - macOS archive or tap proof must run locally or manually after explicit
   approval in the current turn; normal pushes, tags, schedules, and tap updates
   must not start hosted macOS or iOS runners.

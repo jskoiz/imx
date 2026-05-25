@@ -42,6 +42,11 @@ jobs:
           set -euo pipefail
           bash scripts/check-no-hosted-apple-actions.sh
 
+      - name: Smoke Homebrew formula generator
+        run: |
+          set -euo pipefail
+          bash scripts/smoke-homebrew-formula-generator.sh
+
       - name: Prepare Rust toolchain
         run: |
           set -euo pipefail
@@ -261,6 +266,15 @@ jobs:
           set -euo pipefail
           cd target/release-upload
           shasum -a 256 *.tar.gz > SHA256SUMS
+
+      - name: Generate Homebrew tap formula
+        run: |
+          set -euo pipefail
+          bash scripts/generate-homebrew-formula.sh \
+            "$GITHUB_REF_NAME" \
+            target/release-upload/SHA256SUMS \
+            target/release-upload/imx.rb
+          ruby -c target/release-upload/imx.rb
 
       - name: Generate release conformance report
         run: |

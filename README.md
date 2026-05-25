@@ -49,7 +49,10 @@ https://github.com/jskoiz/imx/releases/tag/v0.4.0
 ```
 
 The release-attached `imx.rb` is the formula source published through the
-`jskoiz/homebrew-imx` tap.
+`jskoiz/homebrew-imx` tap. Future Linux arm64 tap support requires a published
+`aarch64-unknown-linux-gnu` archive URL and matching SHA generated from that
+release's `SHA256SUMS`, plus Linux-only tap smoke verification of the formula
+entry.
 
 Or install from source:
 
@@ -234,8 +237,9 @@ Tag releases additionally attach:
 - `conformance-summary.json`
 
 The v0.4.0 release also attached the `imx.rb` Homebrew tap formula snapshot.
-Future tap updates are handled in `jskoiz/homebrew-imx` without hosted macOS
-GitHub Actions.
+Future tags attach a generated tap formula based on whichever supported archive
+targets are present in that release's `SHA256SUMS`. Tap updates are handled in
+`jskoiz/homebrew-imx` without hosted macOS GitHub Actions.
 
 See [COMPATIBILITY.md](COMPATIBILITY.md) for the exact behavior contract and
 [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) for current release evidence,
