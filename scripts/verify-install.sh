@@ -34,6 +34,11 @@ git clone "$repo_url" "$checkout" >/dev/null
   "$install_root/bin/imx" identify "$fixture_dir/gradient-64-png16.png"
   "$install_root/bin/imx" identify "$fixture_dir/gradient-64-ppm16.ppm"
   "$install_root/bin/imx" identify "$fixture_dir/gradient-64.pgm"
+  "$install_root/bin/imx" identify "$fixture_dir/intake-farbfeld-rgba16-2x2.ff" | grep -Fx 'format=FARBFELD width=2 height=2 channels=RGBA depth=16'
+  "$install_root/bin/imx" identify "$fixture_dir/intake-qoi-rgb-linear-2x2.qoi" | grep -Fx 'format=QOI width=2 height=2 channels=RGB depth=8'
+  "$install_root/bin/imx" identify "$fixture_dir/intake-comments-2x1.ppm" | grep -Fx 'format=PPM width=2 height=1 channels=RGB depth=16'
+  "$install_root/bin/imx" identify "$fixture_dir/intake-pgm16-2x1.pgm" | grep -Fx 'format=PGM width=2 height=1 channels=GRAY depth=16'
+  "$install_root/bin/imx" identify "$fixture_dir/intake-rgba16-1x1.png" | grep -Fx 'format=PNG width=1 height=1 channels=RGBA depth=16'
   "$install_root/bin/imx" identify "FARBFELD:$fixture_dir/gradient-64.ff"
   "$install_root/bin/imx" identify "JPEG:$fixture_dir/gradient-64.jpg"
   "$install_root/bin/imx" identify "JPEG:$fixture_dir/gray-4x1.jpg"
@@ -48,6 +53,11 @@ git clone "$repo_url" "$checkout" >/dev/null
   "$install_root/bin/imx" identify "PNG:$fixture_dir/gradient-64-png16.png"
   "$install_root/bin/imx" identify "PPM:$fixture_dir/gradient-64-ppm16.ppm"
   "$install_root/bin/imx" identify "PGM:$fixture_dir/gradient-64.pgm"
+  "$install_root/bin/imx" identify "FARBFELD:$fixture_dir/intake-farbfeld-rgba16-2x2.ff" | grep -Fx 'format=FARBFELD width=2 height=2 channels=RGBA depth=16'
+  "$install_root/bin/imx" identify "QOI:$fixture_dir/intake-qoi-rgb-linear-2x2.qoi" | grep -Fx 'format=QOI width=2 height=2 channels=RGB depth=8'
+  "$install_root/bin/imx" identify "PPM:$fixture_dir/intake-comments-2x1.ppm" | grep -Fx 'format=PPM width=2 height=1 channels=RGB depth=16'
+  "$install_root/bin/imx" identify "PGM:$fixture_dir/intake-pgm16-2x1.pgm" | grep -Fx 'format=PGM width=2 height=1 channels=GRAY depth=16'
+  "$install_root/bin/imx" identify "PNG:$fixture_dir/intake-rgba16-1x1.png" | grep -Fx 'format=PNG width=1 height=1 channels=RGBA depth=16'
   "$install_root/bin/imx" "$fixture_dir/gradient-64.ff" "$work_dir/gradient.qoi"
   "$install_root/bin/imx" "FARBFELD:$fixture_dir/gradient-64.ff" "QOI:$work_dir/prefix-gradient.qoi"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.jpg" "$work_dir/jpeg-gradient.ff"
@@ -71,6 +81,9 @@ git clone "$repo_url" "$checkout" >/dev/null
   "$install_root/bin/imx" "$fixture_dir/gradient-64-png16.png" "$work_dir/png16-gradient.ff"
   "$install_root/bin/imx" "$fixture_dir/gradient-64-ppm16.ppm" "$work_dir/ppm16-gradient.ff"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.pgm" "$work_dir/pgm-gradient.ff"
+  "$install_root/bin/imx" "PNG:$fixture_dir/intake-rgba16-1x1.png" "FARBFELD:$work_dir/intake-png16.ff"
+  "$install_root/bin/imx" "PPM:$fixture_dir/intake-comments-2x1.ppm" "PGM:$work_dir/intake-ppm.pgm"
+  "$install_root/bin/imx" "QOI:$fixture_dir/intake-qoi-rgb-linear-2x2.qoi" "PNG:$work_dir/intake-qoi.png"
   "$install_root/bin/imx" "PPM:$fixture_dir/gradient-64.ppm" "FARBFELD:$work_dir/prefix-gradient.ff"
   "$install_root/bin/imx" "PNG:$fixture_dir/gradient-64.png" "FARBFELD:$work_dir/prefix-png-gradient.ff"
   "$install_root/bin/imx" "PPM:$fixture_dir/gradient-64-ppm16.ppm" "PPM:$work_dir/prefix-ppm16-rewrite.ppm"

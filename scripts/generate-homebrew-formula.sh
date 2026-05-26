@@ -24,6 +24,7 @@ png_smoke=0
 jpeg_smoke=0
 jpeg_orientation_smoke=0
 jpeg_progressive_smoke=0
+intake_smoke=0
 if [[ "$formula_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
   major="${BASH_REMATCH[1]}"
   minor="${BASH_REMATCH[2]}"
@@ -41,6 +42,9 @@ if [[ "$formula_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
   fi
   if ((major > 0 || minor >= 11)); then
     jpeg_progressive_smoke=1
+  fi
+  if ((major > 0 || minor >= 12)); then
+    intake_smoke=1
   fi
 fi
 
@@ -213,6 +217,18 @@ if [[ "$jpeg_progressive_smoke" == 1 ]]; then
     assert_match "format=JPEG width=3 height=4 channels=RGB depth=8", shell_output("#{bin/"imx"} identify JPEG:progressive-o6.jpg")
     system bin/"imx", "JPEG:progressive-o6.jpg", "PPM:progressive-o6.ppm"
     assert_match "format=PPM width=3 height=4 channels=RGB depth=8", shell_output("#{bin/"imx"} identify PPM:progressive-o6.ppm")
+EOF
+fi
+
+if [[ "$intake_smoke" == 1 ]]; then
+  cat <<'EOF'
+    (testpath/"intake-comments.ppm").write "P3\n# v0.12 intake fixture\n2 1\n1023\n0 512 1023\n1023 256 128\n"
+    (testpath/"intake-pgm16.pgm").write "P5\n2 1\n65535\n\x12\x34\xff\xff".b
+    assert_match "format=PPM width=2 height=1 channels=RGB depth=16", shell_output("#{bin/"imx"} identify PPM:intake-comments.ppm")
+    assert_match "format=PGM width=2 height=1 channels=GRAY depth=16", shell_output("#{bin/"imx"} identify PGM:intake-pgm16.pgm")
+    system bin/"imx", "PPM:intake-comments.ppm", "PGM:intake-comments.pgm"
+    system bin/"imx", "PGM:intake-pgm16.pgm", "FARBFELD:intake-pgm16.ff"
+    assert_match "format=FARBFELD width=2 height=1 channels=RGBA depth=16", shell_output("#{bin/"imx"} identify FARBFELD:intake-pgm16.ff")
 EOF
 fi
 

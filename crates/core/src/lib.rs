@@ -542,6 +542,14 @@ pub enum ImageError {
         max_value: u32,
         max_supported: u32,
     },
+    InvalidSampleValue {
+        format: &'static str,
+        sample_value: u32,
+        max_value: u32,
+    },
+    InvalidPbmSample {
+        byte: u8,
+    },
     UnsupportedFormat(String),
 }
 
@@ -587,6 +595,19 @@ impl fmt::Display for ImageError {
                     f,
                     "{format} max value must be 1..={max_supported}, got {max_value}"
                 )
+            }
+            Self::InvalidSampleValue {
+                format,
+                sample_value,
+                max_value,
+            } => {
+                write!(
+                    f,
+                    "{format} sample value must be <= {max_value}, got {sample_value}"
+                )
+            }
+            Self::InvalidPbmSample { byte } => {
+                write!(f, "PBM samples must be ASCII 0 or 1, got 0x{byte:02x}")
             }
             Self::UnsupportedFormat(format) => write!(f, "unsupported format: {format}"),
         }

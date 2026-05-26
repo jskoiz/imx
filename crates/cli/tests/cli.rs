@@ -313,6 +313,49 @@ fn identifies_with_exact_format_prefixes_for_supported_formats() {
 }
 
 #[test]
+fn farbfeld_extension_alias_identifies_and_transcodes() {
+    let dir = temp_dir("farbfeld_extension_alias");
+    let input = dir.join("input.farbfeld");
+    let output = dir.join("rewrite.farbfeld");
+    let image = Image::new(
+        1,
+        1,
+        PixelFormat::Rgba16Be,
+        vec![0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xff, 0xff],
+    )
+    .unwrap();
+    fs::write(&input, imx_codec_farbfeld::encode(&image).unwrap()).unwrap();
+
+    let input_arg = prefixed("FARBFELD", &input);
+    let output_arg = prefixed("FARBFELD", &output);
+
+    let identify = Command::new(imx())
+        .args(["identify", input_arg.as_str()])
+        .output()
+        .unwrap();
+    assert!(
+        identify.status.success(),
+        "farbfeld alias identify failed with stderr={}",
+        String::from_utf8_lossy(&identify.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&identify.stdout).trim(),
+        "format=FARBFELD width=1 height=1 channels=RGBA depth=16"
+    );
+
+    let transcode = Command::new(imx())
+        .args([input_arg.as_str(), output_arg.as_str()])
+        .output()
+        .unwrap();
+    assert!(
+        transcode.status.success(),
+        "farbfeld alias transcode failed with stderr={}",
+        String::from_utf8_lossy(&transcode.stderr)
+    );
+    assert_eq!(fs::read(input).unwrap(), fs::read(output).unwrap());
+}
+
+#[test]
 fn lowercase_colon_path_segments_are_not_format_prefixes() {
     let dir = temp_dir("colon_path");
     let input = dir.join("qoi:input.ppm");
@@ -335,47 +378,36 @@ fn lowercase_colon_path_segments_are_not_format_prefixes() {
 }
 
 #[test]
-fn detects_png_by_magic_before_extension_fallback() {
-    let dir = temp_dir("png_magic_detection");
-    let input = dir.join("input.ppm");
-    let image = Image::new(1, 1, PixelFormat::Rgb8, vec![0, 128, 255]).unwrap();
-    fs::write(&input, imx_codec_png::encode(&image).unwrap()).unwrap();
+fn detects_magic_before_extension_fallback_for_all_formats() {
+    let dir = temp_dir("magic_detection");
+    for (prefix, original, expected_identify) in write_supported_fixtures(&dir) {
+        let misleading_extension = if prefix == "PPM" { "qoi" } else { "ppm" };
+        let misleading = dir.join(format!(
+            "{}-misleading.{}",
+            prefix.to_ascii_lowercase(),
+            misleading_extension
+        ));
+        fs::write(&misleading, fs::read(&original).unwrap()).unwrap();
 
-    let output = Command::new(imx())
-        .args(["identify", input.to_str().unwrap()])
-        .output()
-        .unwrap();
-    assert!(
-        output.status.success(),
-        "PNG magic identify failed with stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(
-        String::from_utf8(output.stdout).unwrap().trim(),
-        "format=PNG width=1 height=1 channels=RGB depth=8"
-    );
-}
-
-#[test]
-fn detects_jpeg_by_magic_before_extension_fallback() {
-    let dir = temp_dir("jpeg_magic_detection");
-    let input = dir.join("input.ppm");
-    let image = Image::new(2, 1, PixelFormat::Rgb8, vec![255, 0, 0, 0, 128, 255]).unwrap();
-    fs::write(&input, imx_codec_jpeg::encode(&image).unwrap()).unwrap();
-
-    let output = Command::new(imx())
-        .args(["identify", input.to_str().unwrap()])
-        .output()
-        .unwrap();
-    assert!(
-        output.status.success(),
-        "JPEG magic identify failed with stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(
-        String::from_utf8(output.stdout).unwrap().trim(),
-        "format=JPEG width=2 height=1 channels=RGB depth=8"
-    );
+        for arg in [
+            misleading.to_str().unwrap().to_string(),
+            prefixed(prefix, &misleading),
+        ] {
+            let output = Command::new(imx())
+                .args(["identify", arg.as_str()])
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{prefix} magic identify failed for {arg} with stderr={}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert_eq!(
+                String::from_utf8(output.stdout).unwrap().trim(),
+                expected_identify
+            );
+        }
+    }
 }
 
 #[test]
@@ -750,6 +782,7 @@ fn rejects_jpeg_encode_from_non_opaque_alpha() {
         .output()
         .unwrap();
     assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("failed to encode JPEG output"));
     assert!(String::from_utf8_lossy(&output.stderr).contains("alpha is not supported"));
 }
 
@@ -1108,6 +1141,41 @@ fn help_and_version_are_available() {
 }
 
 #[test]
+fn unsupported_imagemagick_command_shapes_are_rejected() {
+    let dir = temp_dir("unsupported_command_shapes");
+    let input = dir.join("input.ppm");
+    let output_path = dir.join("output.qoi");
+    fs::write(
+        &input,
+        imx_codec_pnm::encode_ppm(&Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap())
+            .unwrap(),
+    )
+    .unwrap();
+
+    for args in [
+        vec!["convert".to_string(), input.to_string_lossy().into_owned()],
+        vec![
+            "convert".to_string(),
+            input.to_string_lossy().into_owned(),
+            output_path.to_string_lossy().into_owned(),
+        ],
+        vec![
+            input.to_string_lossy().into_owned(),
+            "-resize".to_string(),
+            output_path.to_string_lossy().into_owned(),
+        ],
+        vec!["identify".to_string(), "-".to_string()],
+        vec![input.to_string_lossy().into_owned(), "-".to_string()],
+    ] {
+        let output = Command::new(imx()).args(&args).output().unwrap();
+        assert!(
+            !output.status.success(),
+            "unsupported command shape unexpectedly succeeded: {args:?}"
+        );
+    }
+}
+
+#[test]
 fn malformed_input_exits_nonzero_with_error_prefix() {
     let dir = temp_dir("malformed");
     let bad = dir.join("bad.qoi");
@@ -1118,6 +1186,8 @@ fn malformed_input_exits_nonzero_with_error_prefix() {
         .unwrap();
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).starts_with("error: "));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("failed to identify QOI input"));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("QOI channels must be 3 or 4, got 2"));
 }
 
 #[test]
@@ -1131,6 +1201,7 @@ fn malformed_png_input_exits_nonzero_with_error_prefix() {
         .unwrap();
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).starts_with("error: "));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("failed to identify PNG input"));
     assert!(String::from_utf8_lossy(&output.stderr).contains("PNG identify failed"));
 }
 
@@ -1145,6 +1216,7 @@ fn malformed_jpeg_input_exits_nonzero_with_error_prefix() {
         .unwrap();
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).starts_with("error: "));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("failed to identify JPEG input"));
     assert!(String::from_utf8_lossy(&output.stderr).contains("JPEG identify failed"));
 }
 
@@ -1232,6 +1304,7 @@ fn failed_transcode_does_not_leave_output_file() {
         .unwrap();
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).starts_with("error: "));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("failed to decode PPM input"));
     assert!(!output_path.exists());
 }
 
@@ -1380,6 +1453,124 @@ fn malformed_format_prefixes_are_rejected() {
         assert!(
             String::from_utf8_lossy(&output.stderr).contains(expected_error),
             "expected stderr to contain {expected_error:?}, got {:?}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+#[test]
+fn all_supported_prefixes_reject_mismatched_inputs_and_outputs() {
+    let dir = temp_dir("prefix_mismatch_matrix");
+    let fixtures = write_supported_fixtures(&dir);
+    let output_extensions = [
+        ("FARBFELD", "ff"),
+        ("JPEG", "jpg"),
+        ("QOI", "qoi"),
+        ("PBM", "pbm"),
+        ("PGM", "pgm"),
+        ("PNG", "png"),
+        ("PPM", "ppm"),
+    ];
+
+    for (prefix, _, _) in &fixtures {
+        for (actual_prefix, input, _) in &fixtures {
+            if prefix == actual_prefix {
+                continue;
+            }
+            let output = Command::new(imx())
+                .args(["identify", prefixed(prefix, input).as_str()])
+                .output()
+                .unwrap();
+            assert!(
+                !output.status.success(),
+                "{prefix} unexpectedly accepted {actual_prefix} input"
+            );
+            let expected =
+                format!("format prefix {prefix} does not match detected format {actual_prefix}");
+            assert!(
+                String::from_utf8_lossy(&output.stderr).contains(&expected),
+                "expected stderr to contain {expected:?}, got {:?}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+    }
+
+    let input = prefixed(fixtures[0].0, &fixtures[0].1);
+    for (prefix, _) in &output_extensions {
+        for (actual_prefix, extension) in &output_extensions {
+            if prefix == actual_prefix {
+                continue;
+            }
+            let output_path = dir.join(format!(
+                "{}-as-{}.{}",
+                prefix.to_ascii_lowercase(),
+                actual_prefix.to_ascii_lowercase(),
+                extension
+            ));
+            let output_arg = prefixed(prefix, &output_path);
+            let output = Command::new(imx())
+                .args([input.as_str(), output_arg.as_str()])
+                .output()
+                .unwrap();
+            assert!(
+                !output.status.success(),
+                "{prefix} unexpectedly accepted {actual_prefix} output path"
+            );
+            let expected =
+                format!("format prefix {prefix} does not match path format {actual_prefix}");
+            assert!(
+                String::from_utf8_lossy(&output.stderr).contains(&expected),
+                "expected stderr to contain {expected:?}, got {:?}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+    }
+}
+
+#[test]
+fn output_prefixes_do_not_select_extensionless_outputs() {
+    let dir = temp_dir("extensionless_prefix_outputs");
+    for (prefix, input, _) in write_supported_fixtures(&dir) {
+        let output_path = dir.join(format!("extensionless-{}", prefix.to_ascii_lowercase()));
+        let output = Command::new(imx())
+            .args([prefixed(prefix, &input), prefixed(prefix, &output_path)])
+            .output()
+            .unwrap();
+        assert!(
+            !output.status.success(),
+            "{prefix} unexpectedly selected an extensionless output"
+        );
+        assert!(String::from_utf8_lossy(&output.stderr).contains("unsupported format:"));
+    }
+}
+
+#[test]
+fn lowercase_mixed_case_and_alias_prefixes_do_not_expand_prefix_surface() {
+    let dir = temp_dir("prefix_aliases");
+    let input = dir.join("input.jpg");
+    let image = Image::new(8, 8, PixelFormat::Rgb8, vec![0x80; 8 * 8 * 3]).unwrap();
+    fs::write(&input, imx_codec_jpeg::encode(&image).unwrap()).unwrap();
+
+    for alias in ["JPG", "FF", "TIFF"] {
+        let output = Command::new(imx())
+            .args(["identify", prefixed(alias, &input).as_str()])
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(String::from_utf8_lossy(&output.stderr)
+            .contains(&format!("unsupported format prefix: {alias}")));
+    }
+
+    for alias in ["jpeg", "Jpeg", "jpg", "ff"] {
+        let arg = format!("{alias}:{}", input.to_string_lossy());
+        let output = Command::new(imx())
+            .args(["identify", arg.as_str()])
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("failed to read"),
+            "{alias}: should remain an ordinary path segment, got stderr={}",
             String::from_utf8_lossy(&output.stderr)
         );
     }

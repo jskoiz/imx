@@ -351,7 +351,7 @@ fn decode_ascii_pbm(
         match bit {
             b'0' => pixels.push(255),
             b'1' => pixels.push(0),
-            _ => return Err(ImageError::InvalidHeader("PBM")),
+            _ => return Err(ImageError::InvalidPbmSample { byte: bit }),
         }
     }
     Ok(pixels)
@@ -498,7 +498,11 @@ fn push_scaled_sample(
     format_name: &'static str,
 ) -> Result<(), ImageError> {
     if sample > max_value {
-        return Err(ImageError::InvalidHeader(format_name));
+        return Err(ImageError::InvalidSampleValue {
+            format: format_name,
+            sample_value: sample,
+            max_value,
+        });
     }
     match output {
         SampleOutput::U8 => out.push(scale_sample_to_u8(sample, max_value)),
@@ -570,7 +574,7 @@ impl<'a> Parser<'a> {
         self.skip_whitespace_and_comments()?;
         let bit = self.input[self.offset];
         if bit != b'0' && bit != b'1' {
-            return Err(ImageError::InvalidHeader("PBM"));
+            return Err(ImageError::InvalidPbmSample { byte: bit });
         }
         self.offset += 1;
         Ok(bit)
@@ -834,7 +838,11 @@ mod tests {
         );
         assert_eq!(
             decode_ppm(b"P3\n1 1\n1023\n0 1024 1\n"),
-            Err(ImageError::InvalidHeader("PPM"))
+            Err(ImageError::InvalidSampleValue {
+                format: "PPM",
+                sample_value: 1024,
+                max_value: 1023,
+            })
         );
         assert!(matches!(
             decode_ppm(b"P6\n1 1\n65535\n\x12"),

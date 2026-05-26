@@ -272,8 +272,30 @@ FARBFELD/QOI to PGM:
 
 - Decoded pixel buffers are capped at 512 MiB, with JPEG decode capped at
   128 MiB to account for decoder working-memory overhead.
-- CLI input files larger than 513 MiB are rejected before reading.
+- CLI input files larger than 513 MiB are rejected by metadata before the
+  bounded read fallback, when metadata is available.
 - The cap is an IMX safety policy, not ImageMagick parity.
+
+## Real-World Intake Reliability Coverage
+
+The v0.12.0 intake reliability claim does not add formats or command syntax. It
+adds evidence for representative already-supported inputs that tend to appear in
+real files or failure reports:
+
+- FARBFELD RGBA16 input with nontrivial channel values.
+- Progressive grayscale JPEG input.
+- QOI RGB input with linear colorspace.
+- PBM ASCII input with comments and adjacent raster samples.
+- PGM scaled ASCII and binary 16-bit input.
+- PNG grayscale-alpha and RGBA16 input.
+- PPM ASCII input with comments and high `maxval`.
+- Malformed FARBFELD, QOI, PBM, PGM, PPM, PNG, and JPEG diagnostics with clear
+  operation/path context at the CLI.
+- Resource-boundary checks for the 512 MiB decoded-pixel cap without requiring
+  large allocations.
+
+This corpus is generated or embedded in tests so no unclear-license external
+fixtures are vendored.
 
 ## Corpus Differential Coverage
 
@@ -301,9 +323,11 @@ ImageMagick `-auto-orient` with the same metric recorder. The report emits:
 - `summary.json` with pass/fail counts and evidence paths.
 
 Malformed-input conformance remains covered by golden/malformed unit tests and
-fuzz targets rather than by ImageMagick byte-for-byte compatibility. IMX
-intentionally rejects several malformed inputs that ImageMagick may accept or
-clamp.
+fuzz targets rather than by ImageMagick byte-for-byte compatibility.
+`scripts/curated-corpus.sh` records the v0.12.0 intake corpus summary at
+`target/curated-corpus/summary.json` and is run by the local/hosted release
+gate. IMX intentionally rejects several malformed inputs that ImageMagick may
+accept or clamp.
 
 ## Unsupported Surface
 
@@ -323,7 +347,7 @@ clamp.
   color-management semantics.
 - No format beyond FARBFELD, JPEG, QOI, PBM, PGM, PNG, and PPM.
 - No Windows, crates.io, Homebrew/core, or package-manager distribution beyond
-  the `jskoiz/imx` Homebrew tap is claimed for this slice. v0.11.0 Linux x86_64
+  the `jskoiz/imx` Homebrew tap is claimed for this slice. v0.12.0 Linux x86_64
   and Linux arm64 archives require glibc 2.34 or newer; Linux arm64 support is
   claimed only for the published archive and tap block verified from release
   `SHA256SUMS` by Linux-only tap smoke.

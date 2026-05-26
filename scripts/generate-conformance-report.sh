@@ -29,6 +29,7 @@ latest_match() {
 
 fuzz_summary="$(latest_match '*/fuzz-runs/*/summary.json')"
 differential_summary="$(latest_match '*/differential-corpus-*/summary.json')"
+curated_summary="$(latest_match '*/curated-corpus/summary.json')"
 bench_summary="$(latest_match '*/release-bench-*/summary.json')"
 bench_thresholds="$(latest_match '*/release-bench-*/threshold-summary.json')"
 bench_regression="$(latest_match '*/bench-regression-*/regression-report.json')"
@@ -57,7 +58,10 @@ Git revision: \`$git_rev\`
   paths differ. JPEG rewrites are deterministic lossy decode/re-encode
   operations. Progressive 8-bit grayscale/RGB JPEG input is supported for
   identify/decode/transcode; output remains deterministic baseline quality-90
-  JPEG.
+  JPEG. $version adds a real-world intake reliability claim for generated and
+  in-test corpus cases covering comments, high maxval Netpbm input,
+  grayscale-alpha/16-bit PNG input, progressive JPEG input, QOI RGB linear
+  input, malformed diagnostics, and resource-boundary rejection.
 - Runtime dependency policy: no ImageMagick, MagickCore, MagickWand, delegates,
   modules, \`policy.xml\`, or ImageMagick build system linkage.
 
@@ -70,6 +74,7 @@ $archive_table
 | Gate | Evidence |
 | --- | --- |
 | Differential corpus | ${differential_summary:-missing} |
+| Curated intake corpus | ${curated_summary:-missing} |
 | Fuzz | ${fuzz_summary:-missing} |
 | Benchmark/RSS | ${bench_summary:-missing} |
 | Benchmark thresholds | ${bench_thresholds:-missing} |
@@ -82,6 +87,11 @@ $archive_table
 
 - Golden fixtures cover representative FARBFELD, JPEG, QOI, PBM, PGM, PNG, and
   PPM bytes.
+- Curated intake corpus coverage adds representative generated or in-test
+  cases for FARBFELD RGBA16, progressive JPEG grayscale, QOI RGB linear, PBM
+  ASCII comments, PGM scaled/16-bit, PNG grayscale-alpha/RGBA16, PPM high
+  maxval comments, explicit malformed diagnostics, and resource-boundary
+  rejection.
 - Malformed-input tests cover invalid headers, truncation, oversized dimensions,
   unsupported max values, malformed EXIF Orientation metadata, and failed CLI
   output behavior.
@@ -119,9 +129,11 @@ cat >"$out_dir/conformance-summary.json" <<EOF
   "prefixes": ["FARBFELD:", "JPEG:", "QOI:", "PBM:", "PGM:", "PNG:", "PPM:"],
   "jpeg_progressive": "8-bit grayscale/RGB progressive JPEG input is supported",
   "jpeg_orientation": "EXIF Orientation values 1 through 8 are normalized on JPEG input",
+  "intake_reliability": "generated and in-test corpus cases cover representative supported-format intake, malformed diagnostics, and resource-boundary rejection",
   "git_rev": "$git_rev",
   "generated_at": "$generated_at",
   "differential_summary": "${differential_summary:-}",
+  "curated_summary": "${curated_summary:-}",
   "fuzz_summary": "${fuzz_summary:-}",
   "benchmark_summary": "${bench_summary:-}",
   "benchmark_thresholds": "${bench_thresholds:-}",

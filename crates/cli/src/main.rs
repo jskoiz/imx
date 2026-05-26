@@ -20,6 +20,20 @@ fn fail(message: impl std::fmt::Display) -> ! {
     process::exit(1);
 }
 
+fn fail_image_operation(
+    format: Format,
+    operation: &str,
+    path_role: &str,
+    path: &CliPath<'_>,
+    err: ImageError,
+) -> ! {
+    fail(format!(
+        "failed to {operation} {} {path_role} {}: {err}",
+        format.name(),
+        path.original
+    ));
+}
+
 fn main() {
     let args = env::args().collect::<Vec<_>>();
     match args.as_slice() {
@@ -52,7 +66,7 @@ fn identify(input_path: &str) -> ! {
         Format::Ppm => imx_codec_pnm::identify_ppm(&input),
         Format::Qoi => imx_codec_qoi::identify(&input),
     }
-    .unwrap_or_else(|err| fail(err));
+    .unwrap_or_else(|err| fail_image_operation(format, "identify", "input", &input_path, err));
     println!("{}", info.stable_line());
     process::exit(0);
 }
@@ -65,8 +79,12 @@ fn transcode(input_path: &str, output_path: &str) -> ! {
     let input_format = detect_input_format(&input_path, &input).unwrap_or_else(|err| fail(err));
     let output_format = detect_output_format(&output_path).unwrap_or_else(|err| fail(err));
 
-    let image = decode_image(input_format, &input).unwrap_or_else(|err| fail(err));
-    let output = encode_image(output_format, &image).unwrap_or_else(|err| fail(err));
+    let image = decode_image(input_format, &input).unwrap_or_else(|err| {
+        fail_image_operation(input_format, "decode", "input", &input_path, err)
+    });
+    let output = encode_image(output_format, &image).unwrap_or_else(|err| {
+        fail_image_operation(output_format, "encode", "output", &output_path, err)
+    });
 
     write_atomic(output_path.path, &output);
     process::exit(0);
@@ -99,6 +117,15 @@ fn encode_image(format: Format, image: &imx_core::Image) -> Result<Vec<u8>, Imag
 fn read(path: &str) -> Vec<u8> {
     let mut file =
         fs::File::open(path).unwrap_or_else(|err| fail(format!("failed to read {path}: {err}")));
+    if let Ok(metadata) = file.metadata() {
+        if metadata.len() > MAX_INPUT_BYTES {
+            fail(format!(
+                "input file too large: {} bytes exceeds {} byte limit for {path}",
+                metadata.len(),
+                MAX_INPUT_BYTES
+            ));
+        }
+    }
     let mut input = Vec::new();
     Read::by_ref(&mut file)
         .take(MAX_INPUT_BYTES + 1)

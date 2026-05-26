@@ -101,7 +101,7 @@ fn jpeg_with_exif_orientation(jpeg: &[u8], orientation: u16) -> Vec<u8> {
 fn farbfeld_rejects_bad_headers_truncation_and_extreme_dimensions() {
     assert!(matches!(
         imx_codec_farbfeld::decode(b"not farbfeld"),
-        Err(ImageError::UnexpectedEof { .. }) | Err(ImageError::InvalidHeader("farbfeld"))
+        Err(ImageError::UnexpectedEof { .. }) | Err(ImageError::InvalidHeader("FARBFELD"))
     ));
 
     let mut truncated = Vec::from(imx_codec_farbfeld::MAGIC.as_slice());
@@ -139,11 +139,34 @@ fn qoi_rejects_bad_headers_and_truncated_opcode_payloads() {
         Err(ImageError::InvalidColorspace { colorspace: 9 })
     );
 
-    let mut truncated = qoi_header(1, 1, 3, imx_codec_qoi::QOI_SRGB);
-    truncated.extend_from_slice(&[imx_codec_qoi::QOI_OP_RGB, 0x10, 0x20]);
+    let mut truncated_rgb = qoi_header(1, 1, 3, imx_codec_qoi::QOI_SRGB);
+    truncated_rgb.extend_from_slice(&[imx_codec_qoi::QOI_OP_RGB, 0x10, 0x20]);
+    assert_eq!(
+        imx_codec_qoi::decode(&truncated_rgb),
+        Err(ImageError::UnexpectedEof {
+            expected: 18,
+            actual: 17,
+        })
+    );
+
+    let mut truncated_rgba = qoi_header(1, 1, 4, imx_codec_qoi::QOI_SRGB);
+    truncated_rgba.extend_from_slice(&[imx_codec_qoi::QOI_OP_RGBA, 0x10, 0x20, 0x30]);
+    assert_eq!(
+        imx_codec_qoi::decode(&truncated_rgba),
+        Err(ImageError::UnexpectedEof {
+            expected: 19,
+            actual: 18,
+        })
+    );
+
+    let mut truncated_luma = qoi_header(1, 1, 3, imx_codec_qoi::QOI_SRGB);
+    truncated_luma.push(imx_codec_qoi::QOI_OP_LUMA);
     assert!(matches!(
-        imx_codec_qoi::decode(&truncated),
-        Err(ImageError::UnexpectedEof { .. })
+        imx_codec_qoi::decode(&truncated_luma),
+        Err(ImageError::UnexpectedEof {
+            expected: 16,
+            actual: 15,
+        })
     ));
 }
 
@@ -310,11 +333,19 @@ fn ppm_rejects_out_of_scope_and_truncated_inputs() {
     );
     assert_eq!(
         imx_codec_pnm::decode_ppm(b"P3\n1 1\n256\n0 257 1\n"),
-        Err(ImageError::InvalidHeader("PPM"))
+        Err(ImageError::InvalidSampleValue {
+            format: "PPM",
+            sample_value: 257,
+            max_value: 256,
+        })
     );
     assert_eq!(
         imx_codec_pnm::decode_ppm(b"P6\n1 1\n256\n\x00\x00\x01\x01\x00\x00"),
-        Err(ImageError::InvalidHeader("PPM"))
+        Err(ImageError::InvalidSampleValue {
+            format: "PPM",
+            sample_value: 257,
+            max_value: 256,
+        })
     );
     assert!(matches!(
         imx_codec_pnm::decode_ppm(b"P6\n2 1\n255\n\xff\x00\x00"),
@@ -355,7 +386,11 @@ fn pgm_rejects_malformed_inputs() {
     );
     assert_eq!(
         imx_codec_pnm::decode_pgm(b"P2\n1 1\n10\n11\n"),
-        Err(ImageError::InvalidHeader("PGM"))
+        Err(ImageError::InvalidSampleValue {
+            format: "PGM",
+            sample_value: 11,
+            max_value: 10,
+        })
     );
     assert!(matches!(
         imx_codec_pnm::decode_pgm(b"P2\n2 1\n255\n0\n"),
@@ -397,15 +432,15 @@ fn pbm_rejects_malformed_inputs() {
     );
     assert_eq!(
         imx_codec_pnm::decode_pbm(b"P1\n2 1\n0 2\n"),
-        Err(ImageError::InvalidHeader("PBM"))
+        Err(ImageError::InvalidPbmSample { byte: b'2' })
     );
     assert_eq!(
         imx_codec_pnm::decode_pbm(b"P1\n2 1\n0 x\n"),
-        Err(ImageError::InvalidHeader("PBM"))
+        Err(ImageError::InvalidPbmSample { byte: b'x' })
     );
     assert_eq!(
         imx_codec_pnm::decode_pbm(b"P1\n1 1\n255\n"),
-        Err(ImageError::InvalidHeader("PBM"))
+        Err(ImageError::InvalidPbmSample { byte: b'2' })
     );
     assert!(matches!(
         imx_codec_pnm::decode_pbm(b"P1\n2 1\n0\n"),

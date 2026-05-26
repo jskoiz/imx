@@ -113,6 +113,33 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         &progressive_gray_jpeg
     ));
     let progressive_orientation_6 = jpeg_with_exif_orientation(&progressive_rgb_jpeg, 6)?;
+    let intake_farbfeld = imx_codec_farbfeld::encode(&Image::new(
+        2,
+        2,
+        PixelFormat::Rgba16Be,
+        vec![
+            0x00, 0x01, 0x12, 0x34, 0x7f, 0xff, 0xff, 0xfe, 0x01, 0x00, 0x80, 0x01, 0xaa, 0x55,
+            0x40, 0x00, 0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10, 0x11, 0x11, 0x22, 0x22,
+            0x33, 0x33, 0x44, 0x44,
+        ],
+    )?)?;
+    let intake_qoi_rgb_linear = imx_codec_qoi::encode(
+        2,
+        2,
+        3,
+        imx_codec_qoi::QOI_LINEAR,
+        &[0, 255, 0, 255, 0, 0, 18, 52, 86, 255, 255, 255],
+    )?;
+    let intake_ppm_comments =
+        b"P3\n# v0.12 intake fixture: comments, whitespace, maxval 1023\n2 1\n1023\n0 512 1023\n1023 256 128\n"
+            .to_vec();
+    let intake_pgm16 = b"P5\n2 1\n65535\n\x12\x34\xff\xff".to_vec();
+    let intake_png_rgba16 = imx_codec_png::encode(&Image::new(
+        1,
+        1,
+        PixelFormat::Rgba16Be,
+        vec![0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0],
+    )?)?;
 
     let files = [
         ("gradient-64.ff", gradient_ff),
@@ -150,6 +177,11 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         ("photo-orientation-o6.jpg", orientation_6),
         ("photo-orientation-o7.jpg", orientation_7),
         ("photo-orientation-o8.jpg", orientation_8),
+        ("intake-farbfeld-rgba16-2x2.ff", intake_farbfeld),
+        ("intake-qoi-rgb-linear-2x2.qoi", intake_qoi_rgb_linear),
+        ("intake-comments-2x1.ppm", intake_ppm_comments),
+        ("intake-pgm16-2x1.pgm", intake_pgm16),
+        ("intake-rgba16-1x1.png", intake_png_rgba16),
     ];
 
     let mut manifest = String::from("# IMX generated fixtures\n");

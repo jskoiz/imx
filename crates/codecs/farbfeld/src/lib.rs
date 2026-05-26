@@ -12,7 +12,7 @@ pub fn decode_header(input: &[u8]) -> Result<(u32, u32), ImageError> {
         });
     }
     if &input[..MAGIC.len()] != MAGIC {
-        return Err(ImageError::InvalidHeader("farbfeld"));
+        return Err(ImageError::InvalidHeader("FARBFELD"));
     }
 
     let width = u32::from_be_bytes(input[8..12].try_into().expect("fixed width slice"));
@@ -114,7 +114,7 @@ mod tests {
     fn rejects_bad_magic() {
         let mut bytes = one_by_one_red_half_alpha();
         bytes[0] = b'F';
-        assert_eq!(decode(&bytes), Err(ImageError::InvalidHeader("farbfeld")));
+        assert_eq!(decode(&bytes), Err(ImageError::InvalidHeader("FARBFELD")));
     }
 
     #[test]

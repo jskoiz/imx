@@ -1,7 +1,7 @@
 # IMX Developer Preview
 
 IMX is a standalone Rust image tool built one ImageMagick-compatible slice at a
-time. The current developer-preview release is `v0.11.0`: it supports
+time. The current developer-preview release is `v0.12.0`: it supports
 deterministic identify, cross-format transcode, same-format rewrite, exact
 uppercase format-prefix workflows, high-depth PPM, and a bounded PNG raster
 surface, plus bounded 8-bit baseline/progressive JPEG grayscale/RGB support,
@@ -33,9 +33,15 @@ grayscale/RGB streams. It preserves the v0.10.0 Orientation behavior on
 progressive input and still writes deterministic quality-90 baseline JPEG
 output.
 
+The v0.12.0 release keeps the v0.11.0 format and command surface and adds a
+bounded real-world intake reliability slice for already-supported input
+families. The claim covers only the tested generated/in-test intake fixtures,
+diagnostics, and resource-boundary cases; it does not add formats, transforms,
+streaming, metadata preservation, or broader ImageMagick CLI behavior.
+
 ## Install
 
-Install the published v0.11.0 tap release:
+Install the published v0.12.0 tap release:
 
 ```sh
 brew tap jskoiz/imx
@@ -44,42 +50,42 @@ imx --version
 ```
 
 This uses the `jskoiz/homebrew-imx` tap formula generated from each published
-release's `SHA256SUMS`. For v0.11.0, tap support is limited to archive targets
-present in the current v0.11.0 release and verified by tap smoke. It is not a
+release's `SHA256SUMS`. For v0.12.0, tap support is limited to archive targets
+present in the current v0.12.0 release and verified by tap smoke. It is not a
 Homebrew/core formula. Published Linux archives require glibc 2.34 or newer.
 
 Hosted GitHub Actions for the tap are Linux-only; macOS install proof must be
 run locally or manually after explicit approval.
 
-Install the published v0.11.0 release archive directly:
+Install the published v0.12.0 release archive directly:
 
 ```sh
-IMX_VERSION=v0.11.0
+IMX_VERSION=v0.12.0
 curl -fsSL "https://raw.githubusercontent.com/jskoiz/imx/${IMX_VERSION}/scripts/install.sh" | sh
 ```
 
 The installer verifies the published `SHA256SUMS`, installs `imx`, asserts the
 installed version, checks for glibc 2.34 or newer on Linux, and runs a small
-identify/transcode smoke test. Hosted v0.11.0 tag automation publishes Linux
+identify/transcode smoke test. Hosted v0.12.0 tag automation publishes Linux
 archives for:
 
-- `imx-preview-0.11.0-x86_64-unknown-linux-gnu.tar.gz`
-- `imx-preview-0.11.0-aarch64-unknown-linux-gnu.tar.gz`
+- `imx-preview-0.12.0-x86_64-unknown-linux-gnu.tar.gz`
+- `imx-preview-0.12.0-aarch64-unknown-linux-gnu.tar.gz`
 
-macOS v0.11.0 archives or tap blocks require recorded local/manual proof before
+macOS v0.12.0 archives or tap blocks require recorded local/manual proof before
 being claimed. No Windows, crates.io, Homebrew/core, or package-manager
-distribution beyond the `jskoiz/imx` tap is claimed. The v0.11.0 release URL is:
+distribution beyond the `jskoiz/imx` tap is claimed. The v0.12.0 release URL is:
 
 ```text
-https://github.com/jskoiz/imx/releases/tag/v0.11.0
+https://github.com/jskoiz/imx/releases/tag/v0.12.0
 ```
 
 The release-attached `imx.rb` is the formula source used to update the
-`jskoiz/homebrew-imx` tap from the published `SHA256SUMS`. For v0.11.0, Linux
+`jskoiz/homebrew-imx` tap from the published `SHA256SUMS`. For v0.12.0, Linux
 x86_64 and Linux arm64 tap blocks are generated from the release checksums and
 verified by Linux-only tap smoke.
 
-Or install the current v0.11.0 source tree directly:
+Or install the current v0.12.0 source tree directly:
 
 ```sh
 git clone https://github.com/jskoiz/imx.git
@@ -255,17 +261,17 @@ IMX_INSTALL_REPO_URL=https://github.com/jskoiz/imx.git ./scripts/verify-install.
 Verify published Linux release archives after GitHub release publication:
 
 ```sh
-IMX_VERSION=v0.11.0 IMX_RELEASE_TARGET=x86_64-unknown-linux-gnu ./scripts/verify-release-archive.sh
+IMX_VERSION=v0.12.0 IMX_RELEASE_TARGET=x86_64-unknown-linux-gnu ./scripts/verify-release-archive.sh
 ```
 
-Verify the v0.11.0 Homebrew tap install smoke:
+Verify the v0.12.0 Homebrew tap install smoke:
 
 ```sh
 brew tap jskoiz/imx
 brew install imx
 brew test imx
 imx --version
-test "$(imx --version)" = "imx 0.11.0"
+test "$(imx --version)" = "imx 0.12.0"
 ```
 
 `brew test` verifies installation only. Compatibility remains covered by the
@@ -306,7 +312,11 @@ hosted macOS GitHub Actions.
 See [COMPATIBILITY.md](COMPATIBILITY.md) for the exact behavior contract and
 [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) for current release evidence,
 known gaps, and the next adoption milestone.
-The v0.11.0 progressive JPEG contract is tracked in
+The v0.12.0 real-world intake reliability contract is tracked in
+[docs/v0.12.0-real-world-intake.md](docs/v0.12.0-real-world-intake.md), with
+the generated/in-test corpus plan in
+[docs/v0.12.0-curated-corpus.md](docs/v0.12.0-curated-corpus.md). The
+v0.11.0 progressive JPEG contract is tracked in
 [docs/v0.11.0-progressive-jpeg.md](docs/v0.11.0-progressive-jpeg.md). The
 v0.10.0 real-photo reliability contract is tracked in
 [docs/v0.10.0-real-photo.md](docs/v0.10.0-real-photo.md). The v0.9.0 JPEG implementation contract is tracked in

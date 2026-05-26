@@ -104,18 +104,18 @@ pub fn decode(input: &[u8]) -> Result<QoiImage, ImageError> {
     let mut written = 0_usize;
 
     while written < pixels {
-        let b = read_byte(input, &mut offset, input.len())?;
+        let b = read_byte(input, &mut offset)?;
         let mut run = 0_usize;
 
         if b == QOI_OP_RGB {
-            px[0] = read_byte(input, &mut offset, input.len())?;
-            px[1] = read_byte(input, &mut offset, input.len())?;
-            px[2] = read_byte(input, &mut offset, input.len())?;
+            px[0] = read_byte(input, &mut offset)?;
+            px[1] = read_byte(input, &mut offset)?;
+            px[2] = read_byte(input, &mut offset)?;
         } else if b == QOI_OP_RGBA {
-            px[0] = read_byte(input, &mut offset, input.len())?;
-            px[1] = read_byte(input, &mut offset, input.len())?;
-            px[2] = read_byte(input, &mut offset, input.len())?;
-            px[3] = read_byte(input, &mut offset, input.len())?;
+            px[0] = read_byte(input, &mut offset)?;
+            px[1] = read_byte(input, &mut offset)?;
+            px[2] = read_byte(input, &mut offset)?;
+            px[3] = read_byte(input, &mut offset)?;
         } else if (b & QOI_MASK_2) == QOI_OP_INDEX {
             px = index[(b & !QOI_MASK_2) as usize];
         } else if (b & QOI_MASK_2) == QOI_OP_DIFF {
@@ -123,7 +123,7 @@ pub fn decode(input: &[u8]) -> Result<QoiImage, ImageError> {
             px[1] = px[1].wrapping_add(((b >> 2) & 0x03).wrapping_sub(2));
             px[2] = px[2].wrapping_add((b & 0x03).wrapping_sub(2));
         } else if (b & QOI_MASK_2) == QOI_OP_LUMA {
-            let b2 = read_byte(input, &mut offset, input.len())?;
+            let b2 = read_byte(input, &mut offset)?;
             let vg = (b & !QOI_MASK_2).wrapping_sub(32);
             px[0] = px[0].wrapping_add(vg.wrapping_sub(8).wrapping_add((b2 >> 4) & 0x0f));
             px[1] = px[1].wrapping_add(vg);
@@ -275,10 +275,10 @@ fn validate_colorspace(colorspace: u8) -> Result<(), ImageError> {
     }
 }
 
-fn read_byte(input: &[u8], offset: &mut usize, expected_minimum: usize) -> Result<u8, ImageError> {
+fn read_byte(input: &[u8], offset: &mut usize) -> Result<u8, ImageError> {
     if *offset >= input.len() {
         return Err(ImageError::UnexpectedEof {
-            expected: expected_minimum,
+            expected: (*offset).checked_add(1).ok_or(ImageError::LengthOverflow)?,
             actual: input.len(),
         });
     }

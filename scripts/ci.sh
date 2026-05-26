@@ -15,6 +15,7 @@ bash scripts/smoke-same-format-determinism.sh
 fixture_dir="${IMX_FIXTURE_DIR:-$root/target/generated-fixtures}"
 rm -rf "$fixture_dir"
 cargo run -p imx-cli --bin imx-generate-fixtures -- "$fixture_dir"
+bash scripts/curated-corpus.sh
 
 cargo test --test fuzz_smoke -- --nocapture
 IMX_FUZZ_MAX_TOTAL_TIME="${IMX_FUZZ_MAX_TOTAL_TIME:-2}" bash scripts/run-fuzz.sh

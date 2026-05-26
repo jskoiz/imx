@@ -209,6 +209,14 @@ run_packaged_binary identify "PPM:$verify_dir/progressive-rgb.ppm" | grep -Fx 'f
 run_packaged_binary identify "JPEG:$fixture_dir/progressive-orientation-o6.jpg" | grep -Fx 'format=JPEG width=3 height=4 channels=RGB depth=8' >/dev/null
 run_packaged_binary "JPEG:$fixture_dir/progressive-orientation-o6.jpg" "PPM:$verify_dir/progressive-oriented-o6.ppm"
 run_packaged_binary identify "PPM:$verify_dir/progressive-oriented-o6.ppm" | grep -Fx 'format=PPM width=3 height=4 channels=RGB depth=8' >/dev/null
+run_packaged_binary identify "FARBFELD:$fixture_dir/intake-farbfeld-rgba16-2x2.ff" | grep -Fx 'format=FARBFELD width=2 height=2 channels=RGBA depth=16' >/dev/null
+run_packaged_binary identify "QOI:$fixture_dir/intake-qoi-rgb-linear-2x2.qoi" | grep -Fx 'format=QOI width=2 height=2 channels=RGB depth=8' >/dev/null
+run_packaged_binary identify "PPM:$fixture_dir/intake-comments-2x1.ppm" | grep -Fx 'format=PPM width=2 height=1 channels=RGB depth=16' >/dev/null
+run_packaged_binary identify "PGM:$fixture_dir/intake-pgm16-2x1.pgm" | grep -Fx 'format=PGM width=2 height=1 channels=GRAY depth=16' >/dev/null
+run_packaged_binary identify "PNG:$fixture_dir/intake-rgba16-1x1.png" | grep -Fx 'format=PNG width=1 height=1 channels=RGBA depth=16' >/dev/null
+run_packaged_binary "PNG:$fixture_dir/intake-rgba16-1x1.png" "FARBFELD:$verify_dir/intake-png16.ff"
+run_packaged_binary "PPM:$fixture_dir/intake-comments-2x1.ppm" "PGM:$verify_dir/intake-ppm.pgm"
+run_packaged_binary "QOI:$fixture_dir/intake-qoi-rgb-linear-2x2.qoi" "PNG:$verify_dir/intake-qoi.png"
 run_packaged_binary "JPEG:$verify_dir/output.jpg" "FARBFELD:$verify_dir/jpeg-output.ff"
 run_packaged_binary identify "FARBFELD:$verify_dir/jpeg-output.ff" >/dev/null
 run_packaged_binary "$verify_dir/output.ff" "$verify_dir/output.png"

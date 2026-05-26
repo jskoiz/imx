@@ -144,7 +144,7 @@ jobs:
         run: |
           set -euo pipefail
           IMX_INSTALL_REPO_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" \
-            IMX_INSTALL_REVISION="$GITHUB_SHA" \
+            IMX_INSTALL_REVISION="${{ github.event.pull_request.head.sha || github.sha }}" \
             bash scripts/verify-install.sh
 
       - name: Verify standalone binary does not link ImageMagick
@@ -167,6 +167,7 @@ jobs:
           name: rust-standalone-preview-evidence
           path: |
             target/generated-fixtures
+            target/curated-corpus
             target/differential-corpus-*
             target/fuzz-runs
             target/install-verify

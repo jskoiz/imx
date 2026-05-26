@@ -1,5 +1,28 @@
 # IMX Release Notes
 
+## IMX v0.12.0 Real-World Intake Reliability Slice
+
+- Keeps the v0.11.0 supported format and command surface unchanged:
+  FARBFELD, JPEG, QOI, PBM, PGM, PNG, PPM identify/transcode/same-format
+  rewrites with exact uppercase prefixes.
+- Adds a curated intake corpus covering representative already-supported cases:
+  FARBFELD RGBA16, progressive grayscale JPEG, QOI RGB linear, PBM comments,
+  PGM scaled and 16-bit samples, PNG grayscale-alpha/RGBA16, and PPM high
+  `maxval` with comments.
+- Tightens malformed diagnostics by adding operation/path context at the CLI,
+  clearer PNM over-max and PBM sample errors, uppercase FARBFELD header
+  wording, and precise EOF accounting for truncated QOI multi-byte opcodes.
+- Adds resource-boundary proof for the 512 MiB decoded-pixel policy and
+  hardens oversized CLI input rejection with a metadata size precheck before
+  the bounded read fallback.
+- Extends generated fixtures, fuzz seeds, CLI tests, malformed tests, curated
+  corpus tests, install verification, package/archive smoke, conformance
+  output, and Homebrew formula smoke with v0.12 intake evidence.
+- Keeps distribution boundaries unchanged: Linux x86_64 and Linux arm64 release
+  archives through Ubuntu-only hosted automation, tap-only Homebrew
+  distribution, no Homebrew/core, no crates.io, no Windows, and no hosted macOS
+  or iOS GitHub Actions.
+
 ## IMX v0.11.0 Progressive JPEG Input Slice
 
 - Adds bounded progressive JPEG input support for 8-bit grayscale and RGB JPEG
