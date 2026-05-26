@@ -27,6 +27,9 @@ fn decode_fuzz_smoke_does_not_panic_or_allocate_unboundedly() {
 
         let pgm = std::panic::catch_unwind(|| imx_codec_pnm::decode_pgm(&bytes));
         assert!(pgm.is_ok(), "PGM decode panicked at len {len}");
+
+        let png = std::panic::catch_unwind(|| imx_codec_png::decode(&bytes));
+        assert!(png.is_ok(), "PNG decode panicked at len {len}");
     }
 }
 
@@ -77,5 +80,13 @@ fn structured_truncation_fuzz_smoke_does_not_panic() {
             let result = std::panic::catch_unwind(|| imx_codec_pnm::decode_pbm(&pbm[..len]));
             assert!(result.is_ok(), "PBM truncation panicked at len {len}");
         }
+    }
+
+    let png_image =
+        imx_core::Image::new(2, 2, imx_core::PixelFormat::Rgba8, vec![0x7f; 2 * 2 * 4]).unwrap();
+    let png = imx_codec_png::encode(&png_image).unwrap();
+    for len in 0..png.len() {
+        let result = std::panic::catch_unwind(|| imx_codec_png::decode(&png[..len]));
+        assert!(result.is_ok(), "PNG truncation panicked at len {len}");
     }
 }

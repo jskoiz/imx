@@ -23,13 +23,14 @@ mkdir -p "$fixture_dir"
 cargo run -p imx-cli --bin imx-generate-fixtures -- "$fixture_dir" >/dev/null
 "$imx" "$fixture_dir/pbm-threshold-4x1.ff" "$fixture_dir/pbm-threshold-4x1.qoi"
 "$imx" "$fixture_dir/pbm-threshold-4x1.ff" "$fixture_dir/pbm-threshold-4x1.pgm"
+"$imx" "$fixture_dir/pbm-threshold-4x1.ff" "$fixture_dir/pbm-threshold-4x1.png"
 "$imx" "$fixture_dir/pbm-threshold-4x1.ff" "$fixture_dir/pbm-threshold-4x1.ppm"
 
 results="$out_dir/results.jsonl"
 summary="$out_dir/summary.json"
 : >"$results"
 
-formats=(farbfeld qoi pbm pgm ppm)
+formats=(farbfeld qoi pbm pgm png ppm)
 
 format_label() {
   case "$1" in
@@ -37,6 +38,7 @@ format_label() {
     qoi) echo "QOI" ;;
     pbm) echo "PBM" ;;
     pgm) echo "PGM" ;;
+    png) echo "PNG" ;;
     ppm) echo "PPM" ;;
     *) echo "error: unknown format $1" >&2; exit 2 ;;
   esac
@@ -48,6 +50,7 @@ format_ext() {
     qoi) echo "qoi" ;;
     pbm) echo "pbm" ;;
     pgm) echo "pgm" ;;
+    png) echo "png" ;;
     ppm) echo "ppm" ;;
     *) echo "error: unknown format $1" >&2; exit 2 ;;
   esac
@@ -59,6 +62,7 @@ fixture_path() {
     qoi) echo "$fixture_dir/gradient-64.qoi" ;;
     pbm) echo "$fixture_dir/gradient-64.pbm" ;;
     pgm) echo "$fixture_dir/gradient-64.pgm" ;;
+    png) echo "$fixture_dir/gradient-64.png" ;;
     ppm) echo "$fixture_dir/gradient-64.ppm" ;;
     *) echo "error: unknown format $1" >&2; exit 2 ;;
   esac
@@ -66,6 +70,10 @@ fixture_path() {
 
 ppm16_fixture_path() {
   echo "$fixture_dir/gradient-64-ppm16.ppm"
+}
+
+png16_fixture_path() {
+  echo "$fixture_dir/gradient-64-png16.png"
 }
 
 fixture_path_for_case() {
@@ -76,6 +84,7 @@ fixture_path_for_case() {
       farbfeld) echo "$fixture_dir/pbm-threshold-4x1.ff" ;;
       qoi) echo "$fixture_dir/pbm-threshold-4x1.qoi" ;;
       pgm) echo "$fixture_dir/pbm-threshold-4x1.pgm" ;;
+      png) echo "$fixture_dir/pbm-threshold-4x1.png" ;;
       ppm) echo "$fixture_dir/pbm-threshold-4x1.ppm" ;;
       *) fixture_path "$src" ;;
     esac
@@ -161,6 +170,34 @@ run_ppm16_identify_case() {
     fi
   else
     record "$case_id" failed "high-depth PPM identify failed in IMX or ImageMagick"
+    failures=$((failures + 1))
+  fi
+}
+
+run_png16_identify_case() {
+  local mode="$1"
+  local input imx_input case_id imx_out oracle_out
+  input="$(png16_fixture_path)"
+  case_id="identify-png16"
+  imx_input="$input"
+  if [[ "$mode" == "prefixed" ]]; then
+    case_id="identify-prefixed-png16"
+    imx_input="PNG:$input"
+  fi
+  imx_out="$out_dir/$case_id.imx.txt"
+  oracle_out="$out_dir/$case_id.oracle.txt"
+
+  if "$imx" identify "$imx_input" >"$imx_out" 2>"$out_dir/$case_id.imx.stderr" &&
+    "$oracle" identify -format '%m %w %h %[colorspace] %[depth]' "PNG:$input" >"$oracle_out" 2>"$out_dir/$case_id.oracle.stderr"; then
+    if grep -q 'depth=16' "$imx_out"; then
+      record "$case_id" passed "high-depth PNG identify accepted by IMX and ImageMagick"
+      passes=$((passes + 1))
+    else
+      record "$case_id" failed "high-depth PNG identify did not report depth=16"
+      failures=$((failures + 1))
+    fi
+  else
+    record "$case_id" failed "high-depth PNG identify failed in IMX or ImageMagick"
     failures=$((failures + 1))
   fi
 }
@@ -269,12 +306,62 @@ run_ppm16_transcode_case() {
   fi
 }
 
+run_png16_transcode_case() {
+  local dst="$1"
+  local dst_label input imx_output oracle_output imx_raw oracle_raw case_id raw_format
+  dst_label="$(format_label "$dst")"
+  input="$(png16_fixture_path)"
+  case_id="transcode.png16.$dst"
+  imx_output="$out_dir/$case_id.imx.$(format_ext "$dst")"
+  oracle_output="$out_dir/$case_id.oracle.$(format_ext "$dst")"
+  imx_raw="$out_dir/$case_id.imx.raw"
+  oracle_raw="$out_dir/$case_id.oracle.raw"
+  raw_format="RGB"
+  if [[ "$dst" == "farbfeld" ]]; then
+    raw_format="RGBA"
+  fi
+
+  if ! "$imx" "PNG:$input" "$dst_label:$imx_output" >"$out_dir/$case_id.imx.stdout" 2>"$out_dir/$case_id.imx.stderr"; then
+    record "$case_id" failed "IMX high-depth PNG transcode failed"
+    failures=$((failures + 1))
+    return
+  fi
+
+  if ! "$oracle" "PNG:$input" "$dst_label:$oracle_output" >"$out_dir/$case_id.oracle.stdout" 2>"$out_dir/$case_id.oracle.stderr"; then
+    record "$case_id" failed "ImageMagick high-depth PNG transcode failed"
+    failures=$((failures + 1))
+    return
+  fi
+
+  if ! "$oracle" "$dst_label:$imx_output" -depth 16 -endian MSB "$raw_format:$imx_raw" >"$out_dir/$case_id.imx-decode.stdout" 2>"$out_dir/$case_id.imx-decode.stderr"; then
+    record "$case_id" failed "ImageMagick could not decode high-depth PNG IMX output"
+    failures=$((failures + 1))
+    return
+  fi
+
+  if ! "$oracle" "$dst_label:$oracle_output" -depth 16 -endian MSB "$raw_format:$oracle_raw" >"$out_dir/$case_id.oracle-decode.stdout" 2>"$out_dir/$case_id.oracle-decode.stderr"; then
+    record "$case_id" failed "ImageMagick could not decode high-depth PNG oracle output"
+    failures=$((failures + 1))
+    return
+  fi
+
+  if cmp -s "$imx_raw" "$oracle_raw"; then
+    record "$case_id" passed "high-depth PNG to $dst_label decoded 16-bit pixels match oracle output"
+    passes=$((passes + 1))
+  else
+    record "$case_id" failed "high-depth PNG to $dst_label decoded 16-bit pixels differ from oracle output"
+    failures=$((failures + 1))
+  fi
+}
+
 for fmt in "${formats[@]}"; do
   run_identify_case "$fmt"
   run_prefixed_identify_case "$fmt"
 done
 run_ppm16_identify_case plain
 run_ppm16_identify_case prefixed
+run_png16_identify_case plain
+run_png16_identify_case prefixed
 
 for src in "${formats[@]}"; do
   for dst in "${formats[@]}"; do
@@ -283,8 +370,10 @@ for src in "${formats[@]}"; do
 done
 run_ppm16_transcode_case farbfeld
 run_ppm16_transcode_case ppm
+run_png16_transcode_case farbfeld
+run_png16_transcode_case ppm
 
-for prefixed_pair in farbfeld:qoi qoi:ppm ppm:pgm pgm:pbm pbm:farbfeld; do
+for prefixed_pair in farbfeld:qoi qoi:png png:ppm ppm:pgm pgm:pbm pbm:farbfeld; do
   run_transcode_case "${prefixed_pair%%:*}" "${prefixed_pair##*:}" prefixed
 done
 
@@ -301,8 +390,8 @@ cat >"$summary" <<EOF
   "oracle": "$oracle",
   "fixture_manifest": "fixtures/manifest.json",
   "results": "results.jsonl",
-  "identify_cases": 12,
-  "transcode_cases": 32,
+  "identify_cases": 16,
+  "transcode_cases": 46,
   "passes": $passes,
   "failures": $failures
 }

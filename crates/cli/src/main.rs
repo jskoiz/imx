@@ -10,7 +10,7 @@ const MAX_INPUT_BYTES: u64 = MAX_PIXEL_BYTES as u64 + 1024 * 1024;
 
 fn usage() -> ! {
     eprintln!(
-        "usage:\n  imx --help\n  imx --version\n  imx identify [FORMAT:]<input.ff|input.qoi|input.pbm|input.pgm|input.ppm>\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported formats: farbfeld (.ff, .farbfeld), qoi (.qoi), pbm (.pbm), pgm (.pgm), ppm (.ppm)\nsupported prefixes: FARBFELD:, QOI:, PBM:, PGM:, PPM:"
+        "usage:\n  imx --help\n  imx --version\n  imx identify [FORMAT:]<input.ff|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported formats: farbfeld (.ff, .farbfeld), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm)\nsupported prefixes: FARBFELD:, QOI:, PBM:, PGM:, PNG:, PPM:"
     );
     process::exit(2);
 }
@@ -25,7 +25,7 @@ fn main() {
     match args.as_slice() {
         [_, flag] if flag == "--help" || flag == "-h" || flag == "help" => {
             println!(
-                "IMX Developer Preview\n\nusage:\n  imx identify [FORMAT:]<input.ff|input.qoi|input.pbm|input.pgm|input.ppm>\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported transcodes: FARBFELD/QOI/PBM/PGM/PPM, including deterministic same-format rewrites\nsupported prefixes: FARBFELD:, QOI:, PBM:, PGM:, PPM:\nunsupported: stdin/stdout, transforms, delegates, and formats beyond FARBFELD/QOI/PBM/PGM/PPM"
+                "IMX Developer Preview\n\nusage:\n  imx identify [FORMAT:]<input.ff|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported transcodes: FARBFELD/QOI/PBM/PGM/PNG/PPM, including deterministic same-format rewrites\nsupported prefixes: FARBFELD:, QOI:, PBM:, PGM:, PNG:, PPM:\nunsupported: stdin/stdout, transforms, delegates, and formats beyond FARBFELD/QOI/PBM/PGM/PNG/PPM"
             );
             process::exit(0);
         }
@@ -47,6 +47,7 @@ fn identify(input_path: &str) -> ! {
         Format::Farbfeld => imx_codec_farbfeld::identify(&input),
         Format::Pbm => imx_codec_pnm::identify_pbm(&input),
         Format::Pgm => imx_codec_pnm::identify_pgm(&input),
+        Format::Png => imx_codec_png::identify(&input),
         Format::Ppm => imx_codec_pnm::identify_ppm(&input),
         Format::Qoi => imx_codec_qoi::identify(&input),
     }
@@ -75,6 +76,7 @@ fn decode_image(format: Format, input: &[u8]) -> Result<imx_core::Image, ImageEr
         Format::Farbfeld => imx_codec_farbfeld::decode(input),
         Format::Pbm => imx_codec_pnm::decode_pbm(input),
         Format::Pgm => imx_codec_pnm::decode_pgm(input),
+        Format::Png => imx_codec_png::decode(input),
         Format::Ppm => imx_codec_pnm::decode_ppm(input),
         Format::Qoi => imx_codec_qoi::decode(input).and_then(|decoded| decoded.into_core_image()),
     }
@@ -85,6 +87,7 @@ fn encode_image(format: Format, image: &imx_core::Image) -> Result<Vec<u8>, Imag
         Format::Farbfeld => imx_codec_farbfeld::encode(image),
         Format::Pbm => imx_codec_pnm::encode_pbm(image),
         Format::Pgm => imx_codec_pnm::encode_pgm(image),
+        Format::Png => imx_codec_png::encode(image),
         Format::Ppm => imx_codec_pnm::encode_ppm(image),
         Format::Qoi => imx_codec_qoi::encode_image(image, imx_codec_qoi::QOI_SRGB),
     }
@@ -193,6 +196,7 @@ fn parse_format_prefix(prefix: &str) -> Option<Format> {
         "FARBFELD" => Some(Format::Farbfeld),
         "PBM" => Some(Format::Pbm),
         "PGM" => Some(Format::Pgm),
+        "PNG" => Some(Format::Png),
         "PPM" => Some(Format::Ppm),
         "QOI" => Some(Format::Qoi),
         _ => None,
@@ -214,6 +218,11 @@ fn detect_unprefixed_input_format(path: &str, bytes: &[u8]) -> Result<Format, St
         && bytes[..imx_codec_qoi::MAGIC.len()].eq_ignore_ascii_case(imx_codec_qoi::MAGIC)
     {
         return Ok(Format::Qoi);
+    }
+    if bytes.len() >= imx_codec_png::MAGIC.len()
+        && &bytes[..imx_codec_png::MAGIC.len()] == imx_codec_png::MAGIC
+    {
+        return Ok(Format::Png);
     }
     if bytes.len() >= imx_codec_pnm::P6_MAGIC.len()
         && (&bytes[..imx_codec_pnm::P6_MAGIC.len()] == imx_codec_pnm::P6_MAGIC
@@ -251,6 +260,7 @@ fn detect_path_format(path: &str) -> Result<Format, String> {
         Some("ff") | Some("farbfeld") => Ok(Format::Farbfeld),
         Some("pbm") => Ok(Format::Pbm),
         Some("pgm") => Ok(Format::Pgm),
+        Some("png") => Ok(Format::Png),
         Some("ppm") => Ok(Format::Ppm),
         Some("qoi") => Ok(Format::Qoi),
         _ => Err(format!("unsupported format: {path}")),

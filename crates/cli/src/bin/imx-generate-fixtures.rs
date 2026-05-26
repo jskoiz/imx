@@ -30,6 +30,8 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let gradient_rgb8 = gradient.to_rgb8()?.into_pixels();
     let gradient_rgb16be = gradient.to_rgb16be()?.into_pixels();
     let gradient_qoi = imx_codec_qoi::encode_image(&gradient, imx_codec_qoi::QOI_SRGB)?;
+    let gradient_png = imx_codec_png::encode(&gradient.to_rgba8()?)?;
+    let gradient_png16 = imx_codec_png::encode(&gradient)?;
     let gradient_pbm = imx_codec_pnm::encode_pbm(&gradient)?;
     let gradient_ppm = imx_codec_pnm::encode_ppm(&gradient.to_rgb8()?)?;
     let gradient_ppm16 = imx_codec_pnm::encode_ppm(&gradient)?;
@@ -79,6 +81,8 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let files = [
         ("gradient-64.ff", gradient_ff),
         ("gradient-64.qoi", gradient_qoi),
+        ("gradient-64.png", gradient_png),
+        ("gradient-64-png16.png", gradient_png16),
         ("gradient-64.pbm", gradient_pbm),
         ("gradient-64.ppm", gradient_ppm),
         ("gradient-64-ppm16.ppm", gradient_ppm16),

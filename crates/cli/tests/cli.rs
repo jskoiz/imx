@@ -30,6 +30,7 @@ fn write_supported_fixtures(dir: &Path) -> Vec<(&'static str, PathBuf, &'static 
     let qoi = dir.join("input.qoi");
     let pbm = dir.join("input.pbm");
     let pgm = dir.join("input.pgm");
+    let png = dir.join("input.png");
     let ppm = dir.join("input.ppm");
     let rgba16 = Image::new(
         2,
@@ -68,6 +69,14 @@ fn write_supported_fixtures(dir: &Path) -> Vec<(&'static str, PathBuf, &'static 
         .unwrap(),
     )
     .unwrap();
+    fs::write(
+        &png,
+        imx_codec_png::encode(
+            &Image::new(2, 1, PixelFormat::Rgb8, vec![255, 0, 0, 0, 0, 255]).unwrap(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
 
     vec![
         (
@@ -95,6 +104,11 @@ fn write_supported_fixtures(dir: &Path) -> Vec<(&'static str, PathBuf, &'static 
             ppm,
             "format=PPM width=2 height=1 channels=RGB depth=8",
         ),
+        (
+            "PNG",
+            png,
+            "format=PNG width=2 height=1 channels=RGB depth=8",
+        ),
     ]
 }
 
@@ -105,6 +119,7 @@ fn identifies_farbfeld_qoi_pbm_pgm_and_ppm() {
     let qoi = dir.join("input.qoi");
     let pbm = dir.join("input.pbm");
     let ppm = dir.join("input.ppm");
+    let png = dir.join("input.png");
     let pgm = dir.join("input.pgm");
     let image = Image::new(
         1,
@@ -120,6 +135,11 @@ fn identifies_farbfeld_qoi_pbm_pgm_and_ppm() {
     )
     .unwrap();
     fs::write(&ppm, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
+    fs::write(
+        &png,
+        imx_codec_png::encode(&image.to_rgba8().unwrap()).unwrap(),
+    )
+    .unwrap();
     fs::write(
         &pbm,
         imx_codec_pnm::encode_pbm(&Image::new(1, 1, PixelFormat::Bilevel, vec![0]).unwrap())
@@ -182,6 +202,16 @@ fn identifies_farbfeld_qoi_pbm_pgm_and_ppm() {
         String::from_utf8(output.stdout).unwrap().trim(),
         "format=PGM width=1 height=1 channels=GRAY depth=8"
     );
+
+    let output = Command::new(imx())
+        .args(["identify", png.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap().trim(),
+        "format=PNG width=1 height=1 channels=RGBA depth=8"
+    );
 }
 
 #[test]
@@ -224,6 +254,28 @@ fn lowercase_colon_path_segments_are_not_format_prefixes() {
     assert_eq!(
         String::from_utf8(output.stdout).unwrap().trim(),
         "format=PPM width=1 height=1 channels=RGB depth=8"
+    );
+}
+
+#[test]
+fn detects_png_by_magic_before_extension_fallback() {
+    let dir = temp_dir("png_magic_detection");
+    let input = dir.join("input.ppm");
+    let image = Image::new(1, 1, PixelFormat::Rgb8, vec![0, 128, 255]).unwrap();
+    fs::write(&input, imx_codec_png::encode(&image).unwrap()).unwrap();
+
+    let output = Command::new(imx())
+        .args(["identify", input.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "PNG magic identify failed with stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap().trim(),
+        "format=PNG width=1 height=1 channels=RGB depth=8"
     );
 }
 
@@ -338,6 +390,57 @@ fn transcodes_ppm_to_farbfeld_and_farbfeld_to_ppm() {
     let roundtrip = imx_codec_pnm::decode_ppm(&fs::read(roundtrip_ppm).unwrap()).unwrap();
     assert_eq!(roundtrip.pixel_format(), PixelFormat::Rgb16Be);
     assert_eq!(roundtrip.to_rgb8().unwrap().pixels(), image.pixels());
+}
+
+#[test]
+fn transcodes_png_to_farbfeld_and_farbfeld_to_png() {
+    let dir = temp_dir("png_transcode");
+    let input_png = dir.join("input.png");
+    let output_ff = dir.join("output.ff");
+    let roundtrip_png = dir.join("roundtrip.png");
+    let image = Image::new(
+        2,
+        1,
+        PixelFormat::Rgba8,
+        vec![255, 0, 0, 255, 0, 128, 255, 64],
+    )
+    .unwrap();
+    fs::write(&input_png, imx_codec_png::encode(&image).unwrap()).unwrap();
+
+    let output = Command::new(imx())
+        .args([input_png.to_str().unwrap(), output_ff.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        imx_codec_farbfeld::decode(&fs::read(&output_ff).unwrap())
+            .unwrap()
+            .to_rgba8()
+            .unwrap()
+            .pixels(),
+        image.pixels()
+    );
+
+    let output = Command::new(imx())
+        .args([output_ff.to_str().unwrap(), roundtrip_png.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        imx_codec_png::decode(&fs::read(roundtrip_png).unwrap())
+            .unwrap()
+            .to_rgba8()
+            .unwrap(),
+        image
+    );
 }
 
 #[test]
@@ -562,6 +665,7 @@ fn rewrites_same_format_outputs_for_supported_formats() {
     let qoi = dir.join("input.qoi");
     let pbm = dir.join("input.pbm");
     let pgm = dir.join("input.pgm");
+    let png = dir.join("input.png");
     let ppm = dir.join("input.ppm");
 
     fs::write(&ff, imx_codec_farbfeld::encode(&image).unwrap()).unwrap();
@@ -588,6 +692,11 @@ fn rewrites_same_format_outputs_for_supported_formats() {
             &Image::new(2, 1, PixelFormat::Rgb8, vec![255, 0, 0, 0, 0, 255]).unwrap(),
         )
         .unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        &png,
+        imx_codec_png::encode(&image.to_rgba8().unwrap()).unwrap(),
     )
     .unwrap();
 
@@ -621,6 +730,12 @@ fn rewrites_same_format_outputs_for_supported_formats() {
             ppm.as_path(),
             "output.ppm",
             "format=PPM width=2 height=1 channels=RGB depth=8",
+        ),
+        (
+            "png",
+            png.as_path(),
+            "output.png",
+            "format=PNG width=2 height=1 channels=RGBA depth=8",
         ),
     ] {
         let output_path = dir.join(output_name);
@@ -656,6 +771,11 @@ fn help_and_version_are_available() {
             String::from_utf8_lossy(&output.stderr)
         );
         assert!(!output.stdout.is_empty());
+        if flag == "--help" {
+            let stdout = String::from_utf8(output.stdout).unwrap();
+            assert!(stdout.contains(".png"));
+            assert!(stdout.contains("PNG:"));
+        }
     }
 }
 
@@ -670,6 +790,20 @@ fn malformed_input_exits_nonzero_with_error_prefix() {
         .unwrap();
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).starts_with("error: "));
+}
+
+#[test]
+fn malformed_png_input_exits_nonzero_with_error_prefix() {
+    let dir = temp_dir("malformed_png");
+    let bad = dir.join("bad.png");
+    fs::write(&bad, imx_codec_png::MAGIC).unwrap();
+    let output = Command::new(imx())
+        .args(["identify", bad.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).starts_with("error: "));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("PNG decode failed"));
 }
 
 #[test]
@@ -704,12 +838,30 @@ fn same_input_and_output_path_is_rejected() {
 }
 
 #[test]
+fn same_prefixed_png_input_and_output_path_is_rejected() {
+    let dir = temp_dir("same_png_path");
+    let input = dir.join("input.png");
+    let image = Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap();
+    fs::write(&input, imx_codec_png::encode(&image).unwrap()).unwrap();
+    let arg = prefixed("PNG", &input);
+
+    let output = Command::new(imx())
+        .args([arg.as_str(), arg.as_str()])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("must be different"));
+}
+
+#[test]
 fn malformed_format_prefixes_are_rejected() {
     let dir = temp_dir("malformed_prefixes");
     let ppm = dir.join("input.ppm");
+    let png = dir.join("input.png");
     let qoi = dir.join("input.qoi");
     let image = Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap();
     fs::write(&ppm, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
+    fs::write(&png, imx_codec_png::encode(&image).unwrap()).unwrap();
     fs::write(
         &qoi,
         imx_codec_qoi::encode_image(&image, imx_codec_qoi::QOI_SRGB).unwrap(),
@@ -717,23 +869,39 @@ fn malformed_format_prefixes_are_rejected() {
     .unwrap();
 
     let output_ppm = dir.join("out.ppm");
+    let output_png = dir.join("out.png");
     let extensionless_output = dir.join("out");
     let cases = vec![
         (
-            vec!["identify".to_string(), prefixed("PNG", &ppm)],
-            "unsupported format prefix: PNG",
+            vec!["identify".to_string(), prefixed("GIF", &ppm)],
+            "unsupported format prefix: GIF",
         ),
         (
-            vec!["identify".to_string(), "PPM:".to_string()],
-            "missing path after format prefix PPM:",
+            vec!["identify".to_string(), "PNG:".to_string()],
+            "missing path after format prefix PNG:",
+        ),
+        (
+            vec!["identify".to_string(), prefixed("PNG", &ppm)],
+            "format prefix PNG does not match detected format PPM",
         ),
         (
             vec!["identify".to_string(), prefixed("PPM", &qoi)],
             "format prefix PPM does not match detected format QOI",
         ),
         (
+            vec![prefixed("PNG", &png), prefixed("PPM", &output_png)],
+            "format prefix PPM does not match path format PNG",
+        ),
+        (
             vec![prefixed("PPM", &ppm), prefixed("QOI", &output_ppm)],
             "format prefix QOI does not match path format PPM",
+        ),
+        (
+            vec![
+                prefixed("PNG", &png),
+                prefixed("PNG", &extensionless_output),
+            ],
+            "unsupported format:",
         ),
         (
             vec![

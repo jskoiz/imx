@@ -1,4 +1,4 @@
-# IMX FARBFELD/QOI/PBM/PGM/PPM Compatibility Contract
+# IMX FARBFELD/QOI/PBM/PGM/PNG/PPM Compatibility Contract
 
 This contract covers only the standalone developer-preview slice.
 
@@ -21,9 +21,9 @@ This contract covers only the standalone developer-preview slice.
 ```sh
 imx --help
 imx --version
-imx identify [FORMAT:]<input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm>
-imx [FORMAT:]<input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm> \
-  [FORMAT:]<output.ff|output.farbfeld|output.qoi|output.pbm|output.pgm|output.ppm>
+imx identify [FORMAT:]<input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.png|input.ppm>
+imx [FORMAT:]<input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
+  [FORMAT:]<output.ff|output.farbfeld|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
 ```
 
 `identify` outputs:
@@ -41,6 +41,7 @@ supported formats only:
 - `QOI:input.qoi`
 - `PBM:input.pbm`
 - `PGM:input.pgm`
+- `PNG:input.png`
 - `PPM:input.ppm`
 
 Prefixes are a CLI path adapter for `identify` and two-path transcodes only.
@@ -107,6 +108,21 @@ PGM:
   `maxval > 65535` even when ImageMagick accepts or clamps some malformed
   inputs.
 
+PNG:
+
+- PNG signature must be exact.
+- Static non-interlaced PNG is supported for grayscale, RGB, RGBA, and
+  grayscale-alpha color types with 8-bit or 16-bit samples.
+- Grayscale-alpha input normalizes to RGBA by replicating gray into RGB and
+  preserving alpha.
+- Output PNG is deterministic and written without source ancillary chunks,
+  profiles, gamma, text, time, EXIF, or other metadata.
+- IMX rejects APNG, interlaced PNG, indexed/palette PNG, low-bit 1/2/4 sample
+  PNG, `tRNS` color-key transparency, zero dimensions, oversized decoded
+  rasters, invalid CRCs, and truncated PNG streams.
+- IMX does not apply PNG color management, ICC profiles, gamma correction, or
+  sRGB chunk semantics in this compatibility slice.
+
 PPM:
 
 - ASCII `P3` and binary `P6` RGB PPM are supported.
@@ -128,7 +144,7 @@ PPM:
 Same-format rewrites:
 
 - `imx input output` accepts same-format input and output extensions for
-  FARBFELD, QOI, PBM, PGM, and PPM when the paths are different.
+  FARBFELD, QOI, PBM, PGM, PNG, and PPM when the paths are different.
 - Same-format rewrites are deterministic decode/re-encode operations, not
   source preservation. They may normalize Netpbm source form to deterministic
   binary output, regenerate QOI opcode streams, and drop comments, whitespace,
@@ -178,6 +194,24 @@ PGM to FARBFELD/QOI/PPM:
 - PGM to QOI emits RGBA8 QOI.
 - PGM to PPM emits RGB8 PPM for GRAY8 input and RGB16BE PPM for GRAY16BE input.
 
+PNG to FARBFELD/QOI/PBM/PGM/PNG/PPM:
+
+- PNG grayscale input stays gray unless the destination requires RGB/RGBA.
+- PNG RGB input expands to opaque alpha for FARBFELD or QOI output.
+- PNG RGBA and grayscale-alpha preserve alpha only when the destination has
+  alpha; PPM, PGM, and PBM drop alpha.
+- PNG16 to QOI or PBM is lossy because QOI is 8-bit and PBM is bilevel.
+- PNG16 to FARBFELD preserves 16-bit channel precision. PNG16 to PPM/PGM
+  preserves 16-bit precision for retained color or gray channels.
+
+FARBFELD/QOI/PBM/PGM/PNG/PPM to PNG:
+
+- Output PNG uses grayscale, RGB, or RGBA channel layout based on the normalized
+  IMX image representation.
+- Bilevel PBM output to PNG is encoded as 8-bit grayscale, not 1-bit PNG.
+- PNG output does not preserve source comments, Netpbm source form, QOI opcode
+  choices, FARBFELD source bytes, or incidental representation details.
+
 FARBFELD/QOI to PPM:
 
 - Alpha is dropped.
@@ -201,12 +235,12 @@ FARBFELD/QOI to PGM:
 
 The compatibility lane keeps `scripts/differential-corpus.sh` as a
 report-producing ImageMagick oracle lane. It generates the deterministic fixture
-corpus, runs `imx identify` for FARBFELD, QOI, PBM, PGM, and PPM fixtures, runs
-prefixed identify cases for the same five formats, runs additional high-depth
-PPM identify cases, then checks all 25 directed transcodes between the five
-supported formats plus a prefixed transcode ring that exercises every supported
-prefix as input and output. It also runs high-depth PPM transcode cases for
-16-bit preserving destinations.
+corpus, runs `imx identify` for FARBFELD, QOI, PBM, PGM, PNG, and PPM fixtures,
+runs prefixed identify cases for the same six formats, runs additional
+high-depth PPM and PNG identify cases, then checks all 36 directed transcodes
+between the six supported formats plus a prefixed transcode ring that exercises
+every supported prefix as input and output. It also runs high-depth PPM and PNG
+transcode cases for 16-bit preserving destinations.
 
 Most transcode results are decoded through ImageMagick to canonical 8-bit RGBA
 raw pixels and compared with the ImageMagick oracle output for the same source
@@ -228,12 +262,14 @@ clamp.
 - No full ImageMagick command parser.
 - No `magick` binary alias; the shipped command is `imx`.
 - No stdin/stdout streaming.
-- No prefixes beyond exact `FARBFELD:`, `QOI:`, `PBM:`, `PGM:`, and `PPM:`.
+- No prefixes beyond exact `FARBFELD:`, `QOI:`, `PBM:`, `PGM:`, `PNG:`, and
+  `PPM:`.
 - No PAM/PFM support.
 - No delegates, profiles, color management, resize/transform operations,
   MagickCore API, or MagickWand API.
-- No format beyond FARBFELD, QOI, PBM, PGM, and PPM.
+- No APNG, indexed/palette PNG, low-bit PNG, PNG metadata/profile preservation,
+  or format beyond FARBFELD, QOI, PBM, PGM, PNG, and PPM.
 - No Windows, crates.io, Homebrew/core, or package-manager distribution beyond
-  the `jskoiz/imx` Homebrew tap is claimed for this slice. v0.6.0 Linux arm64
+  the `jskoiz/imx` Homebrew tap is claimed for this slice. v0.8.0 Linux arm64
   support is claimed only for the published archive and tap block verified from
   release `SHA256SUMS` by Linux-only tap smoke.

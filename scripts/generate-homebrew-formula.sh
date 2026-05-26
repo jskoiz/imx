@@ -20,11 +20,15 @@ else
 fi
 
 prefix_smoke=0
+png_smoke=0
 if [[ "$formula_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
   major="${BASH_REMATCH[1]}"
   minor="${BASH_REMATCH[2]}"
   if ((major > 0 || minor >= 6)); then
     prefix_smoke=1
+  fi
+  if ((major > 0 || minor >= 8)); then
+    png_smoke=1
   fi
 fi
 
@@ -52,7 +56,7 @@ mkdir -p "$(dirname "$output")"
 {
 cat <<EOF
 class Imx < Formula
-  desc "Standalone Rust image tool for FARBFELD, QOI, and Netpbm transcodes"
+  desc "Standalone Rust image tool for ImageMagick-compatible slices"
   homepage "https://github.com/$repo"
   license "ImageMagick"
 EOF
@@ -141,6 +145,15 @@ if [[ "$prefix_smoke" == 1 ]]; then
     assert_match "format=QOI width=2 height=1 channels=RGBA depth=8", shell_output("#{bin/"imx"} identify QOI:output.qoi")
     system bin/"imx", "PPM:input.ppm", "FARBFELD:prefix-output.ff"
     assert_match "format=FARBFELD width=2 height=1 channels=RGBA depth=16", shell_output("#{bin/"imx"} identify FARBFELD:prefix-output.ff")
+EOF
+fi
+
+if [[ "$png_smoke" == 1 ]]; then
+  cat <<'EOF'
+    system bin/"imx", "input.ppm", "output.png"
+    assert_match "format=PNG width=2 height=1 channels=RGB depth=8", shell_output("#{bin/"imx"} identify PNG:output.png")
+    system bin/"imx", "PNG:output.png", "FARBFELD:png-output.ff"
+    assert_match "format=FARBFELD width=2 height=1 channels=RGBA depth=16", shell_output("#{bin/"imx"} identify png-output.ff")
 EOF
 fi
 

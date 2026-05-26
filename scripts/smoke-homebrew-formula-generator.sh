@@ -60,10 +60,10 @@ assert_not_contains "$v040_formula" "PPM:input.ppm"
 
 linux_only="$work_dir/linux-only.SHA256SUMS"
 write_checksums "$linux_only" \
-  imx-preview-0.6.0-x86_64-unknown-linux-gnu.tar.gz \
-  imx-preview-0.6.0-aarch64-unknown-linux-gnu.tar.gz
+  imx-preview-0.8.0-x86_64-unknown-linux-gnu.tar.gz \
+  imx-preview-0.8.0-aarch64-unknown-linux-gnu.tar.gz
 linux_only_formula="$work_dir/linux-only.rb"
-bash scripts/generate-homebrew-formula.sh 0.6.0 "$linux_only" "$linux_only_formula"
+bash scripts/generate-homebrew-formula.sh 0.8.0 "$linux_only" "$linux_only_formula"
 assert_formula_syntax "$linux_only_formula"
 assert_not_contains "$linux_only_formula" "on_macos do"
 assert_contains "$linux_only_formula" "on_linux do"
@@ -71,6 +71,8 @@ assert_contains "$linux_only_formula" "x86_64-unknown-linux-gnu"
 assert_contains "$linux_only_formula" "aarch64-unknown-linux-gnu"
 assert_contains "$linux_only_formula" "PPM:input.ppm"
 assert_contains "$linux_only_formula" "FARBFELD:prefix-output.ff"
+assert_contains "$linux_only_formula" "PNG:output.png"
+assert_contains "$linux_only_formula" "FARBFELD:png-output.ff"
 
 all_targets="$work_dir/all-targets.SHA256SUMS"
 write_checksums "$all_targets" \
@@ -90,7 +92,7 @@ assert_contains "$all_targets_formula" "x86_64-apple-darwin"
 
 empty="$work_dir/empty.SHA256SUMS"
 : >"$empty"
-if bash scripts/generate-homebrew-formula.sh v0.6.0 "$empty" "$work_dir/empty.rb" 2>"$work_dir/empty.err"; then
+if bash scripts/generate-homebrew-formula.sh v0.8.0 "$empty" "$work_dir/empty.rb" 2>"$work_dir/empty.err"; then
   echo "error: empty SHA256SUMS unexpectedly generated a formula" >&2
   exit 1
 fi

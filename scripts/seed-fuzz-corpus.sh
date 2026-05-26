@@ -7,7 +7,7 @@ cd "$root"
 corpus_root="${IMX_FUZZ_CORPUS:-$root/fuzz/corpus}"
 generated_dir="$root/target/fuzz-seed-fixtures"
 rm -rf "$generated_dir"
-mkdir -p "$corpus_root/farbfeld_decode" "$corpus_root/qoi_decode" "$corpus_root/pnm_decode"
+mkdir -p "$corpus_root/farbfeld_decode" "$corpus_root/qoi_decode" "$corpus_root/pnm_decode" "$corpus_root/png_decode"
 
 cargo run -p imx-cli --bin imx-generate-fixtures -- "$generated_dir" >/dev/null
 
@@ -16,12 +16,15 @@ cp "$generated_dir/quantization-2x2.ff" "$corpus_root/farbfeld_decode/quantizati
 cp "$generated_dir/gradient-64.qoi" "$corpus_root/qoi_decode/gradient-64.qoi"
 cp "$generated_dir/qoi-rgba-2x2.qoi" "$corpus_root/qoi_decode/qoi-rgba-2x2.qoi"
 cp "$generated_dir/qoi-rgb-2x2.qoi" "$corpus_root/qoi_decode/qoi-rgb-2x2.qoi"
+cp "$generated_dir/gradient-64.png" "$corpus_root/png_decode/gradient-64.png"
+cp "$generated_dir/gradient-64-png16.png" "$corpus_root/png_decode/gradient-64-png16.png"
 cp "$generated_dir/gradient-64.ppm" "$corpus_root/pnm_decode/gradient-64.ppm"
 cp "$generated_dir/gradient-64.pbm" "$corpus_root/pnm_decode/gradient-64.pbm"
 cp "$generated_dir/gradient-64.pgm" "$corpus_root/pnm_decode/gradient-64.pgm"
 
 printf 'farbfeld' >"$corpus_root/farbfeld_decode/header-only.ff"
 printf 'qoif\x00\x00\x00\x01\x00\x00\x00\x01\x03\x00' >"$corpus_root/qoi_decode/header-only.qoi"
+printf '\x89PNG\r\n\x1a\n' >"$corpus_root/png_decode/signature-only.png"
 printf 'P3\n# comment\n2 1\n31\n0 15 31 31 0 15\n' >"$corpus_root/pnm_decode/ascii-ppm-max31.ppm"
 printf 'P6\n2 1\n255\n\xff\x00\x00\x00\x80\xff' >"$corpus_root/pnm_decode/binary-ppm-2x1.ppm"
 printf 'P3\n2 1\n1023\n0 512 1023 1023 256 128\n' >"$corpus_root/pnm_decode/ascii-ppm-max1023.ppm"

@@ -7,6 +7,7 @@ pub enum Format {
     Farbfeld,
     Pbm,
     Pgm,
+    Png,
     Ppm,
     Qoi,
 }
@@ -17,6 +18,7 @@ impl Format {
             Self::Farbfeld => "FARBFELD",
             Self::Pbm => "PBM",
             Self::Pgm => "PGM",
+            Self::Png => "PNG",
             Self::Ppm => "PPM",
             Self::Qoi => "QOI",
         }

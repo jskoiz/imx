@@ -14,7 +14,7 @@ mkdir -p "$out_dir"
 fixture_dir="$out_dir/fixtures"
 cargo run -p imx-cli --bin imx-generate-fixtures -- "$fixture_dir" >/dev/null
 
-for ext in ff qoi pbm pgm ppm; do
+for ext in ff qoi pbm pgm png ppm; do
   "$standalone" "$fixture_dir/gradient-64.$ext" "$out_dir/a.$ext"
   "$standalone" "$fixture_dir/gradient-64.$ext" "$out_dir/b.$ext"
   cmp "$out_dir/a.$ext" "$out_dir/b.$ext"
@@ -23,7 +23,7 @@ done
 cat >"$out_dir/summary.json" <<EOF
 {
   "schema_version": 1,
-  "formats": ["ff", "qoi", "pbm", "pgm", "ppm"],
+  "formats": ["ff", "qoi", "pbm", "pgm", "png", "ppm"],
   "status": "passed"
 }
 EOF

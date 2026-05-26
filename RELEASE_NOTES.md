@@ -1,5 +1,31 @@
 # IMX Release Notes
 
+## IMX v0.8.0 PNG Raster Slice
+
+- Adds Rust-native PNG support for a bounded raster surface: static
+  non-interlaced grayscale, RGB, RGBA, and grayscale-alpha PNG inputs with 8-bit
+  or 16-bit samples.
+- Adds `.png` detection by PNG signature before extension fallback, exact
+  uppercase `PNG:` prefix handling, PNG identify, PNG transcodes to/from the
+  existing FARBFELD/QOI/PBM/PGM/PPM formats, and deterministic PNG same-format
+  rewrites.
+- Encodes PNG deterministically from the normalized IMX raster model. Source
+  compression/filter choices, ancillary chunks, comments, timestamps, gamma,
+  profiles, EXIF, and other metadata are not preserved.
+- Extends CLI, codec, golden, malformed, fuzz-smoke, cargo-fuzz, benchmark,
+  install, package, archive-smoke, differential-corpus, and conformance evidence
+  to include PNG.
+- Keeps PNG bounded: no APNG, indexed/palette PNG, low-bit PNG, `tRNS`
+  color-key transparency, PNG color management/profile semantics, or full
+  ImageMagick PNG behavior.
+- Carries forward the v0.7.0 high-depth PPM behavior and the v0.6.0 exact
+  uppercase prefix behavior for FARBFELD, QOI, PBM, PGM, PNG, and PPM.
+- Keeps distribution boundaries unchanged: Linux x86_64 and Linux arm64 release
+  archives through Ubuntu-only hosted automation, generated `SHA256SUMS`,
+  `imx.rb`, and conformance report assets, tap-only Homebrew distribution, no
+  crates.io, no Homebrew/core, no Windows, and no hosted macOS or iOS GitHub
+  Actions.
+
 ## IMX v0.7.0 High-Depth PPM
 
 - Adds high-depth PPM support for the existing PPM codec only: uppercase `P3`
@@ -107,6 +133,9 @@ imx <input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm> \
 - PBM output is lossy thresholding from gray/color inputs.
 - v0.5.0/v0.6.0 PPM support was limited to RGB8 `P3`/`P6` with
   `maxval <= 255`; v0.7.0 extends this to RGB16BE PPM for `maxval` 256..65535.
+- v0.8.0 PNG support is limited to static non-interlaced grayscale/RGB/RGBA and
+  grayscale-alpha 8/16-bit rasters. It rejects APNG, indexed/palette PNG,
+  low-bit PNG, `tRNS`, and PNG color-management/profile semantics.
 - PGM supports `maxval <= 65535`; ImageMagick's nonstandard 32-bit PGM variants
   are intentionally out of scope.
 - P2 input is re-encoded as deterministic binary P5 output; source form,
@@ -120,8 +149,8 @@ imx <input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm> \
 - CLI input files larger than 513 MiB are rejected before reading.
 - Decoded pixel buffers larger than 512 MiB are rejected.
 - Homebrew support is tap-only; no Homebrew/core, crates.io, Windows, or
-  unverified macOS v0.7.0 package is claimed. Linux arm64 is claimed only for
-  published v0.7.0 archives and tap blocks verified from release `SHA256SUMS`.
+  unverified macOS v0.8.0 package is claimed. Linux arm64 is claimed only for
+  published v0.8.0 archives and tap blocks verified from release `SHA256SUMS`.
 - This is not a full ImageMagick CLI, MagickCore, or MagickWand replacement.
 
 ## Release Evidence

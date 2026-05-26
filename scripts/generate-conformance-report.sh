@@ -49,10 +49,10 @@ Git revision: \`$git_rev\`
 ## Supported Surface
 
 - Binary: \`imx\`
-- Formats: FARBFELD, QOI, PBM, PGM, PPM
+- Formats: FARBFELD, QOI, PBM, PGM, PNG, PPM
 - Commands: \`imx --help\`, \`imx --version\`, \`imx identify [FORMAT:]<input>\`,
   and two-argument transcodes between supported formats, including exact
-  \`FARBFELD:\`, \`QOI:\`, \`PBM:\`, \`PGM:\`, and \`PPM:\` operand prefixes and
+  \`FARBFELD:\`, \`QOI:\`, \`PBM:\`, \`PGM:\`, \`PNG:\`, and \`PPM:\` operand prefixes and
   deterministic same-format rewrites when input and output paths differ.
 - Runtime dependency policy: no ImageMagick, MagickCore, MagickWand, delegates,
   modules, \`policy.xml\`, or ImageMagick build system linkage.
@@ -75,14 +75,14 @@ $archive_table
 
 ## Compatibility Coverage
 
-- Golden fixtures cover representative FARBFELD, QOI, PBM, PGM, and PPM bytes.
+- Golden fixtures cover representative FARBFELD, QOI, PBM, PGM, PNG, and PPM bytes.
 - Malformed-input tests cover invalid headers, truncation, oversized dimensions,
   unsupported max values, and failed CLI output behavior.
 - ImageMagick differential tests cover decoded-pixel compatibility for
-  FARBFELD/QOI/PBM/PGM/PPM identify, prefixed identify, transcode, prefixed
+  FARBFELD/QOI/PBM/PGM/PNG/PPM identify, prefixed identify, transcode, prefixed
   transcode, deterministic same-format rewrite paths, and high-depth PPM
   identify/decode/transcode cases.
-- Cargo-fuzz targets exercise FARBFELD, QOI, and shared PNM identify/decode
+- Cargo-fuzz targets exercise FARBFELD, QOI, PNG, and shared PNM identify/decode
   entrypoints with seeded corpora.
 - Benchmarks record library throughput, process timing, process RSS, and output
   hashes for standalone and ImageMagick oracle cases.
@@ -92,9 +92,11 @@ $archive_table
 - No full ImageMagick CLI parser or \`magick\` alias.
 - No stdin/stdout streaming, delegates, profiles, color management, transforms,
   MagickCore, or MagickWand.
-- No prefixes beyond exact \`FARBFELD:\`, \`QOI:\`, \`PBM:\`, \`PGM:\`, and
-  \`PPM:\`.
-- No PNG, JPEG, TIFF, PAM, PFM, or BMP support in this conformance surface.
+- No prefixes beyond exact \`FARBFELD:\`, \`QOI:\`, \`PBM:\`, \`PGM:\`, \`PNG:\`,
+  and \`PPM:\`.
+- No APNG, indexed/palette PNG, low-bit PNG, PNG color management/profile
+  preservation, JPEG, TIFF, PAM, PFM, or BMP support in this conformance
+  surface.
 EOF
 
 cat >"$out_dir/conformance-summary.json" <<EOF

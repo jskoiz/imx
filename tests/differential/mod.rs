@@ -1085,6 +1085,112 @@ fn standalone_farbfeld_to_ppm_quantizes_like_imagemagick_decoded_pixels() {
 }
 
 #[test]
+fn standalone_png_transcodes_match_imagemagick_decoded_pixels() {
+    let Some(magick) = require_or_skip(magick_command(), "ImageMagick oracle") else {
+        return;
+    };
+    let Some(standalone) = require_or_skip(standalone_imx_command(), "standalone imx binary")
+    else {
+        return;
+    };
+    let dir = temp_dir("png_transcodes");
+    let input_png = dir.join("input.png");
+    let output_ff = dir.join("output.ff");
+    let output_png = dir.join("output.png");
+    let oracle_ff = dir.join("oracle.ff");
+    let png_rgb = dir.join("png.rgb");
+    let ff_rgb = dir.join("ff.rgb");
+    let out_png_rgb = dir.join("out-png.rgb");
+    let oracle_ff_rgb = dir.join("oracle-ff.rgb");
+
+    let image = Image::new(
+        2,
+        2,
+        PixelFormat::Rgb8,
+        vec![255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255],
+    )
+    .unwrap();
+    fs::write(&input_png, imx_codec_png::encode(&image).unwrap()).unwrap();
+
+    for output in [&output_ff, &output_png] {
+        let result = run_magick(
+            &standalone,
+            &[
+                input_png.display().to_string(),
+                output.display().to_string(),
+            ],
+        );
+        assert!(
+            result.status.success(),
+            "standalone PNG transcode failed for {}\nstdout:\n{}\nstderr:\n{}",
+            output.display(),
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+
+    let oracle_result = run_magick(
+        &magick,
+        &[
+            format!("PNG:{}", input_png.display()),
+            format!("FARBFELD:{}", oracle_ff.display()),
+        ],
+    );
+    if !assert_success_or_skip(&oracle_result, "ImageMagick PNG->FARBFELD encode") {
+        return;
+    }
+
+    let im = run_magick(
+        &magick,
+        &[
+            format!("PNG:{}", input_png.display()),
+            "-depth".to_string(),
+            "8".to_string(),
+            format!("RGB:{}", png_rgb.display()),
+        ],
+    );
+    let ff = run_magick(
+        &magick,
+        &[
+            format!("FARBFELD:{}", output_ff.display()),
+            "-depth".to_string(),
+            "8".to_string(),
+            format!("RGB:{}", ff_rgb.display()),
+        ],
+    );
+    let out_png = run_magick(
+        &magick,
+        &[
+            format!("PNG:{}", output_png.display()),
+            "-depth".to_string(),
+            "8".to_string(),
+            format!("RGB:{}", out_png_rgb.display()),
+        ],
+    );
+    let oracle_ff_decode = run_magick(
+        &magick,
+        &[
+            format!("FARBFELD:{}", oracle_ff.display()),
+            "-depth".to_string(),
+            "8".to_string(),
+            format!("RGB:{}", oracle_ff_rgb.display()),
+        ],
+    );
+    if !assert_success_or_skip(&im, "ImageMagick PNG decode")
+        || !assert_success_or_skip(&ff, "ImageMagick FARBFELD decode")
+        || !assert_success_or_skip(&out_png, "ImageMagick PNG output decode")
+        || !assert_success_or_skip(&oracle_ff_decode, "ImageMagick oracle FARBFELD decode")
+    {
+        return;
+    }
+
+    let expected = fs::read(png_rgb).unwrap();
+    assert_eq!(fs::read(ff_rgb).unwrap(), expected);
+    assert_eq!(fs::read(out_png_rgb).unwrap(), expected);
+    assert_eq!(fs::read(oracle_ff_rgb).unwrap(), expected);
+}
+
+#[test]
 fn supported_identify_fields_match_imagemagick_oracle_when_available() {
     let Some(magick) = require_or_skip(magick_command(), "ImageMagick oracle") else {
         return;
@@ -1224,5 +1330,46 @@ fn supported_identify_fields_match_imagemagick_oracle_when_available() {
     assert_eq!(
         String::from_utf8_lossy(&standalone_result.stdout).trim(),
         "format=PGM width=2 height=2 channels=GRAY depth=8"
+    );
+
+    let png = dir.join("input.png");
+    fs::write(
+        &png,
+        imx_codec_png::encode(
+            &Image::new(
+                2,
+                2,
+                PixelFormat::Rgb8,
+                vec![255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255],
+            )
+            .unwrap(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let result = run_magick(
+        &magick,
+        &[
+            "identify".to_string(),
+            "-format".to_string(),
+            "%m %w %h %[colorspace] %[depth]".to_string(),
+            png.display().to_string(),
+        ],
+    );
+    if !assert_success_or_skip(&result, "ImageMagick PNG identify") {
+        return;
+    }
+    let stdout = String::from_utf8_lossy(&result.stdout);
+    assert!(stdout.contains("PNG"));
+    assert!(stdout.contains("2 2"));
+
+    let standalone_result = run_magick(
+        &standalone,
+        &["identify".to_string(), png.display().to_string()],
+    );
+    assert!(standalone_result.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&standalone_result.stdout).trim(),
+        "format=PNG width=2 height=2 channels=RGB depth=8"
     );
 }

@@ -39,6 +39,8 @@ fn main() {
     let image = fixture(256, 256);
     let ff = imx_codec_farbfeld::encode(&image).unwrap();
     let qoi = imx_codec_qoi::encode_image(&image, imx_codec_qoi::QOI_SRGB).unwrap();
+    let png = imx_codec_png::encode(&image.to_rgba8().unwrap()).unwrap();
+    let png16 = imx_codec_png::encode(&image).unwrap();
     let pbm = imx_codec_pnm::encode_pbm(&image).unwrap();
     let ppm = imx_codec_pnm::encode_ppm(&image.to_rgb8().unwrap()).unwrap();
     let ppm16 = imx_codec_pnm::encode_ppm(&image).unwrap();
@@ -47,6 +49,8 @@ fn main() {
     println!("iterations={iterations}");
     println!("farbfeld_bytes={}", ff.len());
     println!("qoi_bytes={}", qoi.len());
+    println!("png_bytes={}", png.len());
+    println!("png16_bytes={}", png16.len());
     println!("pbm_bytes={}", pbm.len());
     println!("ppm_bytes={}", ppm.len());
     println!("ppm16_bytes={}", ppm16.len());
@@ -63,6 +67,19 @@ fn main() {
     });
     time("qoi_encode", qoi.len(), iterations, || {
         black_box(imx_codec_qoi::encode_image(black_box(&image), imx_codec_qoi::QOI_SRGB).unwrap());
+    });
+    time("png_decode", png.len(), iterations, || {
+        black_box(imx_codec_png::decode(black_box(&png)).unwrap());
+    });
+    time("png_encode", png.len(), iterations, || {
+        let rgba = image.to_rgba8().unwrap();
+        black_box(imx_codec_png::encode(black_box(&rgba)).unwrap());
+    });
+    time("png16_decode", png16.len(), iterations, || {
+        black_box(imx_codec_png::decode(black_box(&png16)).unwrap());
+    });
+    time("png16_encode", png16.len(), iterations, || {
+        black_box(imx_codec_png::encode(black_box(&image)).unwrap());
     });
     time("ppm_decode", ppm.len(), iterations, || {
         black_box(imx_codec_pnm::decode_ppm(black_box(&ppm)).unwrap());
@@ -98,6 +115,14 @@ fn main() {
             .and_then(|decoded| decoded.into_core_image())
             .unwrap();
         black_box(imx_codec_farbfeld::encode(&decoded).unwrap());
+    });
+    time("png_to_ff", png.len(), iterations, || {
+        let decoded = imx_codec_png::decode(black_box(&png)).unwrap();
+        black_box(imx_codec_farbfeld::encode(&decoded).unwrap());
+    });
+    time("ff_to_png", ff.len(), iterations, || {
+        let decoded = imx_codec_farbfeld::decode(black_box(&ff)).unwrap();
+        black_box(imx_codec_png::encode(&decoded).unwrap());
     });
     time("ppm_to_ff", ppm.len(), iterations, || {
         let decoded = imx_codec_pnm::decode_ppm(black_box(&ppm)).unwrap();

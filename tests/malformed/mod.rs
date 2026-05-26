@@ -10,6 +10,22 @@ fn qoi_header(width: u32, height: u32, channels: u8, colorspace: u8) -> Vec<u8> 
     bytes
 }
 
+fn png_fixture(color_type: png::ColorType, bit_depth: png::BitDepth, pixels: &[u8]) -> Vec<u8> {
+    let mut out = Vec::new();
+    let mut encoder = png::Encoder::new(&mut out, 1, 1);
+    encoder.set_color(color_type);
+    encoder.set_depth(bit_depth);
+    if color_type == png::ColorType::Indexed {
+        encoder.set_palette(&[0, 0, 0, 255, 255, 255]);
+    }
+    encoder
+        .write_header()
+        .unwrap()
+        .write_image_data(pixels)
+        .unwrap();
+    out
+}
+
 #[test]
 fn farbfeld_rejects_bad_headers_truncation_and_extreme_dimensions() {
     assert!(matches!(
@@ -58,6 +74,42 @@ fn qoi_rejects_bad_headers_and_truncated_opcode_payloads() {
         imx_codec_qoi::decode(&truncated),
         Err(ImageError::UnexpectedEof { .. })
     ));
+}
+
+#[test]
+fn png_rejects_malformed_and_unsupported_inputs() {
+    assert_eq!(
+        imx_codec_png::decode(b"not png"),
+        Err(ImageError::UnexpectedEof {
+            expected: imx_codec_png::MAGIC.len(),
+            actual: 7
+        })
+    );
+    assert!(imx_codec_png::decode(imx_codec_png::MAGIC)
+        .unwrap_err()
+        .to_string()
+        .contains("PNG decode failed"));
+
+    let indexed = png_fixture(png::ColorType::Indexed, png::BitDepth::Eight, &[0]);
+    assert!(imx_codec_png::decode(&indexed)
+        .unwrap_err()
+        .to_string()
+        .contains("indexed color"));
+
+    let subbyte_gray = png_fixture(png::ColorType::Grayscale, png::BitDepth::One, &[0x80]);
+    assert!(imx_codec_png::decode(&subbyte_gray)
+        .unwrap_err()
+        .to_string()
+        .contains("sub-8-bit"));
+
+    let mut corrupted =
+        imx_codec_png::encode(&Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap())
+            .unwrap();
+    corrupted[32] ^= 0xff;
+    assert!(imx_codec_png::decode(&corrupted)
+        .unwrap_err()
+        .to_string()
+        .contains("PNG decode failed"));
 }
 
 #[test]

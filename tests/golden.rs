@@ -49,6 +49,10 @@ fn decodes_checked_in_golden_fixture_files() {
             .pixels(),
         &[0x7b]
     );
+    let png =
+        imx_codec_png::encode(&Image::new(1, 1, PixelFormat::Rgb8, vec![0xff, 0, 0]).unwrap())
+            .unwrap();
+    assert_eq!(imx_codec_png::decode(&png).unwrap().pixels(), &[0xff, 0, 0]);
 }
 
 #[test]
@@ -78,6 +82,23 @@ fn farbfeld_and_qoi_codecs_round_trip_shared_core_images() {
 }
 
 #[test]
+fn png_codec_round_trips_shared_core_images() {
+    let image = Image::new(
+        2,
+        1,
+        PixelFormat::Rgba16Be,
+        vec![
+            0x00, 0x00, 0x11, 0x11, 0x22, 0x22, 0xff, 0xff, 0x33, 0x33, 0x44, 0x44, 0x55, 0x55,
+            0x66, 0x66,
+        ],
+    )
+    .unwrap();
+
+    let png = imx_codec_png::encode(&image).unwrap();
+    assert_eq!(imx_codec_png::decode(&png).unwrap(), image);
+}
+
+#[test]
 fn identify_metadata_is_stable_for_supported_fields() {
     let image = Image::new(
         1,
@@ -93,6 +114,7 @@ fn identify_metadata_is_stable_for_supported_fields() {
     let ppm = imx_codec_pnm::encode_ppm(&image).unwrap();
     let gray = Image::new(1, 1, PixelFormat::Gray8, vec![0x80]).unwrap();
     let pgm = imx_codec_pnm::encode_pgm(&gray).unwrap();
+    let png = imx_codec_png::encode(&image.to_rgba8().unwrap()).unwrap();
 
     assert_eq!(
         imx_codec_farbfeld::identify(&ff).unwrap().stable_line(),
@@ -113,5 +135,9 @@ fn identify_metadata_is_stable_for_supported_fields() {
     assert_eq!(
         imx_codec_pnm::identify_pgm(&pgm).unwrap().stable_line(),
         "format=PGM width=1 height=1 channels=GRAY depth=8"
+    );
+    assert_eq!(
+        imx_codec_png::identify(&png).unwrap().stable_line(),
+        "format=PNG width=1 height=1 channels=RGBA depth=8"
     );
 }
