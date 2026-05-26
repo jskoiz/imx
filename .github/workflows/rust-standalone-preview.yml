@@ -66,7 +66,7 @@ jobs:
           set -euo pipefail
           export DEBIAN_FRONTEND=noninteractive
           sudo apt-get update -y
-          sudo apt-get install -y autoconf automake gcc g++ git libpng-dev libtool make pkg-config zlib1g-dev
+          sudo apt-get install -y autoconf automake gcc g++ git libjpeg-dev libpng-dev libtool make pkg-config zlib1g-dev
 
       - name: Install fuzz tooling
         run: |
@@ -78,9 +78,10 @@ jobs:
           set -euo pipefail
           git clone --depth=1 https://github.com/ImageMagick/ImageMagick.git target/imagemagick-oracle
           cd target/imagemagick-oracle
-          ./configure --without-perl --without-magick-plus-plus --without-modules --with-png=yes --with-zlib=yes
+          ./configure --without-perl --without-magick-plus-plus --without-modules --with-jpeg=yes --with-png=yes --with-zlib=yes
           make -j2 utilities/magick
           utilities/magick -list format | grep -E '^ *PNG\*? '
+          utilities/magick -list format | grep -E '^ *JPEG\*? '
 
       - name: Run standalone release gates
         run: |
