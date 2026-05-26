@@ -1,11 +1,12 @@
 # IMX Compatibility Readiness
 
-Status: v0.10.0 is the current developer-preview surface. It carries
+Status: v0.11.0 is the current developer-preview surface. It carries
 forward the v0.6.0 exact format-prefix surface, the v0.7.0 high-depth PPM
 surface, the v0.8.0 bounded PNG raster slice, and the v0.9.0 bounded JPEG
-slice, plus v0.10.0 bounded JPEG EXIF Orientation normalization. Release and
+slice, plus v0.10.0 bounded JPEG EXIF Orientation normalization and v0.11.0
+bounded progressive JPEG input support. Release and
 tap support are claimed only for the Linux archive targets present in the
-published v0.10.0
+published v0.11.0
 GitHub `SHA256SUMS` and verified by release/tap smoke. Published Linux archives
 require glibc 2.34 or newer. Hosted release proof is Linux-only. Automatic
 hosted macOS/iOS GitHub Actions remain disabled; macOS proof is local/manual
@@ -39,13 +40,17 @@ only unless explicitly approved in the current turn.
   values 1 through 8 normalize decoded pixels, and `identify` reports oriented
   dimensions. Other EXIF, ICC, XMP, GPS, thumbnail, density, and camera metadata
   remains unpreserved and uninterpreted.
+- v0.11.0 adds 8-bit progressive grayscale/RGB JPEG input support. Progressive
+  inputs work through `.jpg`, `.jpeg`, and exact `JPEG:` identify/transcode
+  forms, carry forward EXIF Orientation normalization, and still re-encode JPEG
+  output as deterministic baseline quality-90 JPEG.
 - Published v0.4.0 release targets are Linux x86_64, macOS arm64, and macOS
-  x86_64. The current v0.10.x hosted release targets are Linux x86_64 and Linux
+  x86_64. The current v0.11.x hosted release targets are Linux x86_64 and Linux
   arm64 only, without hosted macOS/iOS Actions.
 - ImageMagick remains an oracle for tests and benchmarks only; shipped binaries
   must not link to ImageMagick, MagickCore, MagickWand, delegates, modules,
   `policy.xml`, or ImageMagick's build system.
-- v0.10.0 distribution artifacts are the Linux x86_64 and Linux arm64 release
+- v0.11.0 distribution artifacts are the Linux x86_64 and Linux arm64 release
   tarballs, aggregate `SHA256SUMS`, generated `imx.rb`,
   `CONFORMANCE_REPORT.md`, and `conformance-summary.json`. Hosted tag
   automation is Linux-only unless a macOS run is explicitly approved in the
@@ -56,15 +61,15 @@ only unless explicitly approved in the current turn.
 | Gate | Producer | Artifact Path | Coverage | Result |
 | --- | --- | --- | --- | --- |
 | Release gates | `scripts/ci.sh` | terminal plus CI logs | fmt, clippy, tests, fixture generation, fuzz smoke, benchmark smoke, differential tests | required before tag |
-| Differential corpus | `scripts/differential-corpus.sh` | `target/differential-corpus-*/summary.json` | identify for 7 formats, prefixed identify for 7 formats, high-depth PPM/PNG identify, 49 directed transcodes, a prefixed transcode ring covering every supported prefix as input/output, 16-bit PPM/PNG preserving transcodes, JPEG RGB8 lossy metric evidence, and EXIF Orientation cases against ImageMagick `-auto-orient` | required before tag |
+| Differential corpus | `scripts/differential-corpus.sh` | `target/differential-corpus-*/summary.json` | identify for 7 formats, prefixed identify for 7 formats, high-depth PPM/PNG identify, 49 directed transcodes, a prefixed transcode ring covering every supported prefix as input/output, 16-bit PPM/PNG preserving transcodes, JPEG RGB8 lossy metric evidence, EXIF Orientation cases against ImageMagick `-auto-orient`, and progressive JPEG RGB/gray/orientation cases | required before tag |
 | Fuzz smoke | `scripts/run-fuzz.sh` | `target/fuzz-runs/*/summary.json` | FARBFELD, JPEG, QOI, PNG, and PNM identify/decode with retained crash artifacts | required before tag |
 | Scheduled fuzz | `.github/workflows/rust-fuzz-scheduled.yml` | `scheduled-fuzz-evidence` artifact | longer cargo-fuzz run with artifact retention | required CI lane |
 | Bench/RSS thresholds | `scripts/bench-release.sh` | `target/release-bench-*/threshold-summary.json` | throughput and process/library RSS sanity budgets | required before tag |
-| Bench regression | `scripts/bench-regression.sh` | `target/bench-regression-*/regression-report.json` | v0.10.x vs v0.5.0 throughput/RSS baseline; newer PNG/JPEG metrics without a baseline are warnings, RSS growth is enforced where a baseline exists | required before tag |
-| Source install verify | `scripts/verify-install.sh` | `target/install-verify/install-summary.json` | fresh checkout install plus supported identify/transcode/prefix/PPM16/PNG/JPEG/orientation smoke | required before tag |
-| Package/SHA/no-link | `scripts/package-release.sh` plus hosted Linux workflow; local macOS or explicitly approved manual evidence for macOS targets | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive smoke, exact-prefix smoke, PPM16/PNG/JPEG/orientation smoke, no ImageMagick linkage for each claimed platform; v0.10.x hosted automation prepares Linux x86_64 and Linux arm64 release artifacts | required before publishing that platform archive |
+| Bench regression | `scripts/bench-regression.sh` | `target/bench-regression-*/regression-report.json` | v0.11.x vs v0.5.0 throughput/RSS baseline; newer PNG/JPEG metrics without a baseline are warnings, RSS growth is enforced where a baseline exists | required before tag |
+| Source install verify | `scripts/verify-install.sh` | `target/install-verify/install-summary.json` | fresh checkout install plus supported identify/transcode/prefix/PPM16/PNG/JPEG/orientation/progressive smoke | required before tag |
+| Package/SHA/no-link | `scripts/package-release.sh` plus hosted Linux workflow; local macOS or explicitly approved manual evidence for macOS targets | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive smoke, exact-prefix smoke, PPM16/PNG/JPEG/orientation/progressive smoke, no ImageMagick linkage for each claimed platform; v0.11.x hosted automation prepares Linux x86_64 and Linux arm64 release artifacts | required before publishing that platform archive |
 | Published archive smoke | `scripts/verify-release-archive.sh` | `target/release-archive-smoke/<target>/summary.json` | downloads the selected GitHub release archive, verifies that archive against aggregate SHA256SUMS, no-link, identify/transcode/same-format/prefix smoke; hosted CI covers Linux only | required after release publish |
-| Homebrew tap smoke | `brew tap jskoiz/imx <checkout>`, `brew install jskoiz/imx/imx`, and `brew test jskoiz/imx/imx` from the checked-out tap | `jskoiz/homebrew-imx` Linux formula/archive workflow plus local macOS or explicitly approved manual terminal output | formula URL/SHA fetch, binary version check, PPM identify, PPM-to-QOI smoke, PNG/JPEG/orientation smoke, exact-prefix smoke, and FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM same-format rewrite smoke; local/manual Homebrew install proof for tap claims | required for tap claim; no hosted macOS tap smoke is claimed |
+| Homebrew tap smoke | `brew tap jskoiz/imx <checkout>`, `brew install jskoiz/imx/imx`, and `brew test jskoiz/imx/imx` from the checked-out tap | `jskoiz/homebrew-imx` Linux formula/archive workflow plus local macOS or explicitly approved manual terminal output | formula URL/SHA fetch, binary version check, PPM identify, PPM-to-QOI smoke, PNG/JPEG/orientation/progressive smoke, exact-prefix smoke, and FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM same-format rewrite smoke; local/manual Homebrew install proof for tap claims | required for tap claim; no hosted macOS tap smoke is claimed |
 | Conformance report | `scripts/generate-conformance-report.sh` | `CONFORMANCE_REPORT.md`, `conformance-summary.json` | generated from CI evidence and attached to the release | required release asset |
 
 ## Local Verification
@@ -100,7 +105,7 @@ imx --version
 After a release is published, each claimed platform must run:
 
 ```sh
-IMX_VERSION=v0.10.0 IMX_RELEASE_TARGET=<target> \
+IMX_VERSION=v0.11.0 IMX_RELEASE_TARGET=<target> \
   bash scripts/verify-release-archive.sh
 ```
 
@@ -150,11 +155,11 @@ IMX_VERSION=v0.10.0 IMX_RELEASE_TARGET=<target> \
   grayscale-alpha 8/16-bit rasters. APNG, indexed/palette PNG, low-bit PNG,
   `tRNS`, PNG metadata/profile preservation, and PNG color management are out
   of scope.
-- JPEG support is limited to 8-bit grayscale/RGB decode and fixed quality 90
-  encode. Progressive JPEG, CMYK/YCCK JPEG, 12-bit JPEG, arithmetic-coded JPEG,
-  lossless JPEG/JPEG-LS, JPEG 2000, JPEG XL, metadata/profile preservation
-  beyond read-only Orientation, color management, and non-opaque alpha JPEG
-  output are out of scope.
+- JPEG support is limited to 8-bit baseline/progressive grayscale/RGB decode
+  and fixed quality 90 baseline encode. CMYK/YCCK JPEG, 12-bit JPEG,
+  arithmetic-coded JPEG, lossless JPEG/JPEG-LS, JPEG 2000, JPEG XL,
+  metadata/profile preservation beyond read-only Orientation, color management,
+  progressive output, and non-opaque alpha JPEG output are out of scope.
 - PBM source form is not preserved; output PBM is deterministic binary P4.
 - PBM comments, whitespace, and padding-bit values are not preserved.
 - PBM conversion from gray/color inputs is lossy thresholding.
@@ -168,8 +173,8 @@ IMX_VERSION=v0.10.0 IMX_RELEASE_TARGET=<target> \
 - FARBFELD/PPM16/PGM16 to QOI is lossy for non-8-bit-representable 16-bit
   samples.
 - Color to PGM/PBM is lossy and ignores alpha.
-- No Windows, crates.io, Homebrew/core, or unverified macOS v0.10.x package is
-  claimed. Linux arm64 is claimed only for published v0.10.0 archives and tap
+- No Windows, crates.io, Homebrew/core, or unverified macOS v0.11.x package is
+  claimed. Linux arm64 is claimed only for published v0.11.0 archives and tap
   blocks verified from release `SHA256SUMS`; Homebrew support is tap-only
   through `jskoiz/imx`.
 
@@ -194,7 +199,7 @@ IMX_VERSION=v0.10.0 IMX_RELEASE_TARGET=<target> \
 
 ## Next Smallest Milestone
 
-After the v0.10.0 real-photo reliability slice, the next compatibility slice
+After the v0.11.0 progressive JPEG input slice, the next compatibility slice
 should remain bounded to one tested behavior with oracle evidence. TIFF, GIF,
 WebP, APNG, delegates, MagickCore, MagickWand, color management, metadata
 preservation beyond declared read-only fields, and full ImageMagick CLI

@@ -376,6 +376,11 @@ fn jpeg_encode_error(err: EncodingError) -> ImageError {
 mod tests {
     use super::*;
 
+    #[allow(dead_code)]
+    mod progressive_jpeg_fixtures {
+        include!("../../../cli/src/progressive_jpeg_fixtures.rs");
+    }
+
     fn jpeg_with_exif_app1(jpeg: &[u8], app1_data: &[u8]) -> Vec<u8> {
         let segment_len = u16::try_from(app1_data.len() + 2).unwrap();
         let mut out = Vec::new();
@@ -476,6 +481,45 @@ mod tests {
         );
         let decoded = decode(&jpeg).unwrap();
         assert_eq!(decoded.pixel_format(), PixelFormat::Gray8);
+    }
+
+    #[test]
+    fn identifies_and_decodes_progressive_rgb_and_gray_jpegs() {
+        let rgb = progressive_jpeg_fixtures::progressive_rgb_jpeg();
+        let gray = progressive_jpeg_fixtures::progressive_gray_jpeg();
+        assert!(progressive_jpeg_fixtures::is_progressive_jpeg(&rgb));
+        assert!(progressive_jpeg_fixtures::is_progressive_jpeg(&gray));
+
+        assert_eq!(
+            identify(&rgb).unwrap().stable_line(),
+            "format=JPEG width=4 height=3 channels=RGB depth=8"
+        );
+        let rgb_image = decode(&rgb).unwrap();
+        assert_eq!(rgb_image.width(), 4);
+        assert_eq!(rgb_image.height(), 3);
+        assert_eq!(rgb_image.pixel_format(), PixelFormat::Rgb8);
+
+        assert_eq!(
+            identify(&gray).unwrap().stable_line(),
+            "format=JPEG width=4 height=2 channels=GRAY depth=8"
+        );
+        let gray_image = decode(&gray).unwrap();
+        assert_eq!(gray_image.width(), 4);
+        assert_eq!(gray_image.height(), 2);
+        assert_eq!(gray_image.pixel_format(), PixelFormat::Gray8);
+    }
+
+    #[test]
+    fn progressive_jpeg_exif_orientation_still_normalizes_pixels() {
+        let rgb = progressive_jpeg_fixtures::progressive_rgb_jpeg();
+        let baseline = decode(&rgb).unwrap();
+        let oriented = jpeg_with_exif_orientation(&rgb, 6);
+
+        assert_eq!(
+            identify(&oriented).unwrap().stable_line(),
+            "format=JPEG width=3 height=4 channels=RGB depth=8"
+        );
+        assert_eq!(decode(&oriented).unwrap(), expected_oriented(&baseline, 6));
     }
 
     #[test]

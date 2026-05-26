@@ -6,6 +6,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use imx_core::{Image, PixelFormat};
 
+#[path = "../src/progressive_jpeg_fixtures.rs"]
+#[allow(dead_code)]
+mod progressive_jpeg_fixtures;
+
 fn temp_dir(name: &str) -> std::path::PathBuf {
     let mut dir = std::env::temp_dir();
     let nanos = SystemTime::now()
@@ -413,6 +417,91 @@ fn jpeg_exif_orientation_affects_identify_and_transcode_dimensions() {
             .unwrap()
             .stable_line(),
         "format=PPM width=2 height=3 channels=RGB depth=8"
+    );
+}
+
+#[test]
+fn progressive_jpeg_identify_and_transcode_keep_prefix_and_orientation_behavior() {
+    let dir = temp_dir("progressive_jpeg");
+    let rgb = dir.join("progressive-rgb.jpg");
+    let gray = dir.join("progressive-gray.jpg");
+    let oriented = dir.join("progressive-o6.jpg");
+    let rgb_ppm = dir.join("progressive-rgb.ppm");
+    let gray_pgm = dir.join("progressive-gray.pgm");
+    let oriented_ppm = dir.join("progressive-o6.ppm");
+    let rgb_jpeg = progressive_jpeg_fixtures::progressive_rgb_jpeg();
+    let gray_jpeg = progressive_jpeg_fixtures::progressive_gray_jpeg();
+    assert!(progressive_jpeg_fixtures::is_progressive_jpeg(&rgb_jpeg));
+    assert!(progressive_jpeg_fixtures::is_progressive_jpeg(&gray_jpeg));
+    fs::write(&rgb, &rgb_jpeg).unwrap();
+    fs::write(&gray, &gray_jpeg).unwrap();
+    fs::write(&oriented, jpeg_with_exif_orientation(&rgb_jpeg, 6)).unwrap();
+
+    let rgb_identify = Command::new(imx())
+        .args(["identify", prefixed("JPEG", &rgb).as_str()])
+        .output()
+        .unwrap();
+    assert!(
+        rgb_identify.status.success(),
+        "progressive RGB identify failed with stderr={}",
+        String::from_utf8_lossy(&rgb_identify.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&rgb_identify.stdout).trim(),
+        "format=JPEG width=4 height=3 channels=RGB depth=8"
+    );
+
+    let gray_identify = Command::new(imx())
+        .args(["identify", prefixed("JPEG", &gray).as_str()])
+        .output()
+        .unwrap();
+    assert!(
+        gray_identify.status.success(),
+        "progressive gray identify failed with stderr={}",
+        String::from_utf8_lossy(&gray_identify.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&gray_identify.stdout).trim(),
+        "format=JPEG width=4 height=2 channels=GRAY depth=8"
+    );
+
+    let oriented_identify = Command::new(imx())
+        .args(["identify", prefixed("JPEG", &oriented).as_str()])
+        .output()
+        .unwrap();
+    assert!(
+        oriented_identify.status.success(),
+        "progressive orientation identify failed with stderr={}",
+        String::from_utf8_lossy(&oriented_identify.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&oriented_identify.stdout).trim(),
+        "format=JPEG width=3 height=4 channels=RGB depth=8"
+    );
+
+    for (input, output) in [
+        (prefixed("JPEG", &rgb), prefixed("PPM", &rgb_ppm)),
+        (prefixed("JPEG", &gray), prefixed("PGM", &gray_pgm)),
+        (prefixed("JPEG", &oriented), prefixed("PPM", &oriented_ppm)),
+    ] {
+        let result = Command::new(imx())
+            .args([input.as_str(), output.as_str()])
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "progressive JPEG transcode failed with stderr={}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+
+    let oriented_ppm_identify = Command::new(imx())
+        .args(["identify", prefixed("PPM", &oriented_ppm).as_str()])
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8_lossy(&oriented_ppm_identify.stdout).trim(),
+        "format=PPM width=3 height=4 channels=RGB depth=8"
     );
 }
 

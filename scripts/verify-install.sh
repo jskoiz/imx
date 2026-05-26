@@ -23,7 +23,10 @@ git clone "$repo_url" "$checkout" >/dev/null
   "$install_root/bin/imx" identify "$fixture_dir/gradient-64.ff"
   "$install_root/bin/imx" identify "$fixture_dir/gradient-64.jpg"
   "$install_root/bin/imx" identify "$fixture_dir/gray-4x1.jpg"
+  "$install_root/bin/imx" identify "$fixture_dir/progressive-rgb-4x3.jpg" | grep -Fx 'format=JPEG width=4 height=3 channels=RGB depth=8'
+  "$install_root/bin/imx" identify "$fixture_dir/progressive-gray-4x2.jpg" | grep -Fx 'format=JPEG width=4 height=2 channels=GRAY depth=8'
   "$install_root/bin/imx" identify "$fixture_dir/photo-orientation-o6.jpg" | grep -Fx 'format=JPEG width=2 height=3 channels=RGB depth=8'
+  "$install_root/bin/imx" identify "$fixture_dir/progressive-orientation-o6.jpg" | grep -Fx 'format=JPEG width=3 height=4 channels=RGB depth=8'
   "$install_root/bin/imx" identify "$fixture_dir/gradient-64.qoi"
   "$install_root/bin/imx" identify "$fixture_dir/gradient-64.pbm"
   "$install_root/bin/imx" identify "$fixture_dir/gradient-64.png"
@@ -34,7 +37,10 @@ git clone "$repo_url" "$checkout" >/dev/null
   "$install_root/bin/imx" identify "FARBFELD:$fixture_dir/gradient-64.ff"
   "$install_root/bin/imx" identify "JPEG:$fixture_dir/gradient-64.jpg"
   "$install_root/bin/imx" identify "JPEG:$fixture_dir/gray-4x1.jpg"
+  "$install_root/bin/imx" identify "JPEG:$fixture_dir/progressive-rgb-4x3.jpg" | grep -Fx 'format=JPEG width=4 height=3 channels=RGB depth=8'
+  "$install_root/bin/imx" identify "JPEG:$fixture_dir/progressive-gray-4x2.jpg" | grep -Fx 'format=JPEG width=4 height=2 channels=GRAY depth=8'
   "$install_root/bin/imx" identify "JPEG:$fixture_dir/photo-orientation-o6.jpg" | grep -Fx 'format=JPEG width=2 height=3 channels=RGB depth=8'
+  "$install_root/bin/imx" identify "JPEG:$fixture_dir/progressive-orientation-o6.jpg" | grep -Fx 'format=JPEG width=3 height=4 channels=RGB depth=8'
   "$install_root/bin/imx" identify "QOI:$fixture_dir/gradient-64.qoi"
   "$install_root/bin/imx" identify "PBM:$fixture_dir/gradient-64.pbm"
   "$install_root/bin/imx" identify "PNG:$fixture_dir/gradient-64.png"
@@ -45,8 +51,12 @@ git clone "$repo_url" "$checkout" >/dev/null
   "$install_root/bin/imx" "$fixture_dir/gradient-64.ff" "$work_dir/gradient.qoi"
   "$install_root/bin/imx" "FARBFELD:$fixture_dir/gradient-64.ff" "QOI:$work_dir/prefix-gradient.qoi"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.jpg" "$work_dir/jpeg-gradient.ff"
+  "$install_root/bin/imx" "JPEG:$fixture_dir/progressive-rgb-4x3.jpg" "PPM:$work_dir/progressive-rgb.ppm"
+  "$install_root/bin/imx" identify "PPM:$work_dir/progressive-rgb.ppm" | grep -Fx 'format=PPM width=4 height=3 channels=RGB depth=8'
   "$install_root/bin/imx" "JPEG:$fixture_dir/photo-orientation-o6.jpg" "PPM:$work_dir/oriented-o6.ppm"
   "$install_root/bin/imx" identify "PPM:$work_dir/oriented-o6.ppm" | grep -Fx 'format=PPM width=2 height=3 channels=RGB depth=8'
+  "$install_root/bin/imx" "JPEG:$fixture_dir/progressive-orientation-o6.jpg" "PPM:$work_dir/progressive-oriented-o6.ppm"
+  "$install_root/bin/imx" identify "PPM:$work_dir/progressive-oriented-o6.ppm" | grep -Fx 'format=PPM width=3 height=4 channels=RGB depth=8'
   "$install_root/bin/imx" "$fixture_dir/gradient-64.ppm" "$work_dir/gradient.jpg"
   "$install_root/bin/imx" "JPEG:$fixture_dir/gradient-64.jpg" "FARBFELD:$work_dir/prefix-jpeg-gradient.ff"
   "$install_root/bin/imx" "PPM:$fixture_dir/gradient-64.ppm" "JPEG:$work_dir/prefix-gradient.jpg"

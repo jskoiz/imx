@@ -5,6 +5,10 @@ fn next(seed: &mut u64) -> u8 {
     (*seed >> 24) as u8
 }
 
+#[path = "../../crates/cli/src/progressive_jpeg_fixtures.rs"]
+#[allow(dead_code)]
+mod progressive_jpeg_fixtures;
+
 #[test]
 fn decode_fuzz_smoke_does_not_panic_or_allocate_unboundedly() {
     let mut seed = 0x9e37_79b9_7f4a_7c15_u64;
@@ -99,5 +103,15 @@ fn structured_truncation_fuzz_smoke_does_not_panic() {
     for len in 0..jpeg.len() {
         let result = std::panic::catch_unwind(|| imx_codec_jpeg::decode(&jpeg[..len]));
         assert!(result.is_ok(), "JPEG truncation panicked at len {len}");
+    }
+
+    let progressive = progressive_jpeg_fixtures::progressive_rgb_jpeg();
+    assert!(progressive_jpeg_fixtures::is_progressive_jpeg(&progressive));
+    for len in 0..progressive.len() {
+        let result = std::panic::catch_unwind(|| imx_codec_jpeg::decode(&progressive[..len]));
+        assert!(
+            result.is_ok(),
+            "progressive JPEG truncation panicked at len {len}"
+        );
     }
 }

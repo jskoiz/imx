@@ -55,7 +55,9 @@ Git revision: \`$git_rev\`
   \`FARBFELD:\`, \`JPEG:\`, \`QOI:\`, \`PBM:\`, \`PGM:\`, \`PNG:\`, and \`PPM:\`
   operand prefixes and deterministic same-format rewrites when input and output
   paths differ. JPEG rewrites are deterministic lossy decode/re-encode
-  operations.
+  operations. Progressive 8-bit grayscale/RGB JPEG input is supported for
+  identify/decode/transcode; output remains deterministic baseline quality-90
+  JPEG.
 - Runtime dependency policy: no ImageMagick, MagickCore, MagickWand, delegates,
   modules, \`policy.xml\`, or ImageMagick build system linkage.
 
@@ -87,7 +89,8 @@ $archive_table
   FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM identify, prefixed identify, transcode,
   prefixed transcode, deterministic same-format rewrite paths, high-depth
   PPM/PNG identify/decode/transcode cases, JPEG RGB8 lossy metric cases, and
-  JPEG EXIF Orientation cases compared with ImageMagick \`-auto-orient\`.
+  JPEG EXIF Orientation cases compared with ImageMagick \`-auto-orient\`, and
+  progressive JPEG RGB/gray/orientation input cases.
 - Cargo-fuzz targets exercise FARBFELD, JPEG, QOI, PNG, and shared PNM
   identify/decode entrypoints with seeded corpora.
 - Benchmarks record library throughput, process timing, process RSS, and output
@@ -103,9 +106,9 @@ $archive_table
 - No APNG, indexed/palette PNG, low-bit PNG, PNG color management/profile
   preservation, TIFF, PAM, PFM, BMP, GIF, or WebP support in this conformance
   surface.
-- No progressive JPEG, CMYK/YCCK JPEG, 12-bit JPEG, arithmetic-coded JPEG,
-  lossless JPEG/JPEG-LS, JPEG 2000, JPEG XL, metadata/profile preservation
-  beyond read-only Orientation, or JPEG color-management semantics.
+- No CMYK/YCCK JPEG, 12-bit JPEG, arithmetic-coded JPEG, lossless
+  JPEG/JPEG-LS, JPEG 2000, JPEG XL, metadata/profile preservation beyond
+  read-only Orientation, or JPEG color-management semantics.
 EOF
 
 cat >"$out_dir/conformance-summary.json" <<EOF
@@ -114,6 +117,7 @@ cat >"$out_dir/conformance-summary.json" <<EOF
   "version": "$version",
   "formats": ["FARBFELD", "JPEG", "QOI", "PBM", "PGM", "PNG", "PPM"],
   "prefixes": ["FARBFELD:", "JPEG:", "QOI:", "PBM:", "PGM:", "PNG:", "PPM:"],
+  "jpeg_progressive": "8-bit grayscale/RGB progressive JPEG input is supported",
   "jpeg_orientation": "EXIF Orientation values 1 through 8 are normalized on JPEG input",
   "git_rev": "$git_rev",
   "generated_at": "$generated_at",

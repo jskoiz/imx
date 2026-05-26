@@ -20,6 +20,9 @@ cp "$generated_dir/gradient-64.png" "$corpus_root/png_decode/gradient-64.png"
 cp "$generated_dir/gradient-64-png16.png" "$corpus_root/png_decode/gradient-64-png16.png"
 cp "$generated_dir/gradient-64.jpg" "$corpus_root/jpeg_decode/gradient-64.jpg"
 cp "$generated_dir/gray-4x1.jpg" "$corpus_root/jpeg_decode/gray-4x1.jpg"
+cp "$generated_dir/progressive-rgb-4x3.jpg" "$corpus_root/jpeg_decode/progressive-rgb-4x3.jpg"
+cp "$generated_dir/progressive-gray-4x2.jpg" "$corpus_root/jpeg_decode/progressive-gray-4x2.jpg"
+cp "$generated_dir/progressive-orientation-o6.jpg" "$corpus_root/jpeg_decode/progressive-orientation-o6.jpg"
 for orientation in 1 2 3 4 5 6 7 8; do
   cp "$generated_dir/photo-orientation-o$orientation.jpg" "$corpus_root/jpeg_decode/photo-orientation-o$orientation.jpg"
 done

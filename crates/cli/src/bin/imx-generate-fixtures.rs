@@ -5,6 +5,9 @@ use std::process;
 
 use imx_core::{Image, PixelFormat};
 
+#[path = "../progressive_jpeg_fixtures.rs"]
+mod progressive_jpeg_fixtures;
+
 fn main() {
     let args = env::args().collect::<Vec<_>>();
     let output_dir = match args.as_slice() {
@@ -101,6 +104,15 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let orientation_6 = jpeg_with_exif_orientation(&photo_orientation_jpeg, 6)?;
     let orientation_7 = jpeg_with_exif_orientation(&photo_orientation_jpeg, 7)?;
     let orientation_8 = jpeg_with_exif_orientation(&photo_orientation_jpeg, 8)?;
+    let progressive_rgb_jpeg = progressive_jpeg_fixtures::progressive_rgb_jpeg();
+    let progressive_gray_jpeg = progressive_jpeg_fixtures::progressive_gray_jpeg();
+    assert!(progressive_jpeg_fixtures::is_progressive_jpeg(
+        &progressive_rgb_jpeg
+    ));
+    assert!(progressive_jpeg_fixtures::is_progressive_jpeg(
+        &progressive_gray_jpeg
+    ));
+    let progressive_orientation_6 = jpeg_with_exif_orientation(&progressive_rgb_jpeg, 6)?;
 
     let files = [
         ("gradient-64.ff", gradient_ff),
@@ -127,6 +139,9 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         ("qoi-rgba-2x2.qoi", qoi_rgba),
         ("qoi-rgb-2x2.qoi", qoi_rgb),
         ("gray-4x1.jpg", gray_jpeg),
+        ("progressive-rgb-4x3.jpg", progressive_rgb_jpeg),
+        ("progressive-gray-4x2.jpg", progressive_gray_jpeg),
+        ("progressive-orientation-o6.jpg", progressive_orientation_6),
         ("photo-orientation-o1.jpg", orientation_1),
         ("photo-orientation-o2.jpg", orientation_2),
         ("photo-orientation-o3.jpg", orientation_3),

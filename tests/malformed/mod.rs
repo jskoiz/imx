@@ -1,5 +1,9 @@
 use imx_core::{Image, ImageError, PixelFormat};
 
+#[path = "../../crates/cli/src/progressive_jpeg_fixtures.rs"]
+#[allow(dead_code)]
+mod progressive_jpeg_fixtures;
+
 fn qoi_header(width: u32, height: u32, channels: u8, colorspace: u8) -> Vec<u8> {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(imx_codec_qoi::MAGIC);
@@ -234,6 +238,15 @@ fn jpeg_rejects_malformed_and_unsupported_inputs() {
     for len in 0..jpeg.len() {
         let result = std::panic::catch_unwind(|| imx_codec_jpeg::decode(&jpeg[..len]));
         assert!(result.is_ok(), "JPEG truncation panicked at len {len}");
+    }
+    let progressive = progressive_jpeg_fixtures::progressive_rgb_jpeg();
+    assert!(progressive_jpeg_fixtures::is_progressive_jpeg(&progressive));
+    for len in 0..progressive.len() {
+        let result = std::panic::catch_unwind(|| imx_codec_jpeg::decode(&progressive[..len]));
+        assert!(
+            result.is_ok(),
+            "progressive JPEG truncation panicked at len {len}"
+        );
     }
 
     let mut cmyk = Vec::new();

@@ -1,5 +1,25 @@
 # IMX Release Notes
 
+## IMX v0.11.0 Progressive JPEG Input Slice
+
+- Adds bounded progressive JPEG input support for 8-bit grayscale and RGB JPEG
+  streams. Progressive input works with `.jpg`, `.jpeg`, and exact uppercase
+  `JPEG:` operands for identify and transcode.
+- Carries forward v0.10.0 read-only EXIF Orientation normalization for
+  progressive JPEG input; oriented progressive inputs report oriented
+  dimensions and transcode normalized pixels.
+- Keeps JPEG output bounded and deterministic: IMX still writes fixed quality
+  90 baseline JPEG and does not preserve progressive scan layout, metadata,
+  profiles, color management, or source bytes.
+- Extends generated fixtures, CLI tests, codec tests, malformed/truncation
+  coverage, fuzz seeds, differential corpus, install verification, package
+  smoke, release-archive smoke, conformance output, and Homebrew formula smoke
+  with progressive JPEG RGB/gray/orientation proof.
+- Keeps distribution boundaries unchanged: Linux x86_64 and Linux arm64 release
+  archives through Ubuntu-only hosted automation, tap-only Homebrew
+  distribution, no Homebrew/core, no crates.io, no Windows, and no hosted macOS
+  or iOS GitHub Actions.
+
 ## IMX v0.10.0 Real-Photo Reliability Slice
 
 - Adds bounded read-only JPEG EXIF Orientation handling. Orientation values 1

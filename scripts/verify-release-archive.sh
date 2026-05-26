@@ -161,6 +161,49 @@ run_archive_binary identify "$smoke_dir/output.jpg" >"$smoke_dir/identify-jpeg.t
 run_archive_binary identify "$smoke_dir/output16.ff" >"$smoke_dir/identify-farbfeld16.txt"
 run_archive_binary identify "QOI:$smoke_dir/output.qoi" >"$smoke_dir/identify-prefix-qoi.txt"
 run_archive_binary identify "JPEG:$smoke_dir/output.jpg" >"$smoke_dir/identify-prefix-jpeg.txt"
+python3 - "$smoke_dir/progressive-rgb.jpg" <<'PY'
+import sys
+
+hex_bytes = (
+    "ffd8ffe000104a46494600010100000100010000ffdb004300030202020202030202020303030304060404040404080606050609080a0a090809090a0c0f0c0a0b0e0b09090d110d0e0f101011100a0c12131210130f101010"
+    "ffdb00430103030304030408040408100b090b1010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010ffc20011080003000403011100021101031101"
+    "ffc40014000100000000000000000000000000000006ffc4001501010100000000000000000000000000000205ffda000c030100021003100000011d347fffc4001510010100000000000000000000000000000503"
+    "ffda000801010001050265140ca7ffc4001f1100020005050000000000000000000000010200030531411112131421ffda0008010301013f01a5d427f5f9491ba616763a0f59c96636c936b0c47f"
+    "ffc4001f1100020005050000000000000000000000010200041112210305142271ffda0008010201013f01e34b6e88af39a28c56e03a2e05ec683181524fa498ffc4001c1000030002030100000000000000000000010203041100058191"
+    "ffda0008010100063f02c75ebb36f8cb680a389d0a82db2bbf8aa3ce7fffc400161001010100000000000000000000000000011100ffda0008010100013f2111a3b847819763ffda000c030100020003000000103f"
+    "ffc4001811010100030000000000000000000000000111002131ffda0008010301013f104d4241dd88295313800033ffc4001811010100030000000000000000000000000121001131ffda0008010201013f106ca63d7160487003d0573f"
+    "ffc400161001010100000000000000000000000000011121ffda0008010100013f1066307afe986b00a05ad5ffd9"
+)
+open(sys.argv[1], "wb").write(bytes.fromhex(hex_bytes))
+PY
+run_archive_binary identify "JPEG:$smoke_dir/progressive-rgb.jpg" >"$smoke_dir/identify-progressive-jpeg.txt"
+grep -Fx 'format=JPEG width=4 height=3 channels=RGB depth=8' "$smoke_dir/identify-progressive-jpeg.txt"
+run_archive_binary "JPEG:$smoke_dir/progressive-rgb.jpg" "PPM:$smoke_dir/progressive-rgb.ppm"
+run_archive_binary identify "PPM:$smoke_dir/progressive-rgb.ppm" >"$smoke_dir/identify-progressive-ppm.txt"
+grep -Fx 'format=PPM width=4 height=3 channels=RGB depth=8' "$smoke_dir/identify-progressive-ppm.txt"
+python3 - "$smoke_dir/progressive-rgb.jpg" "$smoke_dir/progressive-o6.jpg" <<'PY'
+import sys
+
+source, output = sys.argv[1:3]
+jpeg = open(source, "rb").read()
+app1 = (
+    b"Exif\0\0MM\0*\0\0\0\x08"
+    + (1).to_bytes(2, "big")
+    + (0x0112).to_bytes(2, "big")
+    + (3).to_bytes(2, "big")
+    + (1).to_bytes(4, "big")
+    + (6).to_bytes(2, "big")
+    + b"\0\0"
+    + (0).to_bytes(4, "big")
+)
+segment = b"\xff\xe1" + (len(app1) + 2).to_bytes(2, "big") + app1
+open(output, "wb").write(jpeg[:2] + segment + jpeg[2:])
+PY
+run_archive_binary identify "JPEG:$smoke_dir/progressive-o6.jpg" >"$smoke_dir/identify-progressive-orientation-jpeg.txt"
+grep -Fx 'format=JPEG width=3 height=4 channels=RGB depth=8' "$smoke_dir/identify-progressive-orientation-jpeg.txt"
+run_archive_binary "JPEG:$smoke_dir/progressive-o6.jpg" "PPM:$smoke_dir/progressive-o6.ppm"
+run_archive_binary identify "PPM:$smoke_dir/progressive-o6.ppm" >"$smoke_dir/identify-progressive-orientation-ppm.txt"
+grep -Fx 'format=PPM width=3 height=4 channels=RGB depth=8' "$smoke_dir/identify-progressive-orientation-ppm.txt"
 printf 'P3\n2 1\n255\n255 0 0 0 0 255\n' >"$smoke_dir/orientation-source.ppm"
 run_archive_binary "$smoke_dir/orientation-source.ppm" "$smoke_dir/orientation-source.jpg"
 python3 - "$smoke_dir/orientation-source.jpg" "$smoke_dir/oriented-o6.jpg" <<'PY'

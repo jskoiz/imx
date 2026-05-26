@@ -159,6 +159,8 @@ printf 'P3\n2 1\n255\n255 0 0 0 0 255\n' >"$verify_dir/input.ppm"
 printf 'P6\n2 1\n65535\n\x12\x34\x56\x78\x9a\xbc\x00\x00\x80\x00\xff\xff' >"$verify_dir/input16.ppm"
 printf 'P2\n2 1\n255\n0 255\n' >"$verify_dir/input.pgm"
 printf 'P1\n2 1\n0 1\n' >"$verify_dir/input.pbm"
+fixture_dir="$verify_dir/fixtures"
+cargo run -p imx-cli --bin imx-generate-fixtures -- "$fixture_dir" >/dev/null
 run_packaged_binary identify "$verify_dir/input.ppm" >/dev/null
 run_packaged_binary identify "$verify_dir/input16.ppm" >/dev/null
 run_packaged_binary identify "$verify_dir/input.pgm" >/dev/null
@@ -200,6 +202,13 @@ PY
 run_packaged_binary identify "JPEG:$verify_dir/oriented-o6.jpg" | grep -Fx 'format=JPEG width=1 height=2 channels=RGB depth=8' >/dev/null
 run_packaged_binary "JPEG:$verify_dir/oriented-o6.jpg" "PPM:$verify_dir/oriented-o6.ppm"
 run_packaged_binary identify "PPM:$verify_dir/oriented-o6.ppm" | grep -Fx 'format=PPM width=1 height=2 channels=RGB depth=8' >/dev/null
+run_packaged_binary identify "JPEG:$fixture_dir/progressive-rgb-4x3.jpg" | grep -Fx 'format=JPEG width=4 height=3 channels=RGB depth=8' >/dev/null
+run_packaged_binary identify "JPEG:$fixture_dir/progressive-gray-4x2.jpg" | grep -Fx 'format=JPEG width=4 height=2 channels=GRAY depth=8' >/dev/null
+run_packaged_binary "JPEG:$fixture_dir/progressive-rgb-4x3.jpg" "PPM:$verify_dir/progressive-rgb.ppm"
+run_packaged_binary identify "PPM:$verify_dir/progressive-rgb.ppm" | grep -Fx 'format=PPM width=4 height=3 channels=RGB depth=8' >/dev/null
+run_packaged_binary identify "JPEG:$fixture_dir/progressive-orientation-o6.jpg" | grep -Fx 'format=JPEG width=3 height=4 channels=RGB depth=8' >/dev/null
+run_packaged_binary "JPEG:$fixture_dir/progressive-orientation-o6.jpg" "PPM:$verify_dir/progressive-oriented-o6.ppm"
+run_packaged_binary identify "PPM:$verify_dir/progressive-oriented-o6.ppm" | grep -Fx 'format=PPM width=3 height=4 channels=RGB depth=8' >/dev/null
 run_packaged_binary "JPEG:$verify_dir/output.jpg" "FARBFELD:$verify_dir/jpeg-output.ff"
 run_packaged_binary identify "FARBFELD:$verify_dir/jpeg-output.ff" >/dev/null
 run_packaged_binary "$verify_dir/output.ff" "$verify_dir/output.png"

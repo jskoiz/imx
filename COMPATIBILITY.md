@@ -79,22 +79,24 @@ JPEG:
   `ff d8 ff`.
 - `.jpg` and `.jpeg` extensions both map to JPEG. Extension matching is
   case-insensitive.
-- Decode and identify support are limited to 8-bit grayscale and RGB JPEG
-  streams. `identify` reports `channels=GRAY depth=8` or `channels=RGB depth=8`.
+- Decode and identify support are limited to 8-bit grayscale and RGB baseline
+  or progressive JPEG streams. `identify` reports `channels=GRAY depth=8` or
+  `channels=RGB depth=8`.
 - EXIF Orientation values 1 through 8 are read before decode. IMX normalizes
   decoded pixels to that orientation, and `identify` reports the oriented
   dimensions.
-- Encode support writes deterministic 8-bit JPEG with fixed quality 90.
+- Encode support writes deterministic 8-bit baseline JPEG with fixed quality
+  90.
 - JPEG output rejects non-opaque alpha input instead of silently compositing or
   dropping alpha.
 - Same-format JPEG rewrites are lossy decode/re-encode operations and do not
-  preserve source bytes, quality, quantization/Huffman tables, chroma
-  subsampling, comments, EXIF, ICC, XMP, density, thumbnails, timestamps, or
-  other metadata.
-- IMX rejects CMYK/YCCK JPEG and 16-bit JPEG. Progressive, arithmetic-coded,
-  lossless JPEG/JPEG-LS, JPEG 2000, JPEG XL, metadata preservation beyond
-  read-only Orientation, profile interpretation, and color-management semantics
-  are outside this compatibility slice.
+  preserve source bytes, progressive scan layout, quality,
+  quantization/Huffman tables, chroma subsampling, comments, EXIF, ICC, XMP,
+  density, thumbnails, timestamps, or other metadata.
+- IMX rejects CMYK/YCCK JPEG and 16-bit JPEG. Arithmetic-coded, lossless
+  JPEG/JPEG-LS, JPEG 2000, JPEG XL, progressive output, metadata preservation
+  beyond read-only Orientation, profile interpretation, and color-management
+  semantics are outside this compatibility slice.
 
 PBM:
 
@@ -315,13 +317,13 @@ clamp.
   MagickCore API, or MagickWand API.
 - No APNG, indexed/palette PNG, low-bit PNG, PNG metadata/profile preservation,
   or PNG color-management/profile semantics.
-- No progressive JPEG, CMYK/YCCK JPEG, 12-bit JPEG, arithmetic-coded JPEG,
-  lossless JPEG/JPEG-LS, JPEG 2000, JPEG XL, JPEG metadata/profile
-  preservation beyond read-only Orientation, or JPEG color-management
-  semantics.
+- No CMYK/YCCK JPEG, 12-bit JPEG, arithmetic-coded JPEG, lossless
+  JPEG/JPEG-LS, JPEG 2000, JPEG XL, progressive JPEG output, JPEG
+  metadata/profile preservation beyond read-only Orientation, or JPEG
+  color-management semantics.
 - No format beyond FARBFELD, JPEG, QOI, PBM, PGM, PNG, and PPM.
 - No Windows, crates.io, Homebrew/core, or package-manager distribution beyond
-  the `jskoiz/imx` Homebrew tap is claimed for this slice. v0.10.0 Linux x86_64
+  the `jskoiz/imx` Homebrew tap is claimed for this slice. v0.11.0 Linux x86_64
   and Linux arm64 archives require glibc 2.34 or newer; Linux arm64 support is
   claimed only for the published archive and tap block verified from release
   `SHA256SUMS` by Linux-only tap smoke.

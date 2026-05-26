@@ -189,6 +189,7 @@ failures=0
 passes=0
 jpeg_metric_cases=0
 jpeg_orientation_cases=0
+jpeg_progressive_cases=0
 
 run_identify_case() {
   local fmt="$1"
@@ -340,6 +341,69 @@ run_jpeg_orientation_case() {
     jpeg_orientation_cases=$((jpeg_orientation_cases + 1))
   else
     record "$case_id.transcode" failed "IMX JPEG orientation output exceeds ImageMagick -auto-orient tolerance"
+    failures=$((failures + 1))
+  fi
+}
+
+run_jpeg_progressive_case() {
+  local name="$1"
+  local input="$2"
+  local expected_dimensions="$3"
+  local auto_orient="${4:-0}"
+  local case_id imx_identify imx_output oracle_output imx_raw oracle_raw
+  local -a oracle_args
+  case_id="jpeg-progressive.$name"
+  imx_identify="$out_dir/$case_id.identify.imx.txt"
+  imx_output="$out_dir/$case_id.imx.ppm"
+  oracle_output="$out_dir/$case_id.oracle.ppm"
+  imx_raw="$out_dir/$case_id.imx.rgb"
+  oracle_raw="$out_dir/$case_id.oracle.rgb"
+
+  if "$imx" identify "JPEG:$input" >"$imx_identify" 2>"$out_dir/$case_id.identify.imx.stderr" &&
+    grep -q "format=JPEG $expected_dimensions" "$imx_identify"; then
+    record "$case_id.identify" passed "IMX reported progressive JPEG dimensions"
+    passes=$((passes + 1))
+  else
+    record "$case_id.identify" failed "IMX did not report progressive JPEG dimensions"
+    failures=$((failures + 1))
+    return
+  fi
+
+  if ! "$imx" "JPEG:$input" "PPM:$imx_output" >"$out_dir/$case_id.imx.stdout" 2>"$out_dir/$case_id.imx.stderr"; then
+    record "$case_id.transcode" failed "IMX progressive JPEG transcode failed"
+    failures=$((failures + 1))
+    return
+  fi
+
+  oracle_args=("JPEG:$input")
+  if [[ "$auto_orient" == 1 ]]; then
+    oracle_args+=("-auto-orient")
+  fi
+  oracle_args+=("PPM:$oracle_output")
+  if ! "$oracle" "${oracle_args[@]}" >"$out_dir/$case_id.oracle.stdout" 2>"$out_dir/$case_id.oracle.stderr"; then
+    record "$case_id.transcode" failed "ImageMagick progressive JPEG transcode failed"
+    failures=$((failures + 1))
+    return
+  fi
+
+  if ! "$oracle" "PPM:$imx_output" -depth 8 "RGB:$imx_raw" >"$out_dir/$case_id.imx-decode.stdout" 2>"$out_dir/$case_id.imx-decode.stderr"; then
+    record "$case_id.transcode" failed "ImageMagick could not decode IMX progressive output"
+    failures=$((failures + 1))
+    return
+  fi
+  if ! "$oracle" "PPM:$oracle_output" -depth 8 "RGB:$oracle_raw" >"$out_dir/$case_id.oracle-decode.stdout" 2>"$out_dir/$case_id.oracle-decode.stderr"; then
+    record "$case_id.transcode" failed "ImageMagick could not decode oracle progressive output"
+    failures=$((failures + 1))
+    return
+  fi
+
+  if record_jpeg_metrics "$case_id.transcode" "$imx_raw" "$oracle_raw" >"$out_dir/$case_id.metrics.stdout" 2>"$out_dir/$case_id.metrics.stderr"; then
+    record "$case_id.transcode" passed "IMX progressive JPEG output is within ImageMagick tolerance"
+    passes=$((passes + 1))
+    jpeg_metric_cases=$((jpeg_metric_cases + 1))
+    jpeg_progressive_cases=$((jpeg_progressive_cases + 1))
+  else
+    record "$case_id.transcode" failed "IMX progressive JPEG output exceeds ImageMagick tolerance"
     failures=$((failures + 1))
   fi
 }
@@ -529,6 +593,9 @@ run_png16_identify_case prefixed
 for orientation in 1 2 3 4 5 6 7 8; do
   run_jpeg_orientation_case "$orientation"
 done
+run_jpeg_progressive_case rgb "$fixture_dir/progressive-rgb-4x3.jpg" "width=4 height=3 channels=RGB depth=8"
+run_jpeg_progressive_case gray "$fixture_dir/progressive-gray-4x2.jpg" "width=4 height=2 channels=GRAY depth=8"
+run_jpeg_progressive_case orientation-o6 "$fixture_dir/progressive-orientation-o6.jpg" "width=3 height=4 channels=RGB depth=8" 1
 
 for src in "${formats[@]}"; do
   for dst in "${formats[@]}"; do
@@ -558,10 +625,11 @@ cat >"$summary" <<EOF
   "fixture_manifest": "fixtures/manifest.json",
   "results": "results.jsonl",
   "jpeg_metrics": "jpeg-metrics.jsonl",
-  "identify_cases": 18,
-  "transcode_cases": 60,
+  "identify_cases": 21,
+  "transcode_cases": 63,
   "jpeg_metric_cases": $jpeg_metric_cases,
   "jpeg_orientation_cases": $jpeg_orientation_cases,
+  "jpeg_progressive_cases": $jpeg_progressive_cases,
   "passes": $passes,
   "failures": $failures
 }

@@ -1358,6 +1358,101 @@ fn standalone_jpeg_decode_matches_imagemagick_with_tolerance() {
 }
 
 #[test]
+fn standalone_progressive_jpeg_decode_matches_imagemagick_with_tolerance() {
+    let Some(magick) = require_or_skip(magick_command(), "ImageMagick oracle") else {
+        return;
+    };
+    let Some(standalone) = require_or_skip(standalone_imx_command(), "standalone imx binary")
+    else {
+        return;
+    };
+    let dir = temp_dir("progressive_jpeg_decode");
+    let source_ppm = dir.join("source.ppm");
+    let source_pgm = dir.join("source.pgm");
+    let rgb_jpeg = dir.join("rgb-progressive.jpg");
+    let gray_jpeg = dir.join("gray-progressive.jpg");
+    fs::write(
+        &source_ppm,
+        imx_codec_pnm::encode_ppm(&rgb8_gradient(17, 19)).unwrap(),
+    )
+    .unwrap();
+    fs::write(&source_pgm, b"P2\n4 2\n255\n0 36 72 108\n144 180 216 255\n").unwrap();
+
+    for (source, jpeg, label) in [
+        (&source_ppm, &rgb_jpeg, "progressive RGB JPEG"),
+        (&source_pgm, &gray_jpeg, "progressive gray JPEG"),
+    ] {
+        let encode = run_magick(
+            &magick,
+            &[
+                source.display().to_string(),
+                "-quality".to_string(),
+                "90".to_string(),
+                "-sampling-factor".to_string(),
+                "4:4:4".to_string(),
+                "-interlace".to_string(),
+                "JPEG".to_string(),
+                "-strip".to_string(),
+                format!("JPEG:{}", jpeg.display()),
+            ],
+        );
+        if !assert_success_or_skip(&encode, label) {
+            return;
+        }
+
+        let imx_ppm = dir.join(format!("{label}.imx.ppm").replace(' ', "-"));
+        let imx_rgb = dir.join(format!("{label}.imx.rgb").replace(' ', "-"));
+        let oracle_rgb = dir.join(format!("{label}.oracle.rgb").replace(' ', "-"));
+        let transcode = run_magick(
+            &standalone,
+            &[
+                format!("JPEG:{}", jpeg.display()),
+                format!("PPM:{}", imx_ppm.display()),
+            ],
+        );
+        assert!(
+            transcode.status.success(),
+            "standalone {label}->PPM failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&transcode.stdout),
+            String::from_utf8_lossy(&transcode.stderr)
+        );
+
+        let imx_decode = run_magick(
+            &magick,
+            &[
+                format!("PPM:{}", imx_ppm.display()),
+                "-depth".to_string(),
+                "8".to_string(),
+                format!("RGB:{}", imx_rgb.display()),
+            ],
+        );
+        let oracle_decode = run_magick(
+            &magick,
+            &[
+                format!("JPEG:{}", jpeg.display()),
+                "-depth".to_string(),
+                "8".to_string(),
+                format!("RGB:{}", oracle_rgb.display()),
+            ],
+        );
+        if !assert_success_or_skip(
+            &imx_decode,
+            "ImageMagick decode IMX progressive JPEG output",
+        ) || !assert_success_or_skip(
+            &oracle_decode,
+            "ImageMagick decode oracle progressive JPEG",
+        ) {
+            return;
+        }
+        assert_jpeg_decode_tolerance(
+            &fs::read(imx_rgb).unwrap(),
+            &fs::read(oracle_rgb).unwrap(),
+            label,
+        );
+    }
+}
+
+#[test]
 fn standalone_jpeg_encode_is_within_oracle_tolerance() {
     let Some(magick) = require_or_skip(magick_command(), "ImageMagick oracle") else {
         return;
