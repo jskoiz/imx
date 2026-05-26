@@ -84,6 +84,23 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         PixelFormat::Gray8,
         vec![0, 85, 170, 255],
     )?)?;
+    let photo_orientation = Image::new(
+        3,
+        2,
+        PixelFormat::Rgb8,
+        vec![
+            32, 64, 96, 96, 128, 160, 160, 192, 224, 224, 192, 160, 160, 128, 96, 96, 64, 32,
+        ],
+    )?;
+    let photo_orientation_jpeg = imx_codec_jpeg::encode(&photo_orientation)?;
+    let orientation_1 = jpeg_with_exif_orientation(&photo_orientation_jpeg, 1)?;
+    let orientation_2 = jpeg_with_exif_orientation(&photo_orientation_jpeg, 2)?;
+    let orientation_3 = jpeg_with_exif_orientation(&photo_orientation_jpeg, 3)?;
+    let orientation_4 = jpeg_with_exif_orientation(&photo_orientation_jpeg, 4)?;
+    let orientation_5 = jpeg_with_exif_orientation(&photo_orientation_jpeg, 5)?;
+    let orientation_6 = jpeg_with_exif_orientation(&photo_orientation_jpeg, 6)?;
+    let orientation_7 = jpeg_with_exif_orientation(&photo_orientation_jpeg, 7)?;
+    let orientation_8 = jpeg_with_exif_orientation(&photo_orientation_jpeg, 8)?;
 
     let files = [
         ("gradient-64.ff", gradient_ff),
@@ -110,6 +127,14 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         ("qoi-rgba-2x2.qoi", qoi_rgba),
         ("qoi-rgb-2x2.qoi", qoi_rgb),
         ("gray-4x1.jpg", gray_jpeg),
+        ("photo-orientation-o1.jpg", orientation_1),
+        ("photo-orientation-o2.jpg", orientation_2),
+        ("photo-orientation-o3.jpg", orientation_3),
+        ("photo-orientation-o4.jpg", orientation_4),
+        ("photo-orientation-o5.jpg", orientation_5),
+        ("photo-orientation-o6.jpg", orientation_6),
+        ("photo-orientation-o7.jpg", orientation_7),
+        ("photo-orientation-o8.jpg", orientation_8),
     ];
 
     let mut manifest = String::from("# IMX generated fixtures\n");
@@ -154,6 +179,29 @@ fn gradient_rgba16be(width: u32, height: u32) -> Result<Image, imx_core::ImageEr
         }
     }
     Image::new(width, height, PixelFormat::Rgba16Be, pixels)
+}
+
+fn jpeg_with_exif_orientation(
+    jpeg: &[u8],
+    orientation: u16,
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let mut app1 = Vec::from(b"Exif\0\0MM\0*\0\0\0\x08".as_slice());
+    app1.extend_from_slice(&1_u16.to_be_bytes());
+    app1.extend_from_slice(&0x0112_u16.to_be_bytes());
+    app1.extend_from_slice(&3_u16.to_be_bytes());
+    app1.extend_from_slice(&1_u32.to_be_bytes());
+    app1.extend_from_slice(&orientation.to_be_bytes());
+    app1.extend_from_slice(&[0, 0]);
+    app1.extend_from_slice(&0_u32.to_be_bytes());
+
+    let segment_len = u16::try_from(app1.len() + 2)?;
+    let mut out = Vec::new();
+    out.extend_from_slice(&jpeg[..2]);
+    out.extend_from_slice(&[0xff, 0xe1]);
+    out.extend_from_slice(&segment_len.to_be_bytes());
+    out.extend_from_slice(&app1);
+    out.extend_from_slice(&jpeg[2..]);
+    Ok(out)
 }
 
 fn fnv64(bytes: &[u8]) -> u64 {

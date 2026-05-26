@@ -1,5 +1,23 @@
 # IMX Release Notes
 
+## IMX v0.10.0 Real-Photo Reliability Slice
+
+- Adds bounded read-only JPEG EXIF Orientation handling. Orientation values 1
+  through 8 normalize decoded pixels, and `identify` reports the oriented
+  dimensions.
+- Keeps metadata behavior narrow: EXIF is not preserved, written, or otherwise
+  interpreted beyond Orientation; ICC, XMP, density, thumbnails, timestamps,
+  GPS, and camera metadata remain unsupported.
+- Extends generated fixtures with deterministic JPEG Orientation 1-8 cases and
+  extends the differential corpus with ImageMagick `-auto-orient` oracle
+  evidence plus JPEG lossy metric rows.
+- Adds focused codec, CLI, malformed, install, package, release-archive, and
+  Homebrew formula smoke coverage for oriented JPEG input.
+- Keeps distribution boundaries unchanged: Linux x86_64 and Linux arm64 release
+  archives through Ubuntu-only hosted automation, tap-only Homebrew
+  distribution, no Homebrew/core, no crates.io, no Windows, and no hosted macOS
+  or iOS GitHub Actions.
+
 ## IMX v0.9.0 JPEG Usability Slice
 
 - Adds bounded Rust-native JPEG support for `.jpg` and `.jpeg` files plus exact

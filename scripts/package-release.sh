@@ -179,6 +179,27 @@ run_packaged_binary identify "QOI:$verify_dir/output.qoi" >/dev/null
 run_packaged_binary "$verify_dir/input.ppm" "$verify_dir/output.jpg"
 run_packaged_binary identify "$verify_dir/output.jpg" >/dev/null
 run_packaged_binary identify "JPEG:$verify_dir/output.jpg" >/dev/null
+python3 - "$verify_dir/output.jpg" "$verify_dir/oriented-o6.jpg" <<'PY'
+import sys
+
+source, output = sys.argv[1:3]
+jpeg = open(source, "rb").read()
+app1 = (
+    b"Exif\0\0MM\0*\0\0\0\x08"
+    + (1).to_bytes(2, "big")
+    + (0x0112).to_bytes(2, "big")
+    + (3).to_bytes(2, "big")
+    + (1).to_bytes(4, "big")
+    + (6).to_bytes(2, "big")
+    + b"\0\0"
+    + (0).to_bytes(4, "big")
+)
+segment = b"\xff\xe1" + (len(app1) + 2).to_bytes(2, "big") + app1
+open(output, "wb").write(jpeg[:2] + segment + jpeg[2:])
+PY
+run_packaged_binary identify "JPEG:$verify_dir/oriented-o6.jpg" | grep -Fx 'format=JPEG width=1 height=2 channels=RGB depth=8' >/dev/null
+run_packaged_binary "JPEG:$verify_dir/oriented-o6.jpg" "PPM:$verify_dir/oriented-o6.ppm"
+run_packaged_binary identify "PPM:$verify_dir/oriented-o6.ppm" | grep -Fx 'format=PPM width=1 height=2 channels=RGB depth=8' >/dev/null
 run_packaged_binary "JPEG:$verify_dir/output.jpg" "FARBFELD:$verify_dir/jpeg-output.ff"
 run_packaged_binary identify "FARBFELD:$verify_dir/jpeg-output.ff" >/dev/null
 run_packaged_binary "$verify_dir/output.ff" "$verify_dir/output.png"

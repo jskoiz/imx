@@ -23,6 +23,7 @@ git clone "$repo_url" "$checkout" >/dev/null
   "$install_root/bin/imx" identify "$fixture_dir/gradient-64.ff"
   "$install_root/bin/imx" identify "$fixture_dir/gradient-64.jpg"
   "$install_root/bin/imx" identify "$fixture_dir/gray-4x1.jpg"
+  "$install_root/bin/imx" identify "$fixture_dir/photo-orientation-o6.jpg" | grep -Fx 'format=JPEG width=2 height=3 channels=RGB depth=8'
   "$install_root/bin/imx" identify "$fixture_dir/gradient-64.qoi"
   "$install_root/bin/imx" identify "$fixture_dir/gradient-64.pbm"
   "$install_root/bin/imx" identify "$fixture_dir/gradient-64.png"
@@ -33,6 +34,7 @@ git clone "$repo_url" "$checkout" >/dev/null
   "$install_root/bin/imx" identify "FARBFELD:$fixture_dir/gradient-64.ff"
   "$install_root/bin/imx" identify "JPEG:$fixture_dir/gradient-64.jpg"
   "$install_root/bin/imx" identify "JPEG:$fixture_dir/gray-4x1.jpg"
+  "$install_root/bin/imx" identify "JPEG:$fixture_dir/photo-orientation-o6.jpg" | grep -Fx 'format=JPEG width=2 height=3 channels=RGB depth=8'
   "$install_root/bin/imx" identify "QOI:$fixture_dir/gradient-64.qoi"
   "$install_root/bin/imx" identify "PBM:$fixture_dir/gradient-64.pbm"
   "$install_root/bin/imx" identify "PNG:$fixture_dir/gradient-64.png"
@@ -43,6 +45,8 @@ git clone "$repo_url" "$checkout" >/dev/null
   "$install_root/bin/imx" "$fixture_dir/gradient-64.ff" "$work_dir/gradient.qoi"
   "$install_root/bin/imx" "FARBFELD:$fixture_dir/gradient-64.ff" "QOI:$work_dir/prefix-gradient.qoi"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.jpg" "$work_dir/jpeg-gradient.ff"
+  "$install_root/bin/imx" "JPEG:$fixture_dir/photo-orientation-o6.jpg" "PPM:$work_dir/oriented-o6.ppm"
+  "$install_root/bin/imx" identify "PPM:$work_dir/oriented-o6.ppm" | grep -Fx 'format=PPM width=2 height=3 channels=RGB depth=8'
   "$install_root/bin/imx" "$fixture_dir/gradient-64.ppm" "$work_dir/gradient.jpg"
   "$install_root/bin/imx" "JPEG:$fixture_dir/gradient-64.jpg" "FARBFELD:$work_dir/prefix-jpeg-gradient.ff"
   "$install_root/bin/imx" "PPM:$fixture_dir/gradient-64.ppm" "JPEG:$work_dir/prefix-gradient.jpg"

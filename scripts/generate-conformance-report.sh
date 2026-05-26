@@ -81,11 +81,13 @@ $archive_table
 - Golden fixtures cover representative FARBFELD, JPEG, QOI, PBM, PGM, PNG, and
   PPM bytes.
 - Malformed-input tests cover invalid headers, truncation, oversized dimensions,
-  unsupported max values, and failed CLI output behavior.
+  unsupported max values, malformed EXIF Orientation metadata, and failed CLI
+  output behavior.
 - ImageMagick differential tests cover decoded-pixel compatibility for
   FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM identify, prefixed identify, transcode,
   prefixed transcode, deterministic same-format rewrite paths, high-depth
-  PPM/PNG identify/decode/transcode cases, and JPEG RGB8 lossy metric cases.
+  PPM/PNG identify/decode/transcode cases, JPEG RGB8 lossy metric cases, and
+  JPEG EXIF Orientation cases compared with ImageMagick \`-auto-orient\`.
 - Cargo-fuzz targets exercise FARBFELD, JPEG, QOI, PNG, and shared PNM
   identify/decode entrypoints with seeded corpora.
 - Benchmarks record library throughput, process timing, process RSS, and output
@@ -102,8 +104,8 @@ $archive_table
   preservation, TIFF, PAM, PFM, BMP, GIF, or WebP support in this conformance
   surface.
 - No progressive JPEG, CMYK/YCCK JPEG, 12-bit JPEG, arithmetic-coded JPEG,
-  lossless JPEG/JPEG-LS, JPEG 2000, JPEG XL, metadata/profile/orientation
-  preservation, or JPEG color-management semantics.
+  lossless JPEG/JPEG-LS, JPEG 2000, JPEG XL, metadata/profile preservation
+  beyond read-only Orientation, or JPEG color-management semantics.
 EOF
 
 cat >"$out_dir/conformance-summary.json" <<EOF
@@ -112,6 +114,7 @@ cat >"$out_dir/conformance-summary.json" <<EOF
   "version": "$version",
   "formats": ["FARBFELD", "JPEG", "QOI", "PBM", "PGM", "PNG", "PPM"],
   "prefixes": ["FARBFELD:", "JPEG:", "QOI:", "PBM:", "PGM:", "PNG:", "PPM:"],
+  "jpeg_orientation": "EXIF Orientation values 1 through 8 are normalized on JPEG input",
   "git_rev": "$git_rev",
   "generated_at": "$generated_at",
   "differential_summary": "${differential_summary:-}",

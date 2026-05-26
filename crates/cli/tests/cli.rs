@@ -44,6 +44,29 @@ fn png_fixture(
         .unwrap();
 }
 
+fn jpeg_with_exif_app1(jpeg: &[u8], app1_data: &[u8]) -> Vec<u8> {
+    let segment_len = u16::try_from(app1_data.len() + 2).unwrap();
+    let mut out = Vec::new();
+    out.extend_from_slice(&jpeg[..2]);
+    out.extend_from_slice(&[0xff, 0xe1]);
+    out.extend_from_slice(&segment_len.to_be_bytes());
+    out.extend_from_slice(app1_data);
+    out.extend_from_slice(&jpeg[2..]);
+    out
+}
+
+fn jpeg_with_exif_orientation(jpeg: &[u8], orientation: u16) -> Vec<u8> {
+    let mut app1 = Vec::from(b"Exif\0\0MM\0*\0\0\0\x08".as_slice());
+    app1.extend_from_slice(&1_u16.to_be_bytes());
+    app1.extend_from_slice(&0x0112_u16.to_be_bytes());
+    app1.extend_from_slice(&3_u16.to_be_bytes());
+    app1.extend_from_slice(&1_u32.to_be_bytes());
+    app1.extend_from_slice(&orientation.to_be_bytes());
+    app1.extend_from_slice(&[0, 0]);
+    app1.extend_from_slice(&0_u32.to_be_bytes());
+    jpeg_with_exif_app1(jpeg, &app1)
+}
+
 fn write_supported_fixtures(dir: &Path) -> Vec<(&'static str, PathBuf, &'static str)> {
     let ff = dir.join("input.ff");
     let jpeg = dir.join("input.jpg");
@@ -348,6 +371,48 @@ fn detects_jpeg_by_magic_before_extension_fallback() {
     assert_eq!(
         String::from_utf8(output.stdout).unwrap().trim(),
         "format=JPEG width=2 height=1 channels=RGB depth=8"
+    );
+}
+
+#[test]
+fn jpeg_exif_orientation_affects_identify_and_transcode_dimensions() {
+    let dir = temp_dir("jpeg_exif_orientation");
+    let input = dir.join("input.jpg");
+    let output_ppm = dir.join("oriented.ppm");
+    let image = Image::new(3, 2, PixelFormat::Rgb8, vec![0x80; 3 * 2 * 3]).unwrap();
+    let jpeg = imx_codec_jpeg::encode(&image).unwrap();
+    fs::write(&input, jpeg_with_exif_orientation(&jpeg, 6)).unwrap();
+
+    let input_arg = prefixed("JPEG", &input);
+    let identify = Command::new(imx())
+        .args(["identify", input_arg.as_str()])
+        .output()
+        .unwrap();
+    assert!(
+        identify.status.success(),
+        "JPEG EXIF identify failed with stderr={}",
+        String::from_utf8_lossy(&identify.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(identify.stdout).unwrap().trim(),
+        "format=JPEG width=2 height=3 channels=RGB depth=8"
+    );
+
+    let output_arg = prefixed("PPM", &output_ppm);
+    let transcode = Command::new(imx())
+        .args([input_arg.as_str(), output_arg.as_str()])
+        .output()
+        .unwrap();
+    assert!(
+        transcode.status.success(),
+        "JPEG EXIF transcode failed with stderr={}",
+        String::from_utf8_lossy(&transcode.stderr)
+    );
+    assert_eq!(
+        imx_codec_pnm::identify_ppm(&fs::read(output_ppm).unwrap())
+            .unwrap()
+            .stable_line(),
+        "format=PPM width=2 height=3 channels=RGB depth=8"
     );
 }
 
@@ -992,6 +1057,29 @@ fn malformed_jpeg_input_exits_nonzero_with_error_prefix() {
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).starts_with("error: "));
     assert!(String::from_utf8_lossy(&output.stderr).contains("JPEG identify failed"));
+}
+
+#[test]
+fn malformed_jpeg_exif_orientation_exits_nonzero_with_clear_error() {
+    let dir = temp_dir("malformed_jpeg_exif");
+    let input = dir.join("bad-exif.jpg");
+    let image = Image::new(2, 2, PixelFormat::Rgb8, vec![0x80; 2 * 2 * 3]).unwrap();
+    let jpeg = imx_codec_jpeg::encode(&image).unwrap();
+    fs::write(
+        &input,
+        jpeg_with_exif_app1(&jpeg, b"Exif\0\0ZZ\0*\0\0\0\x08"),
+    )
+    .unwrap();
+
+    let input_arg = prefixed("JPEG", &input);
+    let output = Command::new(imx())
+        .args(["identify", input_arg.as_str()])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).starts_with("error: "));
+    assert!(String::from_utf8_lossy(&output.stderr)
+        .contains("JPEG EXIF Orientation metadata is malformed"));
 }
 
 #[test]

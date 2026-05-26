@@ -1,6 +1,9 @@
 use std::io::Cursor;
 
-use imx_core::{pixel_count, Format, Identify, Image, ImageError, PixelFormat, MAX_PIXEL_BYTES};
+use imx_core::{
+    pixel_count, pixel_len, try_vec_with_capacity, Format, Identify, Image, ImageError,
+    PixelFormat, MAX_PIXEL_BYTES,
+};
 use jpeg_decoder::{Decoder, PixelFormat as JpegPixelFormat};
 use jpeg_encoder::{ColorType, Encoder, EncodingError};
 
@@ -9,8 +12,10 @@ pub const DEFAULT_QUALITY: u8 = 90;
 pub const MAX_JPEG_DECODE_BYTES: usize = MAX_PIXEL_BYTES / 4;
 
 pub fn identify(input: &[u8]) -> Result<Identify, ImageError> {
+    let orientation = exif_orientation(input)?;
     let mut decoder = decoder(input)?;
     let (width, height, pixel_format) = checked_info(&mut decoder, "identify")?;
+    let (width, height) = orientation.dimensions(width, height);
     Ok(Identify {
         format: Format::Jpeg,
         width,
@@ -20,12 +25,14 @@ pub fn identify(input: &[u8]) -> Result<Identify, ImageError> {
 }
 
 pub fn decode(input: &[u8]) -> Result<Image, ImageError> {
+    let orientation = exif_orientation(input)?;
     let mut decoder = decoder(input)?;
     let (width, height, pixel_format) = checked_info(&mut decoder, "decode")?;
     let pixels = decoder
         .decode()
         .map_err(|err| jpeg_decode_error("decode", err))?;
-    Image::new(width, height, pixel_format, pixels)
+    let image = Image::new(width, height, pixel_format, pixels)?;
+    orient_image(image, orientation)
 }
 
 pub fn encode(image: &Image) -> Result<Vec<u8>, ImageError> {
@@ -103,6 +110,222 @@ fn supported_pixel_format(pixel_format: JpegPixelFormat) -> Result<PixelFormat, 
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Orientation {
+    Normal,
+    MirrorHorizontal,
+    Rotate180,
+    MirrorVertical,
+    Transpose,
+    Rotate90,
+    Transverse,
+    Rotate270,
+}
+
+impl Orientation {
+    fn from_exif(value: u16) -> Result<Self, ImageError> {
+        match value {
+            1 => Ok(Self::Normal),
+            2 => Ok(Self::MirrorHorizontal),
+            3 => Ok(Self::Rotate180),
+            4 => Ok(Self::MirrorVertical),
+            5 => Ok(Self::Transpose),
+            6 => Ok(Self::Rotate90),
+            7 => Ok(Self::Transverse),
+            8 => Ok(Self::Rotate270),
+            _ => Err(ImageError::UnsupportedFormat(format!(
+                "JPEG EXIF Orientation value {value} is not supported"
+            ))),
+        }
+    }
+
+    fn dimensions(self, width: u32, height: u32) -> (u32, u32) {
+        match self {
+            Self::Transpose | Self::Rotate90 | Self::Transverse | Self::Rotate270 => {
+                (height, width)
+            }
+            Self::Normal | Self::MirrorHorizontal | Self::Rotate180 | Self::MirrorVertical => {
+                (width, height)
+            }
+        }
+    }
+
+    fn target(self, x: usize, y: usize, width: usize, height: usize) -> (usize, usize) {
+        match self {
+            Self::Normal => (x, y),
+            Self::MirrorHorizontal => (width - 1 - x, y),
+            Self::Rotate180 => (width - 1 - x, height - 1 - y),
+            Self::MirrorVertical => (x, height - 1 - y),
+            Self::Transpose => (y, x),
+            Self::Rotate90 => (height - 1 - y, x),
+            Self::Transverse => (height - 1 - y, width - 1 - x),
+            Self::Rotate270 => (y, width - 1 - x),
+        }
+    }
+}
+
+fn orient_image(image: Image, orientation: Orientation) -> Result<Image, ImageError> {
+    if orientation == Orientation::Normal {
+        return Ok(image);
+    }
+
+    let width = usize::try_from(image.width()).map_err(|_| ImageError::LengthOverflow)?;
+    let height = usize::try_from(image.height()).map_err(|_| ImageError::LengthOverflow)?;
+    let bpp = image.pixel_format().bytes_per_pixel();
+    let (out_width, out_height) = orientation.dimensions(image.width(), image.height());
+    let out_width_usize = usize::try_from(out_width).map_err(|_| ImageError::LengthOverflow)?;
+    let out_len = pixel_len(out_width, out_height, bpp)?;
+    let mut out = try_vec_with_capacity(out_len)?;
+    out.resize(out_len, 0);
+
+    for y in 0..height {
+        for x in 0..width {
+            let source = (y * width + x) * bpp;
+            let (out_x, out_y) = orientation.target(x, y, width, height);
+            let target = (out_y * out_width_usize + out_x) * bpp;
+            out[target..target + bpp].copy_from_slice(&image.pixels()[source..source + bpp]);
+        }
+    }
+
+    Image::new(out_width, out_height, image.pixel_format(), out)
+}
+
+fn exif_orientation(input: &[u8]) -> Result<Orientation, ImageError> {
+    if input.len() < 2 || &input[..2] != b"\xff\xd8" {
+        return Ok(Orientation::Normal);
+    }
+
+    let mut offset = 2;
+    while offset < input.len() {
+        if input[offset] != 0xff {
+            break;
+        }
+        while offset < input.len() && input[offset] == 0xff {
+            offset += 1;
+        }
+        if offset >= input.len() {
+            break;
+        }
+        let marker = input[offset];
+        offset += 1;
+
+        if marker == 0xda || marker == 0xd9 {
+            break;
+        }
+        if marker == 0x01 || (0xd0..=0xd7).contains(&marker) {
+            continue;
+        }
+        if offset + 2 > input.len() {
+            break;
+        }
+
+        let length = usize::from(u16::from_be_bytes([input[offset], input[offset + 1]]));
+        if length < 2 {
+            break;
+        }
+        let data_start = offset + 2;
+        let data_end = data_start
+            .checked_add(length - 2)
+            .ok_or(ImageError::LengthOverflow)?;
+        if data_end > input.len() {
+            if marker == 0xe1 && input[data_start..].starts_with(b"Exif\0\0") {
+                return Err(malformed_exif("APP1 segment is truncated"));
+            }
+            break;
+        }
+
+        let data = &input[data_start..data_end];
+        if marker == 0xe1 && data.starts_with(b"Exif\0\0") {
+            if let Some(orientation) = parse_exif_orientation(&data[6..])? {
+                return Ok(orientation);
+            }
+        }
+        offset = data_end;
+    }
+
+    Ok(Orientation::Normal)
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Endian {
+    Little,
+    Big,
+}
+
+impl Endian {
+    fn u16(self, bytes: &[u8]) -> u16 {
+        match self {
+            Self::Little => u16::from_le_bytes([bytes[0], bytes[1]]),
+            Self::Big => u16::from_be_bytes([bytes[0], bytes[1]]),
+        }
+    }
+
+    fn u32(self, bytes: &[u8]) -> u32 {
+        match self {
+            Self::Little => u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]),
+            Self::Big => u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]),
+        }
+    }
+}
+
+fn parse_exif_orientation(tiff: &[u8]) -> Result<Option<Orientation>, ImageError> {
+    if tiff.len() < 8 {
+        return Err(malformed_exif("TIFF header is truncated"));
+    }
+    let endian = match &tiff[..2] {
+        b"II" => Endian::Little,
+        b"MM" => Endian::Big,
+        _ => return Err(malformed_exif("TIFF byte order is invalid")),
+    };
+    if endian.u16(&tiff[2..4]) != 42 {
+        return Err(malformed_exif("TIFF magic is invalid"));
+    }
+    let ifd_offset =
+        usize::try_from(endian.u32(&tiff[4..8])).map_err(|_| ImageError::LengthOverflow)?;
+    let entry_count_end = ifd_offset
+        .checked_add(2)
+        .ok_or(ImageError::LengthOverflow)?;
+    if entry_count_end > tiff.len() {
+        return Err(malformed_exif("IFD0 offset is outside the EXIF payload"));
+    }
+
+    let entry_count = usize::from(endian.u16(&tiff[ifd_offset..entry_count_end]));
+    let entries_start = entry_count_end;
+    let entries_len = entry_count
+        .checked_mul(12)
+        .ok_or(ImageError::LengthOverflow)?;
+    let entries_end = entries_start
+        .checked_add(entries_len)
+        .ok_or(ImageError::LengthOverflow)?;
+    if entries_end > tiff.len() {
+        return Err(malformed_exif("IFD0 entries are truncated"));
+    }
+
+    for entry in tiff[entries_start..entries_end].chunks_exact(12) {
+        let tag = endian.u16(&entry[0..2]);
+        if tag != 0x0112 {
+            continue;
+        }
+        let field_type = endian.u16(&entry[2..4]);
+        let count = endian.u32(&entry[4..8]);
+        if field_type != 3 || count != 1 {
+            return Err(malformed_exif(
+                "Orientation tag has unsupported type or count",
+            ));
+        }
+        let value = endian.u16(&entry[8..10]);
+        return Orientation::from_exif(value).map(Some);
+    }
+
+    Ok(None)
+}
+
+fn malformed_exif(reason: &'static str) -> ImageError {
+    ImageError::UnsupportedFormat(format!(
+        "JPEG EXIF Orientation metadata is malformed: {reason}"
+    ))
+}
+
 fn encode_source(image: &Image) -> Result<(Image, ColorType), ImageError> {
     match image.pixel_format() {
         PixelFormat::Bilevel | PixelFormat::Gray8 | PixelFormat::Gray16Be => {
@@ -152,6 +375,65 @@ fn jpeg_encode_error(err: EncodingError) -> ImageError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn jpeg_with_exif_app1(jpeg: &[u8], app1_data: &[u8]) -> Vec<u8> {
+        let segment_len = u16::try_from(app1_data.len() + 2).unwrap();
+        let mut out = Vec::new();
+        out.extend_from_slice(&jpeg[..2]);
+        out.extend_from_slice(&[0xff, 0xe1]);
+        out.extend_from_slice(&segment_len.to_be_bytes());
+        out.extend_from_slice(app1_data);
+        out.extend_from_slice(&jpeg[2..]);
+        out
+    }
+
+    fn jpeg_with_exif_orientation(jpeg: &[u8], orientation: u16) -> Vec<u8> {
+        let mut app1 = Vec::from(b"Exif\0\0MM\0*\0\0\0\x08".as_slice());
+        app1.extend_from_slice(&1_u16.to_be_bytes());
+        app1.extend_from_slice(&0x0112_u16.to_be_bytes());
+        app1.extend_from_slice(&3_u16.to_be_bytes());
+        app1.extend_from_slice(&1_u32.to_be_bytes());
+        app1.extend_from_slice(&orientation.to_be_bytes());
+        app1.extend_from_slice(&[0, 0]);
+        app1.extend_from_slice(&0_u32.to_be_bytes());
+        jpeg_with_exif_app1(jpeg, &app1)
+    }
+
+    fn expected_oriented(image: &Image, orientation: u16) -> Image {
+        let width = image.width() as usize;
+        let height = image.height() as usize;
+        let bpp = image.pixel_format().bytes_per_pixel();
+        let (out_width, out_height) = match orientation {
+            5..=8 => (height, width),
+            _ => (width, height),
+        };
+        let mut out = vec![0; out_width * out_height * bpp];
+        for y in 0..height {
+            for x in 0..width {
+                let (out_x, out_y) = match orientation {
+                    1 => (x, y),
+                    2 => (width - 1 - x, y),
+                    3 => (width - 1 - x, height - 1 - y),
+                    4 => (x, height - 1 - y),
+                    5 => (y, x),
+                    6 => (height - 1 - y, x),
+                    7 => (height - 1 - y, width - 1 - x),
+                    8 => (y, width - 1 - x),
+                    _ => unreachable!(),
+                };
+                let source = (y * width + x) * bpp;
+                let target = (out_y * out_width + out_x) * bpp;
+                out[target..target + bpp].copy_from_slice(&image.pixels()[source..source + bpp]);
+            }
+        }
+        Image::new(
+            out_width as u32,
+            out_height as u32,
+            image.pixel_format(),
+            out,
+        )
+        .unwrap()
+    }
 
     #[test]
     fn encodes_and_decodes_rgb8_jpeg() {
@@ -209,6 +491,63 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("alpha is not supported"));
+    }
+
+    #[test]
+    fn decodes_exif_orientation_values_to_normalized_pixels() {
+        let image = Image::new(
+            3,
+            2,
+            PixelFormat::Rgb8,
+            vec![
+                10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180,
+            ],
+        )
+        .unwrap();
+        let jpeg = encode(&image).unwrap();
+        let baseline = decode(&jpeg).unwrap();
+
+        for orientation in 1..=8 {
+            let oriented = decode(&jpeg_with_exif_orientation(&jpeg, orientation)).unwrap();
+            let expected = expected_oriented(&baseline, orientation);
+            assert_eq!(
+                oriented, expected,
+                "EXIF Orientation {orientation} did not normalize pixels as expected"
+            );
+        }
+    }
+
+    #[test]
+    fn identify_reports_exif_oriented_dimensions() {
+        let image = Image::new(3, 2, PixelFormat::Rgb8, vec![0x80; 3 * 2 * 3]).unwrap();
+        let jpeg = encode(&image).unwrap();
+        assert_eq!(
+            identify(&jpeg_with_exif_orientation(&jpeg, 6))
+                .unwrap()
+                .stable_line(),
+            "format=JPEG width=2 height=3 channels=RGB depth=8"
+        );
+        assert_eq!(
+            identify(&jpeg_with_exif_orientation(&jpeg, 3))
+                .unwrap()
+                .stable_line(),
+            "format=JPEG width=3 height=2 channels=RGB depth=8"
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_exif_orientation_metadata() {
+        let image = Image::new(2, 2, PixelFormat::Rgb8, vec![0x80; 2 * 2 * 3]).unwrap();
+        let jpeg = encode(&image).unwrap();
+
+        let err = identify(&jpeg_with_exif_orientation(&jpeg, 9))
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("JPEG EXIF Orientation value 9 is not supported"));
+
+        let malformed = jpeg_with_exif_app1(&jpeg, b"Exif\0\0ZZ\0*\0\0\0\x08");
+        let err = decode(&malformed).unwrap_err().to_string();
+        assert!(err.contains("JPEG EXIF Orientation metadata is malformed"));
     }
 
     #[test]

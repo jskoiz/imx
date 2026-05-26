@@ -70,6 +70,29 @@ fn set_ihdr_interlaced(png: &mut [u8]) {
     rewrite_chunk_crc(png, imx_codec_png::MAGIC.len());
 }
 
+fn jpeg_with_exif_app1(jpeg: &[u8], app1_data: &[u8]) -> Vec<u8> {
+    let segment_len = u16::try_from(app1_data.len() + 2).unwrap();
+    let mut out = Vec::new();
+    out.extend_from_slice(&jpeg[..2]);
+    out.extend_from_slice(&[0xff, 0xe1]);
+    out.extend_from_slice(&segment_len.to_be_bytes());
+    out.extend_from_slice(app1_data);
+    out.extend_from_slice(&jpeg[2..]);
+    out
+}
+
+fn jpeg_with_exif_orientation(jpeg: &[u8], orientation: u16) -> Vec<u8> {
+    let mut app1 = Vec::from(b"Exif\0\0MM\0*\0\0\0\x08".as_slice());
+    app1.extend_from_slice(&1_u16.to_be_bytes());
+    app1.extend_from_slice(&0x0112_u16.to_be_bytes());
+    app1.extend_from_slice(&3_u16.to_be_bytes());
+    app1.extend_from_slice(&1_u32.to_be_bytes());
+    app1.extend_from_slice(&orientation.to_be_bytes());
+    app1.extend_from_slice(&[0, 0]);
+    app1.extend_from_slice(&0_u32.to_be_bytes());
+    jpeg_with_exif_app1(jpeg, &app1)
+}
+
 #[test]
 fn farbfeld_rejects_bad_headers_truncation_and_extreme_dimensions() {
     assert!(matches!(
@@ -221,6 +244,24 @@ fn jpeg_rejects_malformed_and_unsupported_inputs() {
         .unwrap_err()
         .to_string()
         .contains("JPEG CMYK is not supported"));
+
+    let invalid_orientation = jpeg_with_exif_orientation(&jpeg, 9);
+    assert!(imx_codec_jpeg::identify(&invalid_orientation)
+        .unwrap_err()
+        .to_string()
+        .contains("JPEG EXIF Orientation value 9 is not supported"));
+
+    let bad_endian = jpeg_with_exif_app1(&jpeg, b"Exif\0\0ZZ\0*\0\0\0\x08");
+    assert!(imx_codec_jpeg::identify(&bad_endian)
+        .unwrap_err()
+        .to_string()
+        .contains("JPEG EXIF Orientation metadata is malformed"));
+
+    let bad_offset = jpeg_with_exif_app1(&jpeg, b"Exif\0\0MM\0*\xff\xff\xff\xf0");
+    assert!(imx_codec_jpeg::decode(&bad_offset)
+        .unwrap_err()
+        .to_string()
+        .contains("JPEG EXIF Orientation metadata is malformed"));
 
     let rgba = Image::new(1, 1, PixelFormat::Rgba8, vec![255, 0, 0, 128]).unwrap();
     assert!(imx_codec_jpeg::encode(&rgba)

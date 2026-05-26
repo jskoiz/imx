@@ -81,17 +81,20 @@ JPEG:
   case-insensitive.
 - Decode and identify support are limited to 8-bit grayscale and RGB JPEG
   streams. `identify` reports `channels=GRAY depth=8` or `channels=RGB depth=8`.
+- EXIF Orientation values 1 through 8 are read before decode. IMX normalizes
+  decoded pixels to that orientation, and `identify` reports the oriented
+  dimensions.
 - Encode support writes deterministic 8-bit JPEG with fixed quality 90.
 - JPEG output rejects non-opaque alpha input instead of silently compositing or
   dropping alpha.
 - Same-format JPEG rewrites are lossy decode/re-encode operations and do not
   preserve source bytes, quality, quantization/Huffman tables, chroma
-  subsampling, comments, EXIF, ICC, XMP, orientation, density, thumbnails,
-  timestamps, or other metadata.
+  subsampling, comments, EXIF, ICC, XMP, density, thumbnails, timestamps, or
+  other metadata.
 - IMX rejects CMYK/YCCK JPEG and 16-bit JPEG. Progressive, arithmetic-coded,
-  lossless JPEG/JPEG-LS, JPEG 2000, JPEG XL, metadata preservation, profile
-  interpretation, and color-management/orientation semantics are outside this
-  compatibility slice.
+  lossless JPEG/JPEG-LS, JPEG 2000, JPEG XL, metadata preservation beyond
+  read-only Orientation, profile interpretation, and color-management semantics
+  are outside this compatibility slice.
 
 PBM:
 
@@ -286,7 +289,8 @@ raw pixels and compared with the ImageMagick oracle output for the same source
 and destination format. High-depth PPM cases that should preserve precision are
 decoded to canonical 16-bit raw RGB or GRAY samples before comparison. JPEG
 cases are decoded to canonical RGB8 and checked with recorded lossy tolerance
-metrics instead of byte equality. The report emits:
+metrics instead of byte equality. Orientation JPEG cases are compared against
+ImageMagick `-auto-orient` with the same metric recorder. The report emits:
 
 - `manifest.json` from the generated fixture corpus.
 - `results.jsonl` with one row per identify/transcode case.
@@ -312,11 +316,12 @@ clamp.
 - No APNG, indexed/palette PNG, low-bit PNG, PNG metadata/profile preservation,
   or PNG color-management/profile semantics.
 - No progressive JPEG, CMYK/YCCK JPEG, 12-bit JPEG, arithmetic-coded JPEG,
-  lossless JPEG/JPEG-LS, JPEG 2000, JPEG XL, JPEG metadata/profile/orientation
-  preservation, or JPEG color-management semantics.
+  lossless JPEG/JPEG-LS, JPEG 2000, JPEG XL, JPEG metadata/profile
+  preservation beyond read-only Orientation, or JPEG color-management
+  semantics.
 - No format beyond FARBFELD, JPEG, QOI, PBM, PGM, PNG, and PPM.
 - No Windows, crates.io, Homebrew/core, or package-manager distribution beyond
-  the `jskoiz/imx` Homebrew tap is claimed for this slice. v0.9.0 Linux x86_64
+  the `jskoiz/imx` Homebrew tap is claimed for this slice. v0.10.0 Linux x86_64
   and Linux arm64 archives require glibc 2.34 or newer; Linux arm64 support is
   claimed only for the published archive and tap block verified from release
   `SHA256SUMS` by Linux-only tap smoke.

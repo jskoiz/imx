@@ -188,6 +188,7 @@ PY
 failures=0
 passes=0
 jpeg_metric_cases=0
+jpeg_orientation_cases=0
 
 run_identify_case() {
   local fmt="$1"
@@ -277,6 +278,68 @@ run_png16_identify_case() {
     fi
   else
     record "$case_id" failed "high-depth PNG identify failed in IMX or ImageMagick"
+    failures=$((failures + 1))
+  fi
+}
+
+run_jpeg_orientation_case() {
+  local orientation="$1"
+  local input case_id imx_identify imx_output oracle_output imx_raw oracle_raw expected_dimensions
+  input="$fixture_dir/photo-orientation-o$orientation.jpg"
+  case_id="jpeg-orientation.o$orientation"
+  imx_identify="$out_dir/$case_id.identify.imx.txt"
+  imx_output="$out_dir/$case_id.imx.ppm"
+  oracle_output="$out_dir/$case_id.oracle.ppm"
+  imx_raw="$out_dir/$case_id.imx.rgb"
+  oracle_raw="$out_dir/$case_id.oracle.rgb"
+
+  if ((orientation >= 5)); then
+    expected_dimensions="width=2 height=3"
+  else
+    expected_dimensions="width=3 height=2"
+  fi
+
+  if "$imx" identify "JPEG:$input" >"$imx_identify" 2>"$out_dir/$case_id.identify.imx.stderr" &&
+    grep -q "format=JPEG $expected_dimensions channels=RGB depth=8" "$imx_identify"; then
+    record "$case_id.identify" passed "IMX reported EXIF-oriented JPEG dimensions"
+    passes=$((passes + 1))
+  else
+    record "$case_id.identify" failed "IMX did not report EXIF-oriented JPEG dimensions"
+    failures=$((failures + 1))
+    return
+  fi
+
+  if ! "$imx" "JPEG:$input" "PPM:$imx_output" >"$out_dir/$case_id.imx.stdout" 2>"$out_dir/$case_id.imx.stderr"; then
+    record "$case_id.transcode" failed "IMX JPEG orientation transcode failed"
+    failures=$((failures + 1))
+    return
+  fi
+
+  if ! "$oracle" "JPEG:$input" -auto-orient "PPM:$oracle_output" >"$out_dir/$case_id.oracle.stdout" 2>"$out_dir/$case_id.oracle.stderr"; then
+    record "$case_id.transcode" failed "ImageMagick JPEG -auto-orient transcode failed"
+    failures=$((failures + 1))
+    return
+  fi
+
+  if ! "$oracle" "PPM:$imx_output" -depth 8 "RGB:$imx_raw" >"$out_dir/$case_id.imx-decode.stdout" 2>"$out_dir/$case_id.imx-decode.stderr"; then
+    record "$case_id.transcode" failed "ImageMagick could not decode IMX oriented output"
+    failures=$((failures + 1))
+    return
+  fi
+
+  if ! "$oracle" "PPM:$oracle_output" -depth 8 "RGB:$oracle_raw" >"$out_dir/$case_id.oracle-decode.stdout" 2>"$out_dir/$case_id.oracle-decode.stderr"; then
+    record "$case_id.transcode" failed "ImageMagick could not decode oracle oriented output"
+    failures=$((failures + 1))
+    return
+  fi
+
+  if record_jpeg_metrics "$case_id.transcode" "$imx_raw" "$oracle_raw" >"$out_dir/$case_id.metrics.stdout" 2>"$out_dir/$case_id.metrics.stderr"; then
+    record "$case_id.transcode" passed "IMX JPEG orientation output is within ImageMagick -auto-orient tolerance"
+    passes=$((passes + 1))
+    jpeg_metric_cases=$((jpeg_metric_cases + 1))
+    jpeg_orientation_cases=$((jpeg_orientation_cases + 1))
+  else
+    record "$case_id.transcode" failed "IMX JPEG orientation output exceeds ImageMagick -auto-orient tolerance"
     failures=$((failures + 1))
   fi
 }
@@ -463,6 +526,10 @@ run_ppm16_identify_case prefixed
 run_png16_identify_case plain
 run_png16_identify_case prefixed
 
+for orientation in 1 2 3 4 5 6 7 8; do
+  run_jpeg_orientation_case "$orientation"
+done
+
 for src in "${formats[@]}"; do
   for dst in "${formats[@]}"; do
     run_transcode_case "$src" "$dst"
@@ -494,6 +561,7 @@ cat >"$summary" <<EOF
   "identify_cases": 18,
   "transcode_cases": 60,
   "jpeg_metric_cases": $jpeg_metric_cases,
+  "jpeg_orientation_cases": $jpeg_orientation_cases,
   "passes": $passes,
   "failures": $failures
 }
