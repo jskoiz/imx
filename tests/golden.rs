@@ -53,6 +53,14 @@ fn decodes_checked_in_golden_fixture_files() {
         imx_codec_png::encode(&Image::new(1, 1, PixelFormat::Rgb8, vec![0xff, 0, 0]).unwrap())
             .unwrap();
     assert_eq!(imx_codec_png::decode(&png).unwrap().pixels(), &[0xff, 0, 0]);
+    let jpeg = imx_codec_jpeg::encode(
+        &Image::new(8, 8, PixelFormat::Rgb8, vec![0xff; 8 * 8 * 3]).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        imx_codec_jpeg::decode(&jpeg).unwrap().pixel_format(),
+        PixelFormat::Rgb8
+    );
 }
 
 #[test]
@@ -115,6 +123,7 @@ fn identify_metadata_is_stable_for_supported_fields() {
     let gray = Image::new(1, 1, PixelFormat::Gray8, vec![0x80]).unwrap();
     let pgm = imx_codec_pnm::encode_pgm(&gray).unwrap();
     let png = imx_codec_png::encode(&image.to_rgba8().unwrap()).unwrap();
+    let jpeg = imx_codec_jpeg::encode(&image.to_rgb8().unwrap()).unwrap();
 
     assert_eq!(
         imx_codec_farbfeld::identify(&ff).unwrap().stable_line(),
@@ -139,5 +148,9 @@ fn identify_metadata_is_stable_for_supported_fields() {
     assert_eq!(
         imx_codec_png::identify(&png).unwrap().stable_line(),
         "format=PNG width=1 height=1 channels=RGBA depth=8"
+    );
+    assert_eq!(
+        imx_codec_jpeg::identify(&jpeg).unwrap().stable_line(),
+        "format=JPEG width=1 height=1 channels=RGB depth=8"
     );
 }

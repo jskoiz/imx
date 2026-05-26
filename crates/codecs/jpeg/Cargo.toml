@@ -1,5 +1,5 @@
 [package]
-name = "imx-codec-qoi"
+name = "imx-codec-jpeg"
 version = "0.9.0"
 edition.workspace = true
 license.workspace = true
@@ -7,6 +7,8 @@ publish.workspace = true
 
 [dependencies]
 imx-core = { workspace = true }
+jpeg-decoder = { version = "0.3.2", default-features = false, features = ["platform_independent"] }
+jpeg-encoder = "0.7.0"
 
 [lib]
 path = "src/lib.rs"

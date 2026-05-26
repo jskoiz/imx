@@ -21,6 +21,8 @@ git clone "$repo_url" "$checkout" >/dev/null
   fixture_dir="$work_dir/fixtures"
   cargo run -p imx-cli --bin imx-generate-fixtures -- "$fixture_dir" >/dev/null
   "$install_root/bin/imx" identify "$fixture_dir/gradient-64.ff"
+  "$install_root/bin/imx" identify "$fixture_dir/gradient-64.jpg"
+  "$install_root/bin/imx" identify "$fixture_dir/gray-4x1.jpg"
   "$install_root/bin/imx" identify "$fixture_dir/gradient-64.qoi"
   "$install_root/bin/imx" identify "$fixture_dir/gradient-64.pbm"
   "$install_root/bin/imx" identify "$fixture_dir/gradient-64.png"
@@ -29,6 +31,8 @@ git clone "$repo_url" "$checkout" >/dev/null
   "$install_root/bin/imx" identify "$fixture_dir/gradient-64-ppm16.ppm"
   "$install_root/bin/imx" identify "$fixture_dir/gradient-64.pgm"
   "$install_root/bin/imx" identify "FARBFELD:$fixture_dir/gradient-64.ff"
+  "$install_root/bin/imx" identify "JPEG:$fixture_dir/gradient-64.jpg"
+  "$install_root/bin/imx" identify "JPEG:$fixture_dir/gray-4x1.jpg"
   "$install_root/bin/imx" identify "QOI:$fixture_dir/gradient-64.qoi"
   "$install_root/bin/imx" identify "PBM:$fixture_dir/gradient-64.pbm"
   "$install_root/bin/imx" identify "PNG:$fixture_dir/gradient-64.png"
@@ -38,6 +42,10 @@ git clone "$repo_url" "$checkout" >/dev/null
   "$install_root/bin/imx" identify "PGM:$fixture_dir/gradient-64.pgm"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.ff" "$work_dir/gradient.qoi"
   "$install_root/bin/imx" "FARBFELD:$fixture_dir/gradient-64.ff" "QOI:$work_dir/prefix-gradient.qoi"
+  "$install_root/bin/imx" "$fixture_dir/gradient-64.jpg" "$work_dir/jpeg-gradient.ff"
+  "$install_root/bin/imx" "$fixture_dir/gradient-64.ppm" "$work_dir/gradient.jpg"
+  "$install_root/bin/imx" "JPEG:$fixture_dir/gradient-64.jpg" "FARBFELD:$work_dir/prefix-jpeg-gradient.ff"
+  "$install_root/bin/imx" "PPM:$fixture_dir/gradient-64.ppm" "JPEG:$work_dir/prefix-gradient.jpg"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.ff" "$work_dir/gradient.pbm"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.ff" "$work_dir/gradient.pgm"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.ff" "$work_dir/gradient.png"
@@ -55,12 +63,14 @@ git clone "$repo_url" "$checkout" >/dev/null
   "$install_root/bin/imx" "PNG:$fixture_dir/gradient-64-png16.png" "PNG:$work_dir/prefix-png16-rewrite.png"
   "$install_root/bin/imx" "FARBFELD:$work_dir/prefix-gradient.ff" "PBM:$work_dir/prefix-gradient.pbm"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.ff" "$work_dir/rewrite.ff"
+  "$install_root/bin/imx" "$fixture_dir/gradient-64.jpg" "$work_dir/rewrite.jpg"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.qoi" "$work_dir/rewrite.qoi"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.pbm" "$work_dir/rewrite.pbm"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.pgm" "$work_dir/rewrite.pgm"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.png" "$work_dir/rewrite.png"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.ppm" "$work_dir/rewrite.ppm"
   "$install_root/bin/imx" "QOI:$fixture_dir/gradient-64.qoi" "QOI:$work_dir/prefix-rewrite.qoi"
+  "$install_root/bin/imx" "JPEG:$fixture_dir/gradient-64.jpg" "JPEG:$work_dir/prefix-rewrite.jpg"
 )
 
 cat >"$work_dir/install-summary.json" <<EOF

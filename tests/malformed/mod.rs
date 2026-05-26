@@ -185,6 +185,51 @@ fn png_rejects_malformed_and_unsupported_inputs() {
 }
 
 #[test]
+fn jpeg_rejects_malformed_and_unsupported_inputs() {
+    assert_eq!(
+        imx_codec_jpeg::decode(b"x"),
+        Err(ImageError::UnexpectedEof {
+            expected: imx_codec_jpeg::MAGIC.len(),
+            actual: 1
+        })
+    );
+    assert_eq!(
+        imx_codec_jpeg::decode(b"not jpeg"),
+        Err(ImageError::InvalidHeader("JPEG"))
+    );
+    assert!(imx_codec_jpeg::decode(imx_codec_jpeg::MAGIC)
+        .unwrap_err()
+        .to_string()
+        .contains("JPEG decode failed"));
+    assert!(imx_codec_jpeg::decode(b"\xff\xd8\xff\xd9")
+        .unwrap_err()
+        .to_string()
+        .contains("JPEG decode failed"));
+
+    let image = Image::new(8, 8, PixelFormat::Rgb8, vec![0x80; 8 * 8 * 3]).unwrap();
+    let jpeg = imx_codec_jpeg::encode(&image).unwrap();
+    for len in 0..jpeg.len() {
+        let result = std::panic::catch_unwind(|| imx_codec_jpeg::decode(&jpeg[..len]));
+        assert!(result.is_ok(), "JPEG truncation panicked at len {len}");
+    }
+
+    let mut cmyk = Vec::new();
+    jpeg_encoder::Encoder::new(&mut cmyk, imx_codec_jpeg::DEFAULT_QUALITY)
+        .encode(&[0, 255, 255, 0], 1, 1, jpeg_encoder::ColorType::Cmyk)
+        .unwrap();
+    assert!(imx_codec_jpeg::identify(&cmyk)
+        .unwrap_err()
+        .to_string()
+        .contains("JPEG CMYK is not supported"));
+
+    let rgba = Image::new(1, 1, PixelFormat::Rgba8, vec![255, 0, 0, 128]).unwrap();
+    assert!(imx_codec_jpeg::encode(&rgba)
+        .unwrap_err()
+        .to_string()
+        .contains("alpha is not supported"));
+}
+
+#[test]
 fn ppm_rejects_out_of_scope_and_truncated_inputs() {
     assert!(imx_codec_pnm::decode_ppm(b"P3\n1 1\n255\n255 0 0").is_ok());
     assert!(imx_codec_pnm::decode_ppm(b"P3\n1 1\n65535\n65535 32768 0").is_ok());

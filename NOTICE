@@ -1,3 +1,8 @@
+IMX v0.9.0 uses the Rust crates `jpeg-decoder` (MIT OR Apache-2.0) and
+`jpeg-encoder` ((MIT OR Apache-2.0) AND IJG) for the bounded JPEG support
+surface. The `jpeg-encoder` crate incorporates Independent JPEG Group licensing
+terms as declared by the crate metadata.
+
 * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
 1. ImageMagick copyright:

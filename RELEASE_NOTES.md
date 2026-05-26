@@ -1,5 +1,32 @@
 # IMX Release Notes
 
+## IMX v0.9.0 JPEG Usability Slice
+
+- Adds bounded Rust-native JPEG support for `.jpg` and `.jpeg` files plus exact
+  uppercase `JPEG:` prefix handling. `JPG:` remains unsupported by design.
+- Supports JPEG identify/decode/encode for 8-bit grayscale and RGB streams.
+  `identify` reports `format=JPEG ... channels=GRAY|RGB depth=8`.
+- Encodes JPEG deterministically at fixed quality 90 from normalized IMX
+  grayscale/RGB pixels. Non-opaque alpha inputs are rejected instead of silently
+  composited or dropped.
+- Extends CLI, codec, golden, malformed, fuzz-smoke, cargo-fuzz,
+  differential-corpus, benchmark, install, package, archive-smoke, conformance,
+  and tap evidence to include JPEG.
+- Adds JPEG lossy oracle evidence with recorded RGB8 tolerance metrics rather
+  than byte-equality claims.
+- Applies a conservative 128 MiB JPEG decoded-pixel cap before decode
+  allocation to keep fuzz/resource-safety proof inside the existing 512 MiB
+  general image-buffer policy.
+- Keeps JPEG bounded: no progressive JPEG, CMYK/YCCK JPEG, 12-bit JPEG,
+  arithmetic-coded JPEG, lossless JPEG/JPEG-LS, JPEG 2000, JPEG XL, metadata
+  preservation, profiles, color management, orientation handling, or full
+  ImageMagick JPEG behavior.
+- Keeps distribution boundaries unchanged: Linux x86_64 and Linux arm64 release
+  archives through Ubuntu-only hosted automation, generated `SHA256SUMS`,
+  `imx.rb`, and conformance report assets, tap-only Homebrew distribution, no
+  crates.io, no Homebrew/core, no Windows, and no hosted macOS or iOS GitHub
+  Actions.
+
 ## IMX v0.8.1 Release Hardening
 
 - Tightens PNG diagnostics so malformed PNG identify paths report identify

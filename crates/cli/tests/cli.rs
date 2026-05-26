@@ -46,6 +46,7 @@ fn png_fixture(
 
 fn write_supported_fixtures(dir: &Path) -> Vec<(&'static str, PathBuf, &'static str)> {
     let ff = dir.join("input.ff");
+    let jpeg = dir.join("input.jpg");
     let qoi = dir.join("input.qoi");
     let pbm = dir.join("input.pbm");
     let pgm = dir.join("input.pgm");
@@ -63,6 +64,14 @@ fn write_supported_fixtures(dir: &Path) -> Vec<(&'static str, PathBuf, &'static 
     .unwrap();
 
     fs::write(&ff, imx_codec_farbfeld::encode(&rgba16).unwrap()).unwrap();
+    fs::write(
+        &jpeg,
+        imx_codec_jpeg::encode(
+            &Image::new(2, 1, PixelFormat::Rgb8, vec![255, 0, 0, 0, 0, 255]).unwrap(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
     fs::write(
         &qoi,
         imx_codec_qoi::encode_image(&rgba16, imx_codec_qoi::QOI_SRGB).unwrap(),
@@ -104,6 +113,11 @@ fn write_supported_fixtures(dir: &Path) -> Vec<(&'static str, PathBuf, &'static 
             "format=FARBFELD width=2 height=1 channels=RGBA depth=16",
         ),
         (
+            "JPEG",
+            jpeg,
+            "format=JPEG width=2 height=1 channels=RGB depth=8",
+        ),
+        (
             "QOI",
             qoi,
             "format=QOI width=2 height=1 channels=RGBA depth=8",
@@ -135,6 +149,7 @@ fn write_supported_fixtures(dir: &Path) -> Vec<(&'static str, PathBuf, &'static 
 fn identifies_farbfeld_qoi_pbm_pgm_and_ppm() {
     let dir = temp_dir("identify");
     let ff = dir.join("input.ff");
+    let jpeg = dir.join("input.jpg");
     let qoi = dir.join("input.qoi");
     let pbm = dir.join("input.pbm");
     let ppm = dir.join("input.ppm");
@@ -148,6 +163,12 @@ fn identifies_farbfeld_qoi_pbm_pgm_and_ppm() {
     )
     .unwrap();
     fs::write(&ff, imx_codec_farbfeld::encode(&image).unwrap()).unwrap();
+    fs::write(
+        &jpeg,
+        imx_codec_jpeg::encode(&Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap())
+            .unwrap(),
+    )
+    .unwrap();
     fs::write(
         &qoi,
         imx_codec_qoi::encode_image(&image, imx_codec_qoi::QOI_SRGB).unwrap(),
@@ -180,6 +201,16 @@ fn identifies_farbfeld_qoi_pbm_pgm_and_ppm() {
     assert_eq!(
         String::from_utf8(output.stdout).unwrap().trim(),
         "format=FARBFELD width=1 height=1 channels=RGBA depth=16"
+    );
+
+    let output = Command::new(imx())
+        .args(["identify", jpeg.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap().trim(),
+        "format=JPEG width=1 height=1 channels=RGB depth=8"
     );
 
     let output = Command::new(imx())
@@ -295,6 +326,28 @@ fn detects_png_by_magic_before_extension_fallback() {
     assert_eq!(
         String::from_utf8(output.stdout).unwrap().trim(),
         "format=PNG width=1 height=1 channels=RGB depth=8"
+    );
+}
+
+#[test]
+fn detects_jpeg_by_magic_before_extension_fallback() {
+    let dir = temp_dir("jpeg_magic_detection");
+    let input = dir.join("input.ppm");
+    let image = Image::new(2, 1, PixelFormat::Rgb8, vec![255, 0, 0, 0, 128, 255]).unwrap();
+    fs::write(&input, imx_codec_jpeg::encode(&image).unwrap()).unwrap();
+
+    let output = Command::new(imx())
+        .args(["identify", input.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "JPEG magic identify failed with stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap().trim(),
+        "format=JPEG width=2 height=1 channels=RGB depth=8"
     );
 }
 
@@ -460,6 +513,90 @@ fn transcodes_png_to_farbfeld_and_farbfeld_to_png() {
             .unwrap(),
         image
     );
+}
+
+#[test]
+fn transcodes_jpeg_to_farbfeld_and_farbfeld_to_jpeg() {
+    let dir = temp_dir("jpeg_transcode");
+    let input_jpeg = dir.join("input.jpeg");
+    let output_ff = dir.join("output.ff");
+    let roundtrip_jpeg = dir.join("roundtrip.jpg");
+    let image = Image::new(
+        8,
+        8,
+        PixelFormat::Rgb8,
+        (0..8)
+            .flat_map(|y| {
+                (0..8).flat_map(move |x| {
+                    [
+                        (x * 31 + y * 3) as u8,
+                        (x * 5 + y * 29) as u8,
+                        (x * 17 + y * 11) as u8,
+                    ]
+                })
+            })
+            .collect(),
+    )
+    .unwrap();
+    fs::write(&input_jpeg, imx_codec_jpeg::encode(&image).unwrap()).unwrap();
+
+    let output = Command::new(imx())
+        .args([
+            prefixed("JPEG", &input_jpeg).as_str(),
+            output_ff.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "JPEG->FARBFELD failed with stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        imx_codec_farbfeld::decode(&fs::read(&output_ff).unwrap())
+            .unwrap()
+            .pixel_format(),
+        PixelFormat::Rgba16Be
+    );
+
+    let output = Command::new(imx())
+        .args([
+            output_ff.to_str().unwrap(),
+            prefixed("JPEG", &roundtrip_jpeg).as_str(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "FARBFELD->JPEG failed with stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let decoded = imx_codec_jpeg::decode(&fs::read(roundtrip_jpeg).unwrap()).unwrap();
+    assert_eq!(decoded.width(), 8);
+    assert_eq!(decoded.height(), 8);
+    assert_eq!(decoded.pixel_format(), PixelFormat::Rgb8);
+}
+
+#[test]
+fn rejects_jpeg_encode_from_non_opaque_alpha() {
+    let dir = temp_dir("jpeg_alpha_reject");
+    let input_png = dir.join("input.png");
+    let output_jpeg = dir.join("output.jpg");
+    let image = Image::new(
+        1,
+        2,
+        PixelFormat::Rgba8,
+        vec![255, 0, 0, 255, 0, 0, 255, 128],
+    )
+    .unwrap();
+    fs::write(&input_png, imx_codec_png::encode(&image).unwrap()).unwrap();
+
+    let output = Command::new(imx())
+        .args([input_png.to_str().unwrap(), output_jpeg.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("alpha is not supported"));
 }
 
 #[test]
@@ -681,6 +818,7 @@ fn rewrites_same_format_outputs_for_supported_formats() {
     .unwrap();
 
     let ff = dir.join("input.ff");
+    let jpeg = dir.join("input.jpg");
     let qoi = dir.join("input.qoi");
     let pbm = dir.join("input.pbm");
     let pgm = dir.join("input.pgm");
@@ -688,6 +826,14 @@ fn rewrites_same_format_outputs_for_supported_formats() {
     let ppm = dir.join("input.ppm");
 
     fs::write(&ff, imx_codec_farbfeld::encode(&image).unwrap()).unwrap();
+    fs::write(
+        &jpeg,
+        imx_codec_jpeg::encode(
+            &Image::new(8, 8, PixelFormat::Rgb8, vec![0x80; 8 * 8 * 3]).unwrap(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
     fs::write(
         &qoi,
         imx_codec_qoi::encode_image(&image, imx_codec_qoi::QOI_SRGB).unwrap(),
@@ -725,6 +871,12 @@ fn rewrites_same_format_outputs_for_supported_formats() {
             ff.as_path(),
             "output.ff",
             "format=FARBFELD width=2 height=1 channels=RGBA depth=16",
+        ),
+        (
+            "jpeg",
+            jpeg.as_path(),
+            "output.jpg",
+            "format=JPEG width=8 height=8 channels=RGB depth=8",
         ),
         (
             "qoi",
@@ -792,6 +944,9 @@ fn help_and_version_are_available() {
         assert!(!output.stdout.is_empty());
         if flag == "--help" {
             let stdout = String::from_utf8(output.stdout).unwrap();
+            assert!(stdout.contains(".jpg"));
+            assert!(stdout.contains(".jpeg"));
+            assert!(stdout.contains("JPEG:"));
             assert!(stdout.contains(".png"));
             assert!(stdout.contains("PNG:"));
         }
@@ -823,6 +978,20 @@ fn malformed_png_input_exits_nonzero_with_error_prefix() {
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).starts_with("error: "));
     assert!(String::from_utf8_lossy(&output.stderr).contains("PNG identify failed"));
+}
+
+#[test]
+fn malformed_jpeg_input_exits_nonzero_with_error_prefix() {
+    let dir = temp_dir("malformed_jpeg");
+    let bad = dir.join("bad.jpg");
+    fs::write(&bad, imx_codec_jpeg::MAGIC).unwrap();
+    let output = Command::new(imx())
+        .args(["identify", bad.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).starts_with("error: "));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("JPEG identify failed"));
 }
 
 #[test]
@@ -921,13 +1090,31 @@ fn same_prefixed_png_input_and_output_path_is_rejected() {
 }
 
 #[test]
+fn same_prefixed_jpeg_input_and_output_path_is_rejected() {
+    let dir = temp_dir("same_jpeg_path");
+    let input = dir.join("input.jpeg");
+    let image = Image::new(8, 8, PixelFormat::Rgb8, vec![0x80; 8 * 8 * 3]).unwrap();
+    fs::write(&input, imx_codec_jpeg::encode(&image).unwrap()).unwrap();
+    let arg = prefixed("JPEG", &input);
+
+    let output = Command::new(imx())
+        .args([arg.as_str(), arg.as_str()])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("must be different"));
+}
+
+#[test]
 fn malformed_format_prefixes_are_rejected() {
     let dir = temp_dir("malformed_prefixes");
     let ppm = dir.join("input.ppm");
+    let jpeg = dir.join("input.jpg");
     let png = dir.join("input.png");
     let qoi = dir.join("input.qoi");
     let image = Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap();
     fs::write(&ppm, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
+    fs::write(&jpeg, imx_codec_jpeg::encode(&image).unwrap()).unwrap();
     fs::write(&png, imx_codec_png::encode(&image).unwrap()).unwrap();
     fs::write(
         &qoi,
@@ -936,6 +1123,7 @@ fn malformed_format_prefixes_are_rejected() {
     .unwrap();
 
     let output_ppm = dir.join("out.ppm");
+    let output_jpeg = dir.join("out.jpg");
     let output_png = dir.join("out.png");
     let extensionless_output = dir.join("out");
     let cases = vec![
@@ -944,8 +1132,20 @@ fn malformed_format_prefixes_are_rejected() {
             "unsupported format prefix: GIF",
         ),
         (
+            vec!["identify".to_string(), prefixed("JPG", &jpeg)],
+            "unsupported format prefix: JPG",
+        ),
+        (
+            vec!["identify".to_string(), "JPEG:".to_string()],
+            "missing path after format prefix JPEG:",
+        ),
+        (
             vec!["identify".to_string(), "PNG:".to_string()],
             "missing path after format prefix PNG:",
+        ),
+        (
+            vec!["identify".to_string(), prefixed("JPEG", &png)],
+            "format prefix JPEG does not match detected format PNG",
         ),
         (
             vec!["identify".to_string(), prefixed("PNG", &ppm)],
@@ -956,12 +1156,23 @@ fn malformed_format_prefixes_are_rejected() {
             "format prefix PPM does not match detected format QOI",
         ),
         (
+            vec![prefixed("PNG", &png), prefixed("PNG", &output_jpeg)],
+            "format prefix PNG does not match path format JPEG",
+        ),
+        (
             vec![prefixed("PNG", &png), prefixed("PPM", &output_png)],
             "format prefix PPM does not match path format PNG",
         ),
         (
             vec![prefixed("PPM", &ppm), prefixed("QOI", &output_ppm)],
             "format prefix QOI does not match path format PPM",
+        ),
+        (
+            vec![
+                prefixed("JPEG", &jpeg),
+                prefixed("JPEG", &extensionless_output),
+            ],
+            "unsupported format:",
         ),
         (
             vec![

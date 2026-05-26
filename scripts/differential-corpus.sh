@@ -22,19 +22,26 @@ mkdir -p "$fixture_dir"
 
 cargo run -p imx-cli --bin imx-generate-fixtures -- "$fixture_dir" >/dev/null
 "$imx" "$fixture_dir/pbm-threshold-4x1.ff" "$fixture_dir/pbm-threshold-4x1.qoi"
+"$imx" "$fixture_dir/pbm-threshold-4x1.ff" "$fixture_dir/pbm-threshold-4x1.jpg"
 "$imx" "$fixture_dir/pbm-threshold-4x1.ff" "$fixture_dir/pbm-threshold-4x1.pgm"
 "$imx" "$fixture_dir/pbm-threshold-4x1.ff" "$fixture_dir/pbm-threshold-4x1.png"
 "$imx" "$fixture_dir/pbm-threshold-4x1.ff" "$fixture_dir/pbm-threshold-4x1.ppm"
+"$imx" "$fixture_dir/gradient-64.ppm" "$fixture_dir/jpeg-source-64.ff"
+"$imx" "$fixture_dir/gradient-64.ppm" "$fixture_dir/jpeg-source-64.qoi"
+"$imx" "$fixture_dir/gradient-64.ppm" "$fixture_dir/jpeg-source-64.png"
 
 results="$out_dir/results.jsonl"
+jpeg_metrics="$out_dir/jpeg-metrics.jsonl"
 summary="$out_dir/summary.json"
 : >"$results"
+: >"$jpeg_metrics"
 
-formats=(farbfeld qoi pbm pgm png ppm)
+formats=(farbfeld jpeg qoi pbm pgm png ppm)
 
 format_label() {
   case "$1" in
     farbfeld) echo "FARBFELD" ;;
+    jpeg) echo "JPEG" ;;
     qoi) echo "QOI" ;;
     pbm) echo "PBM" ;;
     pgm) echo "PGM" ;;
@@ -47,6 +54,7 @@ format_label() {
 format_ext() {
   case "$1" in
     farbfeld) echo "ff" ;;
+    jpeg) echo "jpg" ;;
     qoi) echo "qoi" ;;
     pbm) echo "pbm" ;;
     pgm) echo "pgm" ;;
@@ -59,6 +67,7 @@ format_ext() {
 fixture_path() {
   case "$1" in
     farbfeld) echo "$fixture_dir/gradient-64.ff" ;;
+    jpeg) echo "$fixture_dir/gradient-64.jpg" ;;
     qoi) echo "$fixture_dir/gradient-64.qoi" ;;
     pbm) echo "$fixture_dir/gradient-64.pbm" ;;
     pgm) echo "$fixture_dir/gradient-64.pgm" ;;
@@ -82,10 +91,20 @@ fixture_path_for_case() {
   if [[ "$dst" == "pbm" && "$src" != "pbm" ]]; then
     case "$src" in
       farbfeld) echo "$fixture_dir/pbm-threshold-4x1.ff" ;;
+      jpeg) echo "$fixture_dir/pbm-threshold-4x1.jpg" ;;
       qoi) echo "$fixture_dir/pbm-threshold-4x1.qoi" ;;
       pgm) echo "$fixture_dir/pbm-threshold-4x1.pgm" ;;
       png) echo "$fixture_dir/pbm-threshold-4x1.png" ;;
       ppm) echo "$fixture_dir/pbm-threshold-4x1.ppm" ;;
+      *) fixture_path "$src" ;;
+    esac
+    return
+  fi
+  if [[ "$dst" == "jpeg" ]]; then
+    case "$src" in
+      farbfeld) echo "$fixture_dir/jpeg-source-64.ff" ;;
+      qoi) echo "$fixture_dir/jpeg-source-64.qoi" ;;
+      png) echo "$fixture_dir/jpeg-source-64.png" ;;
       *) fixture_path "$src" ;;
     esac
     return
@@ -107,8 +126,68 @@ record() {
     "$(json_escape "$detail")" >>"$results"
 }
 
+record_jpeg_metrics() {
+  local case_id="$1"
+  local lhs="$2"
+  local rhs="$3"
+  python3 - "$case_id" "$lhs" "$rhs" "$jpeg_metrics" <<'PY'
+import json
+import math
+import sys
+
+case_id, lhs_path, rhs_path, metrics_path = sys.argv[1:5]
+lhs = open(lhs_path, "rb").read()
+rhs = open(rhs_path, "rb").read()
+if len(lhs) != len(rhs):
+    row = {
+        "schema_version": 1,
+        "case_id": case_id,
+        "status": "failed",
+        "detail": f"raw length mismatch {len(lhs)} != {len(rhs)}",
+    }
+else:
+    diffs = [abs(a - b) for a, b in zip(lhs, rhs)]
+    count = len(diffs)
+    max_abs_diff = max(diffs) if diffs else 0
+    mae = sum(diffs) / count if count else 0.0
+    mse = sum(d * d for d in diffs) / count if count else 0.0
+    rmse = math.sqrt(mse)
+    psnr = 99.0 if mse == 0 else 20.0 * math.log10(255.0 / rmse)
+    sorted_diffs = sorted(diffs)
+    p99 = sorted_diffs[min(count - 1, int(math.ceil(count * 0.99)) - 1)] if count else 0
+    over_8 = sum(1 for d in diffs if d > 8)
+    over_16 = sum(1 for d in diffs if d > 16)
+    passed = (
+        max_abs_diff <= 128
+        and mae <= 12.0
+        and rmse <= 20.0
+        and p99 <= 80
+        and psnr >= 22.0
+    )
+    row = {
+        "schema_version": 1,
+        "case_id": case_id,
+        "status": "passed" if passed else "failed",
+        "raw_bytes": count,
+        "max_abs_diff": max_abs_diff,
+        "mae": round(mae, 6),
+        "rmse": round(rmse, 6),
+        "psnr_db": round(psnr, 6),
+        "p99_abs_diff": p99,
+        "channels_over_8": over_8,
+        "channels_over_16": over_16,
+    }
+with open(metrics_path, "a", encoding="utf-8") as handle:
+    handle.write(json.dumps(row, separators=(",", ":")) + "\n")
+if row["status"] != "passed":
+    print(json.dumps(row, indent=2), file=sys.stderr)
+    sys.exit(1)
+PY
+}
+
 failures=0
 passes=0
+jpeg_metric_cases=0
 
 run_identify_case() {
   local fmt="$1"
@@ -206,7 +285,8 @@ run_transcode_case() {
   local src="$1"
   local dst="$2"
   local mode="${3:-plain}"
-  local src_label dst_label input imx_input imx_output imx_output_arg oracle_output imx_raw oracle_raw case_id
+  local src_label dst_label input imx_input imx_output imx_output_arg oracle_output imx_raw oracle_raw case_id raw_format
+  local -a oracle_args
   src_label="$(format_label "$src")"
   dst_label="$(format_label "$dst")"
   input="$(fixture_path_for_case "$src" "$dst")"
@@ -224,6 +304,12 @@ run_transcode_case() {
   oracle_output="$out_dir/$case_id.oracle.$(format_ext "$dst")"
   imx_raw="$out_dir/$case_id.imx.rgba"
   oracle_raw="$out_dir/$case_id.oracle.rgba"
+  raw_format="RGBA"
+  if [[ "$src" == "jpeg" || "$dst" == "jpeg" ]]; then
+    imx_raw="$out_dir/$case_id.imx.rgb"
+    oracle_raw="$out_dir/$case_id.oracle.rgb"
+    raw_format="RGB"
+  fi
 
   if ! "$imx" "$imx_input" "$imx_output_arg" >"$out_dir/$case_id.imx.stdout" 2>"$out_dir/$case_id.imx.stderr"; then
     record "$case_id" failed "IMX transcode failed"
@@ -231,25 +317,39 @@ run_transcode_case() {
     return
   fi
 
-  if ! "$oracle" "$src_label:$input" "$dst_label:$oracle_output" >"$out_dir/$case_id.oracle.stdout" 2>"$out_dir/$case_id.oracle.stderr"; then
+  oracle_args=("$src_label:$input")
+  if [[ "$dst" == "jpeg" ]]; then
+    oracle_args+=("-quality" "90" "-sampling-factor" "4:4:4" "-interlace" "none" "-strip")
+  fi
+  oracle_args+=("$dst_label:$oracle_output")
+  if ! "$oracle" "${oracle_args[@]}" >"$out_dir/$case_id.oracle.stdout" 2>"$out_dir/$case_id.oracle.stderr"; then
     record "$case_id" failed "ImageMagick oracle transcode failed"
     failures=$((failures + 1))
     return
   fi
 
-  if ! "$oracle" "$dst_label:$imx_output" -depth 8 "RGBA:$imx_raw" >"$out_dir/$case_id.imx-decode.stdout" 2>"$out_dir/$case_id.imx-decode.stderr"; then
+  if ! "$oracle" "$dst_label:$imx_output" -depth 8 "$raw_format:$imx_raw" >"$out_dir/$case_id.imx-decode.stdout" 2>"$out_dir/$case_id.imx-decode.stderr"; then
     record "$case_id" failed "ImageMagick could not decode IMX output"
     failures=$((failures + 1))
     return
   fi
 
-  if ! "$oracle" "$dst_label:$oracle_output" -depth 8 "RGBA:$oracle_raw" >"$out_dir/$case_id.oracle-decode.stdout" 2>"$out_dir/$case_id.oracle-decode.stderr"; then
+  if ! "$oracle" "$dst_label:$oracle_output" -depth 8 "$raw_format:$oracle_raw" >"$out_dir/$case_id.oracle-decode.stdout" 2>"$out_dir/$case_id.oracle-decode.stderr"; then
     record "$case_id" failed "ImageMagick could not decode oracle output"
     failures=$((failures + 1))
     return
   fi
 
-  if cmp -s "$imx_raw" "$oracle_raw"; then
+  if [[ "$src" == "jpeg" || "$dst" == "jpeg" ]]; then
+    if record_jpeg_metrics "$case_id" "$imx_raw" "$oracle_raw" >"$out_dir/$case_id.metrics.stdout" 2>"$out_dir/$case_id.metrics.stderr"; then
+      record "$case_id" passed "$src_label to $dst_label decoded RGB pixels are within JPEG tolerance"
+      passes=$((passes + 1))
+      jpeg_metric_cases=$((jpeg_metric_cases + 1))
+    else
+      record "$case_id" failed "$src_label to $dst_label decoded RGB pixels exceed JPEG tolerance"
+      failures=$((failures + 1))
+    fi
+  elif cmp -s "$imx_raw" "$oracle_raw"; then
     record "$case_id" passed "$src_label to $dst_label decoded pixels match oracle output"
     passes=$((passes + 1))
   else
@@ -373,7 +473,7 @@ run_ppm16_transcode_case ppm
 run_png16_transcode_case farbfeld
 run_png16_transcode_case ppm
 
-for prefixed_pair in farbfeld:qoi qoi:png png:ppm ppm:pgm pgm:pbm pbm:farbfeld; do
+for prefixed_pair in farbfeld:jpeg jpeg:qoi qoi:png png:ppm ppm:pgm pgm:pbm pbm:farbfeld; do
   run_transcode_case "${prefixed_pair%%:*}" "${prefixed_pair##*:}" prefixed
 done
 
@@ -390,8 +490,10 @@ cat >"$summary" <<EOF
   "oracle": "$oracle",
   "fixture_manifest": "fixtures/manifest.json",
   "results": "results.jsonl",
-  "identify_cases": 16,
-  "transcode_cases": 46,
+  "jpeg_metrics": "jpeg-metrics.jsonl",
+  "identify_cases": 18,
+  "transcode_cases": 60,
+  "jpeg_metric_cases": $jpeg_metric_cases,
   "passes": $passes,
   "failures": $failures
 }

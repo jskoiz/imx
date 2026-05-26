@@ -15,7 +15,7 @@ if [[ -z "$version" ]]; then
   echo "error: failed to read imx-preview package version" >&2
   exit 1
 fi
-for package in imx-cli imx-core imx-codec-farbfeld imx-codec-png imx-codec-pnm imx-codec-qoi; do
+for package in imx-cli imx-core imx-codec-farbfeld imx-codec-jpeg imx-codec-png imx-codec-pnm imx-codec-qoi; do
   package_version_value="$(package_version "$package")"
   if [[ "$package_version_value" != "$version" ]]; then
     echo "error: package $package version $package_version_value does not match imx-preview $version" >&2
@@ -176,10 +176,17 @@ run_packaged_binary identify "FARBFELD:$verify_dir/output16.ff" >/dev/null
 run_packaged_binary "$verify_dir/output.ff" "$verify_dir/output.qoi"
 run_packaged_binary identify "$verify_dir/output.qoi" >/dev/null
 run_packaged_binary identify "QOI:$verify_dir/output.qoi" >/dev/null
+run_packaged_binary "$verify_dir/input.ppm" "$verify_dir/output.jpg"
+run_packaged_binary identify "$verify_dir/output.jpg" >/dev/null
+run_packaged_binary identify "JPEG:$verify_dir/output.jpg" >/dev/null
+run_packaged_binary "JPEG:$verify_dir/output.jpg" "FARBFELD:$verify_dir/jpeg-output.ff"
+run_packaged_binary identify "FARBFELD:$verify_dir/jpeg-output.ff" >/dev/null
 run_packaged_binary "$verify_dir/output.ff" "$verify_dir/output.png"
 run_packaged_binary identify "$verify_dir/output.png" >/dev/null
 run_packaged_binary identify "PNG:$verify_dir/output.png" >/dev/null
 run_packaged_binary "PPM:$verify_dir/input.ppm" "FARBFELD:$verify_dir/prefix-output.ff"
+run_packaged_binary "PPM:$verify_dir/input.ppm" "JPEG:$verify_dir/prefix-output.jpg"
+run_packaged_binary "JPEG:$verify_dir/prefix-output.jpg" "FARBFELD:$verify_dir/prefix-jpeg-output.ff"
 run_packaged_binary "PPM:$verify_dir/input16.ppm" "PPM:$verify_dir/prefix-output16.ppm"
 run_packaged_binary "FARBFELD:$verify_dir/prefix-output.ff" "QOI:$verify_dir/prefix-output.qoi"
 run_packaged_binary "FARBFELD:$verify_dir/prefix-output.ff" "PBM:$verify_dir/prefix-output.pbm"
@@ -187,18 +194,21 @@ run_packaged_binary "FARBFELD:$verify_dir/prefix-output.ff" "PGM:$verify_dir/pre
 run_packaged_binary "FARBFELD:$verify_dir/prefix-output.ff" "PNG:$verify_dir/prefix-output.png"
 run_packaged_binary "FARBFELD:$verify_dir/prefix-output.ff" "PPM:$verify_dir/prefix-output.ppm"
 run_packaged_binary "$verify_dir/output.ff" "$verify_dir/rewrite.ff"
+run_packaged_binary "$verify_dir/output.jpg" "$verify_dir/rewrite.jpg"
 run_packaged_binary "$verify_dir/output.qoi" "$verify_dir/rewrite.qoi"
 run_packaged_binary "$verify_dir/input.pbm" "$verify_dir/rewrite.pbm"
 run_packaged_binary "$verify_dir/input.pgm" "$verify_dir/rewrite.pgm"
 run_packaged_binary "$verify_dir/output.png" "$verify_dir/rewrite.png"
 run_packaged_binary "$verify_dir/input.ppm" "$verify_dir/rewrite.ppm"
 run_packaged_binary identify "$verify_dir/rewrite.ff" >/dev/null
+run_packaged_binary identify "$verify_dir/rewrite.jpg" >/dev/null
 run_packaged_binary identify "$verify_dir/rewrite.qoi" >/dev/null
 run_packaged_binary identify "$verify_dir/rewrite.pbm" >/dev/null
 run_packaged_binary identify "$verify_dir/rewrite.pgm" >/dev/null
 run_packaged_binary identify "$verify_dir/rewrite.png" >/dev/null
 run_packaged_binary identify "$verify_dir/rewrite.ppm" >/dev/null
 run_packaged_binary identify "QOI:$verify_dir/prefix-output.qoi" >/dev/null
+run_packaged_binary identify "JPEG:$verify_dir/prefix-output.jpg" >/dev/null
 run_packaged_binary identify "PBM:$verify_dir/prefix-output.pbm" >/dev/null
 run_packaged_binary identify "PGM:$verify_dir/prefix-output.pgm" >/dev/null
 run_packaged_binary identify "PNG:$verify_dir/prefix-output.png" >/dev/null

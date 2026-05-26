@@ -49,11 +49,13 @@ Git revision: \`$git_rev\`
 ## Supported Surface
 
 - Binary: \`imx\`
-- Formats: FARBFELD, QOI, PBM, PGM, PNG, PPM
+- Formats: FARBFELD, JPEG, QOI, PBM, PGM, PNG, PPM
 - Commands: \`imx --help\`, \`imx --version\`, \`imx identify [FORMAT:]<input>\`,
   and two-argument transcodes between supported formats, including exact
-  \`FARBFELD:\`, \`QOI:\`, \`PBM:\`, \`PGM:\`, \`PNG:\`, and \`PPM:\` operand prefixes and
-  deterministic same-format rewrites when input and output paths differ.
+  \`FARBFELD:\`, \`JPEG:\`, \`QOI:\`, \`PBM:\`, \`PGM:\`, \`PNG:\`, and \`PPM:\`
+  operand prefixes and deterministic same-format rewrites when input and output
+  paths differ. JPEG rewrites are deterministic lossy decode/re-encode
+  operations.
 - Runtime dependency policy: no ImageMagick, MagickCore, MagickWand, delegates,
   modules, \`policy.xml\`, or ImageMagick build system linkage.
 
@@ -76,15 +78,16 @@ $archive_table
 
 ## Compatibility Coverage
 
-- Golden fixtures cover representative FARBFELD, QOI, PBM, PGM, PNG, and PPM bytes.
+- Golden fixtures cover representative FARBFELD, JPEG, QOI, PBM, PGM, PNG, and
+  PPM bytes.
 - Malformed-input tests cover invalid headers, truncation, oversized dimensions,
   unsupported max values, and failed CLI output behavior.
 - ImageMagick differential tests cover decoded-pixel compatibility for
-  FARBFELD/QOI/PBM/PGM/PNG/PPM identify, prefixed identify, transcode, prefixed
-  transcode, deterministic same-format rewrite paths, and high-depth PPM/PNG
-  identify/decode/transcode cases.
-- Cargo-fuzz targets exercise FARBFELD, QOI, PNG, and shared PNM identify/decode
-  entrypoints with seeded corpora.
+  FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM identify, prefixed identify, transcode,
+  prefixed transcode, deterministic same-format rewrite paths, high-depth
+  PPM/PNG identify/decode/transcode cases, and JPEG RGB8 lossy metric cases.
+- Cargo-fuzz targets exercise FARBFELD, JPEG, QOI, PNG, and shared PNM
+  identify/decode entrypoints with seeded corpora.
 - Benchmarks record library throughput, process timing, process RSS, and output
   hashes for standalone and ImageMagick oracle cases.
 
@@ -93,17 +96,22 @@ $archive_table
 - No full ImageMagick CLI parser or \`magick\` alias.
 - No stdin/stdout streaming, delegates, profiles, color management, transforms,
   MagickCore, or MagickWand.
-- No prefixes beyond exact \`FARBFELD:\`, \`QOI:\`, \`PBM:\`, \`PGM:\`, \`PNG:\`,
-  and \`PPM:\`.
+- No prefixes beyond exact \`FARBFELD:\`, \`JPEG:\`, \`QOI:\`, \`PBM:\`, \`PGM:\`,
+  \`PNG:\`, and \`PPM:\`.
 - No APNG, indexed/palette PNG, low-bit PNG, PNG color management/profile
-  preservation, JPEG, TIFF, PAM, PFM, or BMP support in this conformance
+  preservation, TIFF, PAM, PFM, BMP, GIF, or WebP support in this conformance
   surface.
+- No progressive JPEG, CMYK/YCCK JPEG, 12-bit JPEG, arithmetic-coded JPEG,
+  lossless JPEG/JPEG-LS, JPEG 2000, JPEG XL, metadata/profile/orientation
+  preservation, or JPEG color-management semantics.
 EOF
 
 cat >"$out_dir/conformance-summary.json" <<EOF
 {
   "schema_version": 1,
   "version": "$version",
+  "formats": ["FARBFELD", "JPEG", "QOI", "PBM", "PGM", "PNG", "PPM"],
+  "prefixes": ["FARBFELD:", "JPEG:", "QOI:", "PBM:", "PGM:", "PNG:", "PPM:"],
   "git_rev": "$git_rev",
   "generated_at": "$generated_at",
   "differential_summary": "${differential_summary:-}",

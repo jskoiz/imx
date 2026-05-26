@@ -5,6 +5,7 @@ pub const MAX_PIXEL_BYTES: usize = 512 * 1024 * 1024;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Format {
     Farbfeld,
+    Jpeg,
     Pbm,
     Pgm,
     Png,
@@ -16,6 +17,7 @@ impl Format {
     pub fn name(self) -> &'static str {
         match self {
             Self::Farbfeld => "FARBFELD",
+            Self::Jpeg => "JPEG",
             Self::Pbm => "PBM",
             Self::Pgm => "PGM",
             Self::Png => "PNG",

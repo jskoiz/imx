@@ -30,6 +30,7 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let gradient_rgb8 = gradient.to_rgb8()?.into_pixels();
     let gradient_rgb16be = gradient.to_rgb16be()?.into_pixels();
     let gradient_qoi = imx_codec_qoi::encode_image(&gradient, imx_codec_qoi::QOI_SRGB)?;
+    let gradient_jpeg = imx_codec_jpeg::encode(&gradient.to_rgb8()?)?;
     let gradient_png = imx_codec_png::encode(&gradient.to_rgba8()?)?;
     let gradient_png16 = imx_codec_png::encode(&gradient)?;
     let gradient_pbm = imx_codec_pnm::encode_pbm(&gradient)?;
@@ -77,9 +78,16 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let qoi_rgba = imx_codec_qoi::encode(2, 2, 4, imx_codec_qoi::QOI_SRGB, &qoi_rgba_pixels)?;
     let qoi_rgb_pixels = [0, 255, 0, 255, 0, 0, 18, 52, 86, 255, 255, 255];
     let qoi_rgb = imx_codec_qoi::encode(2, 2, 3, imx_codec_qoi::QOI_LINEAR, &qoi_rgb_pixels)?;
+    let gray_jpeg = imx_codec_jpeg::encode(&Image::new(
+        4,
+        1,
+        PixelFormat::Gray8,
+        vec![0, 85, 170, 255],
+    )?)?;
 
     let files = [
         ("gradient-64.ff", gradient_ff),
+        ("gradient-64.jpg", gradient_jpeg),
         ("gradient-64.qoi", gradient_qoi),
         ("gradient-64.png", gradient_png),
         ("gradient-64-png16.png", gradient_png16),
@@ -101,6 +109,7 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         ("pbm-threshold-4x1.pbm", threshold_pbm),
         ("qoi-rgba-2x2.qoi", qoi_rgba),
         ("qoi-rgb-2x2.qoi", qoi_rgb),
+        ("gray-4x1.jpg", gray_jpeg),
     ];
 
     let mut manifest = String::from("# IMX generated fixtures\n");

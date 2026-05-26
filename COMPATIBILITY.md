@@ -1,4 +1,4 @@
-# IMX FARBFELD/QOI/PBM/PGM/PNG/PPM Compatibility Contract
+# IMX FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM Compatibility Contract
 
 This contract covers only the standalone developer-preview slice.
 
@@ -21,9 +21,9 @@ This contract covers only the standalone developer-preview slice.
 ```sh
 imx --help
 imx --version
-imx identify [FORMAT:]<input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.png|input.ppm>
-imx [FORMAT:]<input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
-  [FORMAT:]<output.ff|output.farbfeld|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
+imx identify [FORMAT:]<input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>
+imx [FORMAT:]<input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
+  [FORMAT:]<output.ff|output.farbfeld|output.jpg|output.jpeg|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
 ```
 
 `identify` outputs:
@@ -38,6 +38,7 @@ IMX accepts exact uppercase ImageMagick-style prefixes for the existing
 supported formats only:
 
 - `FARBFELD:input.ff`
+- `JPEG:input.jpg`
 - `QOI:input.qoi`
 - `PBM:input.pbm`
 - `PGM:input.pgm`
@@ -49,7 +50,8 @@ They are stripped before file IO, then checked against the detected input format
 or output path extension. Unknown uppercase prefixes, empty prefixed paths, and
 prefix/format mismatches fail with an `error: ...` message. Output paths still
 need a supported extension, so `QOI:output` is not a supported way to select an
-extensionless output format. Same-path rejection compares stripped paths.
+extensionless output format. Same-path rejection compares stripped paths. `JPG:`
+is not a supported prefix.
 
 ## Format Behavior
 
@@ -70,6 +72,26 @@ QOI:
   the current compatibility slice.
 - Final runs that exceed the remaining declared pixel count are clipped to the
   declared dimensions.
+
+JPEG:
+
+- Magic detection requires the JPEG SOI marker followed by a marker byte:
+  `ff d8 ff`.
+- `.jpg` and `.jpeg` extensions both map to JPEG. Extension matching is
+  case-insensitive.
+- Decode and identify support are limited to 8-bit grayscale and RGB JPEG
+  streams. `identify` reports `channels=GRAY depth=8` or `channels=RGB depth=8`.
+- Encode support writes deterministic 8-bit JPEG with fixed quality 90.
+- JPEG output rejects non-opaque alpha input instead of silently compositing or
+  dropping alpha.
+- Same-format JPEG rewrites are lossy decode/re-encode operations and do not
+  preserve source bytes, quality, quantization/Huffman tables, chroma
+  subsampling, comments, EXIF, ICC, XMP, orientation, density, thumbnails,
+  timestamps, or other metadata.
+- IMX rejects CMYK/YCCK JPEG and 16-bit JPEG. Progressive, arithmetic-coded,
+  lossless JPEG/JPEG-LS, JPEG 2000, JPEG XL, metadata preservation, profile
+  interpretation, and color-management/orientation semantics are outside this
+  compatibility slice.
 
 PBM:
 
@@ -144,11 +166,27 @@ PPM:
 Same-format rewrites:
 
 - `imx input output` accepts same-format input and output extensions for
-  FARBFELD, QOI, PBM, PGM, PNG, and PPM when the paths are different.
+  FARBFELD, JPEG, QOI, PBM, PGM, PNG, and PPM when the paths are different.
 - Same-format rewrites are deterministic decode/re-encode operations, not
   source preservation. They may normalize Netpbm source form to deterministic
-  binary output, regenerate QOI opcode streams, and drop comments, whitespace,
-  padding-bit values, or other incidental representation details.
+  binary output, regenerate QOI opcode streams, re-encode JPEG lossily, and
+  drop comments, whitespace, padding-bit values, metadata, or other incidental
+  representation details.
+
+FARBFELD/QOI/PBM/PGM/PNG/PPM to JPEG:
+
+- JPEG output writes 8-bit grayscale for grayscale-like inputs and 8-bit RGB
+  for color inputs.
+- High-depth inputs are quantized to 8-bit before JPEG encode.
+- Non-opaque alpha is rejected instead of composited or dropped.
+- JPEG output is lossy and deterministic for the same normalized input bytes.
+
+JPEG to FARBFELD/QOI/PBM/PGM/PNG/PPM:
+
+- JPEG grayscale input remains gray unless the destination requires RGB/RGBA.
+- JPEG RGB input expands to opaque alpha for FARBFELD, QOI, or PNG RGBA output.
+- JPEG to PBM/PGM uses the same Rec.709 luma and thresholding rules as other
+  color inputs.
 
 FARBFELD to QOI:
 
@@ -227,7 +265,8 @@ FARBFELD/QOI to PGM:
 
 ## Resource Policy
 
-- Decoded pixel buffers are capped at 512 MiB.
+- Decoded pixel buffers are capped at 512 MiB, with JPEG decode capped at
+  128 MiB to account for decoder working-memory overhead.
 - CLI input files larger than 513 MiB are rejected before reading.
 - The cap is an IMX safety policy, not ImageMagick parity.
 
@@ -235,21 +274,24 @@ FARBFELD/QOI to PGM:
 
 The compatibility lane keeps `scripts/differential-corpus.sh` as a
 report-producing ImageMagick oracle lane. It generates the deterministic fixture
-corpus, runs `imx identify` for FARBFELD, QOI, PBM, PGM, PNG, and PPM fixtures,
-runs prefixed identify cases for the same six formats, runs additional
-high-depth PPM and PNG identify cases, then checks all 36 directed transcodes
-between the six supported formats plus a prefixed transcode ring that exercises
-every supported prefix as input and output. It also runs high-depth PPM and PNG
-transcode cases for 16-bit preserving destinations.
+corpus, runs `imx identify` for FARBFELD, JPEG, QOI, PBM, PGM, PNG, and PPM
+fixtures, runs prefixed identify cases for the same seven formats, runs
+additional high-depth PPM and PNG identify cases, then checks all 49 directed
+transcodes between the seven supported formats plus a prefixed transcode ring
+that exercises every supported prefix as input and output. It also runs
+high-depth PPM and PNG transcode cases for 16-bit preserving destinations.
 
 Most transcode results are decoded through ImageMagick to canonical 8-bit RGBA
 raw pixels and compared with the ImageMagick oracle output for the same source
 and destination format. High-depth PPM cases that should preserve precision are
-decoded to canonical 16-bit raw RGB or GRAY samples before comparison. The report
-emits:
+decoded to canonical 16-bit raw RGB or GRAY samples before comparison. JPEG
+cases are decoded to canonical RGB8 and checked with recorded lossy tolerance
+metrics instead of byte equality. The report emits:
 
 - `manifest.json` from the generated fixture corpus.
 - `results.jsonl` with one row per identify/transcode case.
+- `jpeg-metrics.jsonl` with max absolute difference, MAE, RMSE, PSNR, p99, and
+  threshold counts for JPEG-involved cases.
 - `summary.json` with pass/fail counts and evidence paths.
 
 Malformed-input conformance remains covered by golden/malformed unit tests and
@@ -262,15 +304,19 @@ clamp.
 - No full ImageMagick command parser.
 - No `magick` binary alias; the shipped command is `imx`.
 - No stdin/stdout streaming.
-- No prefixes beyond exact `FARBFELD:`, `QOI:`, `PBM:`, `PGM:`, `PNG:`, and
-  `PPM:`.
+- No prefixes beyond exact `FARBFELD:`, `JPEG:`, `QOI:`, `PBM:`, `PGM:`,
+  `PNG:`, and `PPM:`.
 - No PAM/PFM support.
 - No delegates, profiles, color management, resize/transform operations,
   MagickCore API, or MagickWand API.
 - No APNG, indexed/palette PNG, low-bit PNG, PNG metadata/profile preservation,
-  or format beyond FARBFELD, QOI, PBM, PGM, PNG, and PPM.
+  or PNG color-management/profile semantics.
+- No progressive JPEG, CMYK/YCCK JPEG, 12-bit JPEG, arithmetic-coded JPEG,
+  lossless JPEG/JPEG-LS, JPEG 2000, JPEG XL, JPEG metadata/profile/orientation
+  preservation, or JPEG color-management semantics.
+- No format beyond FARBFELD, JPEG, QOI, PBM, PGM, PNG, and PPM.
 - No Windows, crates.io, Homebrew/core, or package-manager distribution beyond
-  the `jskoiz/imx` Homebrew tap is claimed for this slice. v0.8.1 Linux x86_64
+  the `jskoiz/imx` Homebrew tap is claimed for this slice. v0.9.0 Linux x86_64
   and Linux arm64 archives require glibc 2.34 or newer; Linux arm64 support is
   claimed only for the published archive and tap block verified from release
   `SHA256SUMS` by Linux-only tap smoke.

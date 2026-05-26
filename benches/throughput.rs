@@ -38,6 +38,9 @@ fn main() {
         .unwrap_or(50);
     let image = fixture(256, 256);
     let ff = imx_codec_farbfeld::encode(&image).unwrap();
+    let opaque_rgb = image.to_rgb8().unwrap();
+    let opaque_ff = imx_codec_farbfeld::encode(&opaque_rgb).unwrap();
+    let jpeg = imx_codec_jpeg::encode(&opaque_rgb).unwrap();
     let qoi = imx_codec_qoi::encode_image(&image, imx_codec_qoi::QOI_SRGB).unwrap();
     let png = imx_codec_png::encode(&image.to_rgba8().unwrap()).unwrap();
     let png16 = imx_codec_png::encode(&image).unwrap();
@@ -48,6 +51,7 @@ fn main() {
 
     println!("iterations={iterations}");
     println!("farbfeld_bytes={}", ff.len());
+    println!("jpeg_bytes={}", jpeg.len());
     println!("qoi_bytes={}", qoi.len());
     println!("png_bytes={}", png.len());
     println!("png16_bytes={}", png16.len());
@@ -67,6 +71,12 @@ fn main() {
     });
     time("qoi_encode", qoi.len(), iterations, || {
         black_box(imx_codec_qoi::encode_image(black_box(&image), imx_codec_qoi::QOI_SRGB).unwrap());
+    });
+    time("jpeg_decode", jpeg.len(), iterations, || {
+        black_box(imx_codec_jpeg::decode(black_box(&jpeg)).unwrap());
+    });
+    time("jpeg_encode", jpeg.len(), iterations, || {
+        black_box(imx_codec_jpeg::encode(black_box(&opaque_rgb)).unwrap());
     });
     time("png_decode", png.len(), iterations, || {
         black_box(imx_codec_png::decode(black_box(&png)).unwrap());
@@ -115,6 +125,14 @@ fn main() {
             .and_then(|decoded| decoded.into_core_image())
             .unwrap();
         black_box(imx_codec_farbfeld::encode(&decoded).unwrap());
+    });
+    time("jpeg_to_ff", jpeg.len(), iterations, || {
+        let decoded = imx_codec_jpeg::decode(black_box(&jpeg)).unwrap();
+        black_box(imx_codec_farbfeld::encode(&decoded).unwrap());
+    });
+    time("ff_to_jpeg", opaque_ff.len(), iterations, || {
+        let decoded = imx_codec_farbfeld::decode(black_box(&opaque_ff)).unwrap();
+        black_box(imx_codec_jpeg::encode(&decoded).unwrap());
     });
     time("png_to_ff", png.len(), iterations, || {
         let decoded = imx_codec_png::decode(black_box(&png)).unwrap();

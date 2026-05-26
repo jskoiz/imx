@@ -60,10 +60,10 @@ assert_not_contains "$v040_formula" "PPM:input.ppm"
 
 linux_only="$work_dir/linux-only.SHA256SUMS"
 write_checksums "$linux_only" \
-  imx-preview-0.8.0-x86_64-unknown-linux-gnu.tar.gz \
-  imx-preview-0.8.0-aarch64-unknown-linux-gnu.tar.gz
+  imx-preview-0.9.0-x86_64-unknown-linux-gnu.tar.gz \
+  imx-preview-0.9.0-aarch64-unknown-linux-gnu.tar.gz
 linux_only_formula="$work_dir/linux-only.rb"
-bash scripts/generate-homebrew-formula.sh 0.8.0 "$linux_only" "$linux_only_formula"
+bash scripts/generate-homebrew-formula.sh 0.9.0 "$linux_only" "$linux_only_formula"
 assert_formula_syntax "$linux_only_formula"
 assert_not_contains "$linux_only_formula" "on_macos do"
 assert_contains "$linux_only_formula" "on_linux do"
@@ -73,6 +73,8 @@ assert_contains "$linux_only_formula" "PPM:input.ppm"
 assert_contains "$linux_only_formula" "FARBFELD:prefix-output.ff"
 assert_contains "$linux_only_formula" "PNG:output.png"
 assert_contains "$linux_only_formula" "FARBFELD:png-output.ff"
+assert_contains "$linux_only_formula" "JPEG:output.jpg"
+assert_contains "$linux_only_formula" "FARBFELD:jpeg-output.ff"
 
 all_targets="$work_dir/all-targets.SHA256SUMS"
 write_checksums "$all_targets" \

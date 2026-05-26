@@ -74,6 +74,73 @@ fn assert_success_or_skip(output: &Output, context: &str) -> bool {
     false
 }
 
+#[derive(Debug)]
+struct RawMetrics {
+    max_abs_diff: u8,
+    mae: f64,
+    rmse: f64,
+    psnr_db: f64,
+    p99_abs_diff: u8,
+}
+
+fn raw_metrics(lhs: &[u8], rhs: &[u8]) -> RawMetrics {
+    assert_eq!(lhs.len(), rhs.len(), "raw buffers must have equal length");
+    let mut diffs = lhs
+        .iter()
+        .zip(rhs)
+        .map(|(a, b)| a.abs_diff(*b))
+        .collect::<Vec<_>>();
+    diffs.sort_unstable();
+    let count = diffs.len().max(1);
+    let sum = diffs.iter().map(|value| f64::from(*value)).sum::<f64>();
+    let mse = diffs
+        .iter()
+        .map(|value| {
+            let value = f64::from(*value);
+            value * value
+        })
+        .sum::<f64>()
+        / count as f64;
+    let rmse = mse.sqrt();
+    let psnr_db = if mse == 0.0 {
+        99.0
+    } else {
+        20.0 * (255.0 / rmse).log10()
+    };
+    RawMetrics {
+        max_abs_diff: *diffs.last().unwrap_or(&0),
+        mae: sum / count as f64,
+        rmse,
+        psnr_db,
+        p99_abs_diff: diffs[((count as f64 * 0.99).ceil() as usize)
+            .saturating_sub(1)
+            .min(count - 1)],
+    }
+}
+
+fn assert_jpeg_decode_tolerance(lhs: &[u8], rhs: &[u8], context: &str) {
+    let metrics = raw_metrics(lhs, rhs);
+    assert!(
+        metrics.max_abs_diff <= 4
+            && metrics.mae <= 0.5
+            && metrics.rmse <= 1.0
+            && metrics.p99_abs_diff <= 3,
+        "{context} exceeded JPEG decode tolerance: {metrics:?}"
+    );
+}
+
+fn assert_jpeg_encode_tolerance(lhs: &[u8], rhs: &[u8], context: &str) {
+    let metrics = raw_metrics(lhs, rhs);
+    assert!(
+        metrics.max_abs_diff <= 128
+            && metrics.mae <= 12.0
+            && metrics.rmse <= 20.0
+            && metrics.p99_abs_diff <= 80
+            && metrics.psnr_db >= 22.0,
+        "{context} exceeded JPEG encode tolerance: {metrics:?}"
+    );
+}
+
 fn temp_dir(name: &str) -> PathBuf {
     let mut dir = std::env::temp_dir();
     let nanos = SystemTime::now()
@@ -95,6 +162,26 @@ fn rgba16be_fixture() -> Image {
             0x80, 0x80, 0x12, 0x12, 0x34, 0x34, 0x56, 0x56, 0x78, 0x78, 0xff, 0xff, 0xff, 0xff,
             0xff, 0xff, 0x00, 0x00,
         ],
+    )
+    .unwrap()
+}
+
+fn rgb8_gradient(width: u32, height: u32) -> Image {
+    Image::new(
+        width,
+        height,
+        PixelFormat::Rgb8,
+        (0..height)
+            .flat_map(|y| {
+                (0..width).flat_map(move |x| {
+                    [
+                        ((x * 31 + y * 3) & 0xff) as u8,
+                        ((x * 5 + y * 29) & 0xff) as u8,
+                        ((x * 17 + y * 11) & 0xff) as u8,
+                    ]
+                })
+            })
+            .collect(),
     )
     .unwrap()
 }
@@ -1191,6 +1278,166 @@ fn standalone_png_transcodes_match_imagemagick_decoded_pixels() {
 }
 
 #[test]
+fn standalone_jpeg_decode_matches_imagemagick_with_tolerance() {
+    let Some(magick) = require_or_skip(magick_command(), "ImageMagick oracle") else {
+        return;
+    };
+    let Some(standalone) = require_or_skip(standalone_imx_command(), "standalone imx binary")
+    else {
+        return;
+    };
+    let dir = temp_dir("jpeg_decode");
+    let source_ppm = dir.join("source.ppm");
+    let input_jpeg = dir.join("input.jpg");
+    let imx_ppm = dir.join("imx.ppm");
+    let imx_rgb = dir.join("imx.rgb");
+    let oracle_rgb = dir.join("oracle.rgb");
+    let image = rgb8_gradient(17, 19);
+    fs::write(&source_ppm, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
+
+    let encode = run_magick(
+        &magick,
+        &[
+            format!("PPM:{}", source_ppm.display()),
+            "-quality".to_string(),
+            "90".to_string(),
+            "-sampling-factor".to_string(),
+            "4:4:4".to_string(),
+            "-interlace".to_string(),
+            "none".to_string(),
+            "-strip".to_string(),
+            format!("JPEG:{}", input_jpeg.display()),
+        ],
+    );
+    if !assert_success_or_skip(&encode, "ImageMagick JPEG fixture encode") {
+        return;
+    }
+
+    let transcode = run_magick(
+        &standalone,
+        &[
+            format!("JPEG:{}", input_jpeg.display()),
+            format!("PPM:{}", imx_ppm.display()),
+        ],
+    );
+    assert!(
+        transcode.status.success(),
+        "standalone JPEG->PPM failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&transcode.stdout),
+        String::from_utf8_lossy(&transcode.stderr)
+    );
+
+    let imx_decode = run_magick(
+        &magick,
+        &[
+            format!("PPM:{}", imx_ppm.display()),
+            "-depth".to_string(),
+            "8".to_string(),
+            format!("RGB:{}", imx_rgb.display()),
+        ],
+    );
+    let oracle_decode = run_magick(
+        &magick,
+        &[
+            format!("JPEG:{}", input_jpeg.display()),
+            "-depth".to_string(),
+            "8".to_string(),
+            format!("RGB:{}", oracle_rgb.display()),
+        ],
+    );
+    if !assert_success_or_skip(&imx_decode, "ImageMagick decode IMX JPEG output")
+        || !assert_success_or_skip(&oracle_decode, "ImageMagick decode oracle JPEG")
+    {
+        return;
+    }
+    assert_jpeg_decode_tolerance(
+        &fs::read(imx_rgb).unwrap(),
+        &fs::read(oracle_rgb).unwrap(),
+        "JPEG decode oracle parity",
+    );
+}
+
+#[test]
+fn standalone_jpeg_encode_is_within_oracle_tolerance() {
+    let Some(magick) = require_or_skip(magick_command(), "ImageMagick oracle") else {
+        return;
+    };
+    let Some(standalone) = require_or_skip(standalone_imx_command(), "standalone imx binary")
+    else {
+        return;
+    };
+    let dir = temp_dir("jpeg_encode");
+    let source_ppm = dir.join("source.ppm");
+    let imx_jpeg = dir.join("imx.jpg");
+    let oracle_jpeg = dir.join("oracle.jpg");
+    let imx_rgb = dir.join("imx.rgb");
+    let oracle_rgb = dir.join("oracle.rgb");
+    let image = rgb8_gradient(16, 16);
+    fs::write(&source_ppm, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
+
+    let imx_encode = run_magick(
+        &standalone,
+        &[
+            format!("PPM:{}", source_ppm.display()),
+            format!("JPEG:{}", imx_jpeg.display()),
+        ],
+    );
+    assert!(
+        imx_encode.status.success(),
+        "standalone PPM->JPEG failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&imx_encode.stdout),
+        String::from_utf8_lossy(&imx_encode.stderr)
+    );
+
+    let oracle_encode = run_magick(
+        &magick,
+        &[
+            format!("PPM:{}", source_ppm.display()),
+            "-quality".to_string(),
+            "90".to_string(),
+            "-sampling-factor".to_string(),
+            "4:4:4".to_string(),
+            "-interlace".to_string(),
+            "none".to_string(),
+            "-strip".to_string(),
+            format!("JPEG:{}", oracle_jpeg.display()),
+        ],
+    );
+    if !assert_success_or_skip(&oracle_encode, "ImageMagick PPM->JPEG encode") {
+        return;
+    }
+
+    let imx_decode = run_magick(
+        &magick,
+        &[
+            format!("JPEG:{}", imx_jpeg.display()),
+            "-depth".to_string(),
+            "8".to_string(),
+            format!("RGB:{}", imx_rgb.display()),
+        ],
+    );
+    let oracle_decode = run_magick(
+        &magick,
+        &[
+            format!("JPEG:{}", oracle_jpeg.display()),
+            "-depth".to_string(),
+            "8".to_string(),
+            format!("RGB:{}", oracle_rgb.display()),
+        ],
+    );
+    if !assert_success_or_skip(&imx_decode, "ImageMagick decode IMX JPEG")
+        || !assert_success_or_skip(&oracle_decode, "ImageMagick decode oracle JPEG")
+    {
+        return;
+    }
+    assert_jpeg_encode_tolerance(
+        &fs::read(imx_rgb).unwrap(),
+        &fs::read(oracle_rgb).unwrap(),
+        "JPEG encode oracle-relative parity",
+    );
+}
+
+#[test]
 fn supported_identify_fields_match_imagemagick_oracle_when_available() {
     let Some(magick) = require_or_skip(magick_command(), "ImageMagick oracle") else {
         return;
@@ -1371,5 +1618,33 @@ fn supported_identify_fields_match_imagemagick_oracle_when_available() {
     assert_eq!(
         String::from_utf8_lossy(&standalone_result.stdout).trim(),
         "format=PNG width=2 height=2 channels=RGB depth=8"
+    );
+
+    let jpeg = dir.join("input.jpg");
+    fs::write(&jpeg, imx_codec_jpeg::encode(&rgb8_gradient(8, 8)).unwrap()).unwrap();
+    let result = run_magick(
+        &magick,
+        &[
+            "identify".to_string(),
+            "-format".to_string(),
+            "%m %w %h %[colorspace] %[depth]".to_string(),
+            jpeg.display().to_string(),
+        ],
+    );
+    if !assert_success_or_skip(&result, "ImageMagick JPEG identify") {
+        return;
+    }
+    let stdout = String::from_utf8_lossy(&result.stdout);
+    assert!(stdout.contains("JPEG"));
+    assert!(stdout.contains("8 8"));
+
+    let standalone_result = run_magick(
+        &standalone,
+        &["identify".to_string(), format!("JPEG:{}", jpeg.display())],
+    );
+    assert!(standalone_result.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&standalone_result.stdout).trim(),
+        "format=JPEG width=8 height=8 channels=RGB depth=8"
     );
 }

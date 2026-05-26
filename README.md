@@ -1,11 +1,11 @@
 # IMX Developer Preview
 
 IMX is a standalone Rust image tool built one ImageMagick-compatible slice at a
-time. The current published developer-preview release is `v0.8.1`: it supports
+time. The current published developer-preview release is `v0.9.0`: it supports
 deterministic identify, cross-format transcode, same-format rewrite, exact
 uppercase format-prefix workflows, high-depth PPM, and a bounded PNG raster
-surface for FARBFELD, QOI, PNG, and Netpbm PBM/PGM/PPM through the `imx`
-binary.
+surface, plus bounded 8-bit JPEG grayscale/RGB support, for FARBFELD, JPEG,
+QOI, PNG, and Netpbm PBM/PGM/PPM through the `imx` binary.
 
 IMX is not an ImageMagick fork and does not link to MagickCore, MagickWand,
 delegates, modules, `policy.xml`, or ImageMagick's build system. ImageMagick is
@@ -17,9 +17,15 @@ add APNG, indexed/palette PNG, low-bit PNG, PNG metadata/profile preservation,
 color management, JPEG/TIFF/PAM/PFM/BMP, stdin/stdout streaming, a `magick`
 alias, full ImageMagick CLI parsing, delegates, MagickCore, or MagickWand.
 
+The v0.9.0 release adds `.jpg`/`.jpeg` and exact `JPEG:` support for 8-bit
+grayscale/RGB JPEG identify and transcode. JPEG output uses fixed quality 90
+encoding, rejects non-opaque alpha inputs, and does not preserve metadata,
+profiles, chroma subsampling, quantization tables, scan layout, or source
+bytes.
+
 ## Install
 
-Install the published v0.8.1 tap release:
+Install the published v0.9.0 tap release:
 
 ```sh
 brew tap jskoiz/imx
@@ -28,42 +34,42 @@ imx --version
 ```
 
 This uses the `jskoiz/homebrew-imx` tap formula generated from each published
-release's `SHA256SUMS`. For v0.8.1, tap support is limited to archive targets
-present in the current v0.8.x release and verified by tap smoke. It is not a
+release's `SHA256SUMS`. For v0.9.0, tap support is limited to archive targets
+present in the current v0.9.0 release and verified by tap smoke. It is not a
 Homebrew/core formula. Published Linux archives require glibc 2.34 or newer.
 
 Hosted GitHub Actions for the tap are Linux-only; macOS install proof must be
 run locally or manually after explicit approval.
 
-Install the published v0.8.1 release archive directly:
+Install the published v0.9.0 release archive directly:
 
 ```sh
-IMX_VERSION=v0.8.1
+IMX_VERSION=v0.9.0
 curl -fsSL "https://raw.githubusercontent.com/jskoiz/imx/${IMX_VERSION}/scripts/install.sh" | sh
 ```
 
 The installer verifies the published `SHA256SUMS`, installs `imx`, asserts the
 installed version, checks for glibc 2.34 or newer on Linux, and runs a small
-identify/transcode smoke test. Hosted v0.8.x tag automation publishes Linux
+identify/transcode smoke test. Hosted v0.9.0 tag automation publishes Linux
 archives for:
 
-- `imx-preview-0.8.1-x86_64-unknown-linux-gnu.tar.gz`
-- `imx-preview-0.8.1-aarch64-unknown-linux-gnu.tar.gz`
+- `imx-preview-0.9.0-x86_64-unknown-linux-gnu.tar.gz`
+- `imx-preview-0.9.0-aarch64-unknown-linux-gnu.tar.gz`
 
-macOS v0.8.x archives or tap blocks require recorded local/manual proof before
+macOS v0.9.0 archives or tap blocks require recorded local/manual proof before
 being claimed. No Windows, crates.io, Homebrew/core, or package-manager
-distribution beyond the `jskoiz/imx` tap is claimed. The v0.8.1 release URL is:
+distribution beyond the `jskoiz/imx` tap is claimed. The v0.9.0 release URL is:
 
 ```text
-https://github.com/jskoiz/imx/releases/tag/v0.8.1
+https://github.com/jskoiz/imx/releases/tag/v0.9.0
 ```
 
 The release-attached `imx.rb` is the formula source used to update the
-`jskoiz/homebrew-imx` tap from the published `SHA256SUMS`. For v0.8.1, Linux
+`jskoiz/homebrew-imx` tap from the published `SHA256SUMS`. For v0.9.0, Linux
 x86_64 and Linux arm64 tap blocks are generated from the release checksums and
 verified by Linux-only tap smoke.
 
-Or install the current v0.8.1 source tree directly:
+Or install the current v0.9.0 source tree directly:
 
 ```sh
 git clone https://github.com/jskoiz/imx.git
@@ -80,13 +86,14 @@ checkout in CI.
 ```sh
 imx --help
 imx --version
-imx identify [FORMAT:]<input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.png|input.ppm>
-imx [FORMAT:]<input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
-  [FORMAT:]<output.ff|output.farbfeld|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
+imx identify [FORMAT:]<input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>
+imx [FORMAT:]<input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
+  [FORMAT:]<output.ff|output.farbfeld|output.jpg|output.jpeg|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
 ```
 
-Supported exact prefixes are `FARBFELD:`, `QOI:`, `PBM:`, `PGM:`, `PNG:`, and `PPM:`.
-Prefixes are accepted only on `identify` and two-path transcode operands. They
+Supported exact prefixes are `FARBFELD:`, `JPEG:`, `QOI:`, `PBM:`, `PGM:`,
+`PNG:`, and `PPM:`. `JPG:` is intentionally not a supported prefix. Prefixes
+are accepted only on `identify` and two-path transcode operands. They
 are stripped before file IO, must match the detected input format or output
 path extension, and do not add extensionless output selection. Unknown,
 missing-path, and mismatched prefixes fail with `error: ...`; same-path
@@ -109,6 +116,13 @@ incidental representation details.
 ## Format Scope
 
 - FARBFELD: RGBA16BE identify/decode/encode.
+- JPEG: `.jpg`/`.jpeg` identify/decode/encode for 8-bit grayscale and RGB
+  JPEG streams. Output JPEG uses fixed quality 90 encoding. Non-opaque alpha
+  inputs are rejected instead of silently composited or dropped. Same-format
+  JPEG rewrites are deterministic lossy decode/re-encode operations and do not
+  preserve source bytes, quality, quantization/Huffman tables, chroma
+  subsampling, comments, EXIF, ICC, XMP, orientation, density, thumbnails,
+  timestamps, or other metadata.
 - QOI: RGB8/RGBA8 identify/decode/encode.
 - PBM: ASCII `P1` and binary `P4` bilevel decode; deterministic binary `P4`
   encode.
@@ -136,26 +150,30 @@ Known lossy paths:
   16-bit samples.
 - PNG to QOI quantizes 16-bit PNG samples to 8-bit. PNG grayscale-alpha input
   expands gray into RGB and keeps alpha.
+- Any output to JPEG quantizes to 8-bit grayscale or RGB and is lossy. IMX
+  rejects non-opaque alpha for JPEG output.
 - Any output to PPM drops alpha; any output to PGM drops color/alpha; any
   output to PBM drops color, alpha, and grayscale precision.
 
 Unsupported by design: full ImageMagick CLI parsing, stdin/stdout streaming,
-prefixes outside the exact six listed above, delegates, profiles, color
+prefixes outside the exact seven listed above, delegates, profiles, color
 management, resizing/transforms, MagickCore, MagickWand, APNG, indexed/palette
-PNG, low-bit PNG, PNG metadata/profile preservation, PAM, PFM, BMP, and other
-image formats.
+PNG, low-bit PNG, PNG metadata/profile preservation, progressive JPEG,
+CMYK/YCCK JPEG, 12-bit JPEG, arithmetic-coded JPEG, lossless JPEG/JPEG-LS,
+JPEG 2000, JPEG XL, PAM, PFM, BMP, TIFF, GIF, WebP, and other image formats.
 
 ## Safety Posture
 
 - Product decode/encode paths are safe Rust.
-- Runtime dependencies are local IMX crates plus the pure-Rust PNG codec
-  dependency used by `crates/codecs/png`.
-- Decoded pixel buffers are capped at 512 MiB.
+- Runtime dependencies are local IMX crates plus pure-Rust PNG and JPEG codec
+  dependencies used by `crates/codecs/png` and `crates/codecs/jpeg`.
+- Decoded pixel buffers are capped at 512 MiB, with JPEG decode capped at
+  128 MiB to account for decoder working-memory overhead.
 - CLI input reads are capped at 513 MiB.
 - Output writes use a temp file plus rename, and malformed input does not leave
   the requested output behind.
-- Fuzz targets cover FARBFELD, QOI, PNG, and PNM decode/identify entrypoints
-  with seeded FARBFELD/QOI/PBM/PGM/PNG/PPM corpora.
+- Fuzz targets cover FARBFELD, JPEG, QOI, PNG, and PNM decode/identify
+  entrypoints with seeded FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM corpora.
 
 ## Release Gates
 
@@ -223,17 +241,17 @@ IMX_INSTALL_REPO_URL=https://github.com/jskoiz/imx.git ./scripts/verify-install.
 Verify published Linux release archives after GitHub release publication:
 
 ```sh
-IMX_VERSION=v0.8.1 IMX_RELEASE_TARGET=x86_64-unknown-linux-gnu ./scripts/verify-release-archive.sh
+IMX_VERSION=v0.9.0 IMX_RELEASE_TARGET=x86_64-unknown-linux-gnu ./scripts/verify-release-archive.sh
 ```
 
-Verify the v0.8.1 Homebrew tap install smoke:
+Verify the v0.9.0 Homebrew tap install smoke:
 
 ```sh
 brew tap jskoiz/imx
 brew install imx
 brew test imx
 imx --version
-test "$(imx --version)" = "imx 0.8.1"
+test "$(imx --version)" = "imx 0.9.0"
 ```
 
 `brew test` verifies installation only. Compatibility remains covered by the
@@ -274,7 +292,8 @@ hosted macOS GitHub Actions.
 See [COMPATIBILITY.md](COMPATIBILITY.md) for the exact behavior contract and
 [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) for current release evidence,
 known gaps, and the next adoption milestone.
-The v0.8.0 implementation contract is tracked in
+The v0.9.0 JPEG implementation contract is tracked in
+[docs/v0.9.0-jpeg.md](docs/v0.9.0-jpeg.md). The v0.8.0 implementation contract is tracked in
 [docs/v0.8.0-png.md](docs/v0.8.0-png.md). The v0.7.0 high-depth PPM contract is
 tracked in [docs/v0.7.0-high-depth-ppm.md](docs/v0.7.0-high-depth-ppm.md). The
 published v0.6.0 release checklist remains in
