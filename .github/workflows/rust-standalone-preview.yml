@@ -6,7 +6,7 @@ on:
     tags:
       - 'v*'
     paths:
-      - '.github/workflows/rust-standalone-preview.yml'
+      - '.github/workflows/**'
       - '**/*.rs'
       - '**/Cargo.toml'
       - 'Cargo.lock'
@@ -26,10 +26,16 @@ permissions:
   contents: read
 
 name: Rust Standalone Preview
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   preview:
     name: Developer preview gates
     runs-on: ubuntu-24.04
+    timeout-minutes: 120
 
     steps:
       - uses: actions/checkout@v6
@@ -175,6 +181,7 @@ jobs:
     needs: preview
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -236,6 +243,7 @@ jobs:
     needs: package
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     permissions:
       contents: write
 
@@ -293,7 +301,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          expected_tag="v$(cargo metadata --no-deps --format-version 1 | sed -n 's/.*"name":"imx-preview","version":"\([^"]*\)".*/\1/p')"
+          if [[ "$GITHUB_REF_NAME" != "$expected_tag" ]]; then
+            echo "error: tag $GITHUB_REF_NAME does not match Cargo package version $expected_tag" >&2
+            exit 1
+          fi
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            if [[ "${IMX_RELEASE_CLOBBER:-0}" != "1" ]]; then
+              echo "error: release $GITHUB_REF_NAME already exists; set IMX_RELEASE_CLOBBER=1 only for an intentional manual repair" >&2
+              exit 1
+            fi
             gh release edit "$GITHUB_REF_NAME" \
               --target "$GITHUB_SHA" \
               --title "IMX Developer Preview $GITHUB_REF_NAME" \
@@ -312,6 +329,7 @@ jobs:
     needs: release
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
     permissions:
       contents: read
     strategy:
@@ -361,6 +379,15 @@ jobs:
             IMX_VERSION="$GITHUB_REF_NAME" \
             IMX_RELEASE_TARGET="${{ matrix.target }}" \
             bash scripts/verify-release-archive.sh
+
+      - name: Verify one-command installer
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: |
+          set -euo pipefail
+          IMX_REPO="$GITHUB_REPOSITORY" \
+            IMX_VERSION="$GITHUB_REF_NAME" \
+            IMX_INSTALL_DIR="$RUNNER_TEMP/imx-install/bin" \
+            sh scripts/install.sh
 
       - name: Upload release archive smoke evidence
         if: always()

@@ -270,6 +270,7 @@ clamp.
 - No APNG, indexed/palette PNG, low-bit PNG, PNG metadata/profile preservation,
   or format beyond FARBFELD, QOI, PBM, PGM, PNG, and PPM.
 - No Windows, crates.io, Homebrew/core, or package-manager distribution beyond
-  the `jskoiz/imx` Homebrew tap is claimed for this slice. v0.8.0 Linux arm64
-  support is claimed only for the published archive and tap block verified from
-  release `SHA256SUMS` by Linux-only tap smoke.
+  the `jskoiz/imx` Homebrew tap is claimed for this slice. v0.8.1 Linux x86_64
+  and Linux arm64 archives require glibc 2.34 or newer; Linux arm64 support is
+  claimed only for the published archive and tap block verified from release
+  `SHA256SUMS` by Linux-only tap smoke.

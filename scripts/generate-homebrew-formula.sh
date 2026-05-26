@@ -132,6 +132,12 @@ cat <<'EOF'
     prefix.install "README.md", "COMPATIBILITY.md", "RELEASE_NOTES.md", "PRODUCTION_READINESS.md"
   end
 
+  def caveats
+    return unless OS.linux?
+
+    "Published Linux archives require glibc 2.34 or newer."
+  end
+
   test do
     (testpath/"input.ppm").write "P3\n2 1\n255\n255 0 0 0 0 255\n"
     assert_match "format=PPM width=2 height=1 channels=RGB depth=8", shell_output("#{bin/"imx"} identify input.ppm")

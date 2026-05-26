@@ -50,25 +50,26 @@ dependencies = [
 
 [[package]]
 name = "imx-cli"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "imx-codec-farbfeld",
  "imx-codec-png",
  "imx-codec-pnm",
  "imx-codec-qoi",
  "imx-core",
+ "png",
 ]
 
 [[package]]
 name = "imx-codec-farbfeld"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "imx-core",
 ]
 
 [[package]]
 name = "imx-codec-png"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "imx-core",
  "png",
@@ -76,25 +77,25 @@ dependencies = [
 
 [[package]]
 name = "imx-codec-pnm"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "imx-core",
 ]
 
 [[package]]
 name = "imx-codec-qoi"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "imx-core",
 ]
 
 [[package]]
 name = "imx-core"
-version = "0.8.0"
+version = "0.8.1"
 
 [[package]]
 name = "imx-preview"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "imx-codec-farbfeld",
  "imx-codec-png",

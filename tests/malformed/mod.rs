@@ -26,6 +26,50 @@ fn png_fixture(color_type: png::ColorType, bit_depth: png::BitDepth, pixels: &[u
     out
 }
 
+fn crc32(bytes: &[u8]) -> u32 {
+    let mut crc = 0xffff_ffff_u32;
+    for byte in bytes {
+        crc ^= u32::from(*byte);
+        for _ in 0..8 {
+            let mask = (crc & 1).wrapping_neg();
+            crc = (crc >> 1) ^ (0xedb8_8320 & mask);
+        }
+    }
+    !crc
+}
+
+fn rewrite_chunk_crc(png: &mut [u8], chunk_start: usize) {
+    let len = u32::from_be_bytes(png[chunk_start..chunk_start + 4].try_into().unwrap()) as usize;
+    let chunk_type_start = chunk_start + 4;
+    let crc_start = chunk_type_start + 4 + len;
+    let crc = crc32(&png[chunk_type_start..crc_start]);
+    png[crc_start..crc_start + 4].copy_from_slice(&crc.to_be_bytes());
+}
+
+fn insert_png_chunk(png: &mut Vec<u8>, chunk_type: &[u8; 4], data: &[u8]) {
+    let insert_at = imx_codec_png::MAGIC.len() + 4 + 4 + 13 + 4;
+    let mut chunk = Vec::new();
+    chunk.extend_from_slice(&(data.len() as u32).to_be_bytes());
+    chunk.extend_from_slice(chunk_type);
+    chunk.extend_from_slice(data);
+    let crc = crc32(&chunk[4..]);
+    chunk.extend_from_slice(&crc.to_be_bytes());
+    png.splice(insert_at..insert_at, chunk);
+}
+
+fn set_ihdr_dimensions(png: &mut [u8], width: u32, height: u32) {
+    let ihdr_data = imx_codec_png::MAGIC.len() + 8;
+    png[ihdr_data..ihdr_data + 4].copy_from_slice(&width.to_be_bytes());
+    png[ihdr_data + 4..ihdr_data + 8].copy_from_slice(&height.to_be_bytes());
+    rewrite_chunk_crc(png, imx_codec_png::MAGIC.len());
+}
+
+fn set_ihdr_interlaced(png: &mut [u8]) {
+    let ihdr_interlace = imx_codec_png::MAGIC.len() + 8 + 12;
+    png[ihdr_interlace] = 1;
+    rewrite_chunk_crc(png, imx_codec_png::MAGIC.len());
+}
+
 #[test]
 fn farbfeld_rejects_bad_headers_truncation_and_extreme_dimensions() {
     assert!(matches!(
@@ -101,6 +145,34 @@ fn png_rejects_malformed_and_unsupported_inputs() {
         .unwrap_err()
         .to_string()
         .contains("sub-8-bit"));
+
+    let mut interlaced = png_fixture(png::ColorType::Rgb, png::BitDepth::Eight, &[255, 0, 0]);
+    set_ihdr_interlaced(&mut interlaced);
+    assert!(imx_codec_png::decode(&interlaced)
+        .unwrap_err()
+        .to_string()
+        .contains("interlacing"));
+
+    let mut trns = png_fixture(png::ColorType::Grayscale, png::BitDepth::Eight, &[0]);
+    insert_png_chunk(&mut trns, b"tRNS", &[0, 0]);
+    assert!(imx_codec_png::decode(&trns)
+        .unwrap_err()
+        .to_string()
+        .contains("tRNS transparency"));
+
+    let mut apng = png_fixture(png::ColorType::Rgb, png::BitDepth::Eight, &[255, 0, 0]);
+    insert_png_chunk(&mut apng, b"acTL", &[0, 0, 0, 1, 0, 0, 0, 0]);
+    assert!(imx_codec_png::decode(&apng)
+        .unwrap_err()
+        .to_string()
+        .contains("animation"));
+
+    let mut huge = png_fixture(png::ColorType::Rgba, png::BitDepth::Sixteen, &[0; 8]);
+    set_ihdr_dimensions(&mut huge, 100_000, 100_000);
+    assert!(matches!(
+        imx_codec_png::decode(&huge),
+        Err(ImageError::ImageTooLarge { .. })
+    ));
 
     let mut corrupted =
         imx_codec_png::encode(&Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap())

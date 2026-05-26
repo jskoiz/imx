@@ -2,22 +2,56 @@
 set -eu
 
 repo="${IMX_REPO:-jskoiz/imx}"
-version="${IMX_VERSION:-v0.8.0}"
+version="${IMX_VERSION:-v0.8.1}"
 install_dir="${IMX_INSTALL_DIR:-$HOME/.local/bin}"
 run_smoke="${IMX_INSTALL_SMOKE:-1}"
+min_glibc="2.34"
 
 os="$(uname -s)"
 arch="$(uname -m)"
 
+detect_glibc_version() {
+  if command -v getconf >/dev/null 2>&1; then
+    getconf GNU_LIBC_VERSION 2>/dev/null | awk '/glibc/ { print $2; exit }'
+    return
+  fi
+  if command -v ldd >/dev/null 2>&1; then
+    ldd --version 2>&1 | sed -n '1s/.* \([0-9][0-9.]*\).*/\1/p'
+  fi
+}
+
+require_glibc_floor() {
+  glibc_version="$(detect_glibc_version || true)"
+  if [ -z "$glibc_version" ]; then
+    echo "error: this release archive requires glibc $min_glibc or newer; install from source on non-glibc Linux" >&2
+    exit 2
+  fi
+  glibc_major="${glibc_version%%.*}"
+  glibc_minor="${glibc_version#*.}"
+  glibc_minor="${glibc_minor%%.*}"
+  case "$glibc_major:$glibc_minor" in
+    *[!0-9:]*|:*)
+      echo "error: could not parse glibc version '$glibc_version'; this release archive requires glibc $min_glibc or newer" >&2
+      exit 2
+      ;;
+  esac
+  if [ "$glibc_major" -lt 2 ] || { [ "$glibc_major" -eq 2 ] && [ "$glibc_minor" -lt 34 ]; }; then
+    echo "error: this release archive requires glibc $min_glibc or newer; detected glibc $glibc_version" >&2
+    exit 2
+  fi
+}
+
 case "$os:$arch" in
   Linux:x86_64)
     target="x86_64-unknown-linux-gnu"
+    require_glibc_floor
     ;;
   Linux:aarch64|Linux:arm64)
     target="aarch64-unknown-linux-gnu"
+    require_glibc_floor
     ;;
   Darwin:*)
-    echo "error: this release installer supports Linux archives only; use the v0.4.0 installer for published macOS archives or install from source" >&2
+    echo "error: this release installer supports Linux glibc archives only; install from source on macOS" >&2
     exit 2
     ;;
   *)

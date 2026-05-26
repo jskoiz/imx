@@ -25,6 +25,25 @@ fn prefixed(prefix: &str, path: &Path) -> String {
     format!("{prefix}:{}", path.to_str().unwrap())
 }
 
+fn png_fixture(
+    path: &Path,
+    width: u32,
+    height: u32,
+    color_type: png::ColorType,
+    bit_depth: png::BitDepth,
+    pixels: &[u8],
+) {
+    let file = File::create(path).unwrap();
+    let mut encoder = png::Encoder::new(file, width, height);
+    encoder.set_color(color_type);
+    encoder.set_depth(bit_depth);
+    encoder
+        .write_header()
+        .unwrap()
+        .write_image_data(pixels)
+        .unwrap();
+}
+
 fn write_supported_fixtures(dir: &Path) -> Vec<(&'static str, PathBuf, &'static str)> {
     let ff = dir.join("input.ff");
     let qoi = dir.join("input.qoi");
@@ -803,7 +822,55 @@ fn malformed_png_input_exits_nonzero_with_error_prefix() {
         .unwrap();
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).starts_with("error: "));
-    assert!(String::from_utf8_lossy(&output.stderr).contains("PNG decode failed"));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("PNG identify failed"));
+}
+
+#[test]
+fn grayscale_alpha_png_identify_and_transcode_are_supported() {
+    let dir = temp_dir("png_gray_alpha");
+    let png = dir.join("gray-alpha.png");
+    let ff = dir.join("gray-alpha.ff");
+    png_fixture(
+        &png,
+        2,
+        1,
+        png::ColorType::GrayscaleAlpha,
+        png::BitDepth::Eight,
+        &[0x20, 0x80, 0xff, 0x40],
+    );
+
+    let identify = Command::new(imx())
+        .args(["identify", &prefixed("PNG", &png)])
+        .output()
+        .unwrap();
+    assert!(
+        identify.status.success(),
+        "identify failed with stderr={}",
+        String::from_utf8_lossy(&identify.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(identify.stdout).unwrap().trim(),
+        "format=PNG width=2 height=1 channels=RGBA depth=8"
+    );
+
+    let transcode = Command::new(imx())
+        .args([prefixed("PNG", &png), prefixed("FARBFELD", &ff)])
+        .output()
+        .unwrap();
+    assert!(
+        transcode.status.success(),
+        "transcode failed with stderr={}",
+        String::from_utf8_lossy(&transcode.stderr)
+    );
+    let identify_ff = Command::new(imx())
+        .args(["identify", &prefixed("FARBFELD", &ff)])
+        .output()
+        .unwrap();
+    assert!(identify_ff.status.success());
+    assert_eq!(
+        String::from_utf8(identify_ff.stdout).unwrap().trim(),
+        "format=FARBFELD width=2 height=1 channels=RGBA depth=16"
+    );
 }
 
 #[test]

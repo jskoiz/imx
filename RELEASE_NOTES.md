@@ -1,5 +1,19 @@
 # IMX Release Notes
 
+## IMX v0.8.1 Release Hardening
+
+- Tightens PNG diagnostics so malformed PNG identify paths report identify
+  failures and PNG decoder limit failures surface as image-size limit failures.
+- Adds regression coverage for grayscale-alpha PNG identify/decode/transcode and
+  for rejected PNG non-goals: interlacing, APNG, `tRNS`, and oversized rasters.
+- Updates generated conformance wording to include high-depth PNG evidence and
+  to distinguish pre-publish package smoke from post-publish archive smoke.
+- Documents and enforces the current Linux archive baseline: published v0.8.x
+  binary archives require glibc 2.34 or newer.
+- Hardens Ubuntu-only CI and tap proof with broader workflow path coverage,
+  explicit timeouts/concurrency, release tag/version validation, checked-out
+  tap formula install tests, and no-macOS tap formula guards.
+
 ## IMX v0.8.0 PNG Raster Slice
 
 - Adds Rust-native PNG support for a bounded raster surface: static
@@ -149,8 +163,9 @@ imx <input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm> \
 - CLI input files larger than 513 MiB are rejected before reading.
 - Decoded pixel buffers larger than 512 MiB are rejected.
 - Homebrew support is tap-only; no Homebrew/core, crates.io, Windows, or
-  unverified macOS v0.8.0 package is claimed. Linux arm64 is claimed only for
-  published v0.8.0 archives and tap blocks verified from release `SHA256SUMS`.
+  unverified macOS v0.8.x package is claimed. Published Linux v0.8.x archives
+  require glibc 2.34 or newer; Linux arm64 is claimed only for published
+  archives and tap blocks verified from release `SHA256SUMS`.
 - This is not a full ImageMagick CLI, MagickCore, or MagickWand replacement.
 
 ## Release Evidence

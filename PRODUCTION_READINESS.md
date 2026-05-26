@@ -1,18 +1,19 @@
 # IMX Compatibility Readiness
 
-Status: v0.8.0 is the current published production-candidate surface. It carries
+Status: v0.8.1 is the current published developer-preview surface. It carries
 forward the v0.6.0 exact format-prefix surface, the v0.7.0 high-depth PPM
-surface, and adds a bounded PNG raster slice. Release and tap support are
-claimed only for the Linux archive targets present in the published v0.8.0
-GitHub `SHA256SUMS` and verified by release/tap smoke. Hosted release proof is
-Linux-only. Automatic hosted macOS/iOS GitHub Actions remain disabled; macOS
-proof is local/manual only unless explicitly approved in the current turn.
+surface, and the v0.8.0 bounded PNG raster slice. Release and tap support are
+claimed only for the Linux archive targets present in the published v0.8.1
+GitHub `SHA256SUMS` and verified by release/tap smoke. Published Linux archives
+require glibc 2.34 or newer. Hosted release proof is Linux-only. Automatic
+hosted macOS/iOS GitHub Actions remain disabled; macOS proof is local/manual
+only unless explicitly approved in the current turn.
 
 ## Implemented Behavior
 
 - Source of truth: `https://github.com/jskoiz/imx`.
 - Product binary: `imx`.
-- v0.8.0 carries forward deterministic same-format rewrites for the
+- v0.8.1 carries forward deterministic same-format rewrites for the
   FARBFELD/QOI/PBM/PGM/PNG/PPM slice when input and output paths are different.
 - v0.6.0 added exact uppercase `FARBFELD:`, `QOI:`, `PBM:`, `PGM:`, and `PPM:`
   prefixes for existing identify/transcode operands only. Prefixes confirm
@@ -28,12 +29,12 @@ proof is local/manual only unless explicitly approved in the current turn.
   APNG, interlace, indexed/palette PNG, low-bit PNG, `tRNS`, and PNG
   metadata/profile/color-management semantics.
 - Published v0.4.0 release targets are Linux x86_64, macOS arm64, and macOS
-  x86_64. The v0.8.0 hosted release targets are Linux x86_64 and Linux arm64
-  only, without hosted macOS/iOS Actions.
+  x86_64. The current v0.8.x hosted release targets are Linux x86_64 and Linux
+  arm64 only, without hosted macOS/iOS Actions.
 - ImageMagick remains an oracle for tests and benchmarks only; shipped binaries
   must not link to ImageMagick, MagickCore, MagickWand, delegates, modules,
   `policy.xml`, or ImageMagick's build system.
-- v0.8.0 distribution artifacts are the Linux x86_64 and Linux arm64 release
+- v0.8.1 distribution artifacts are the Linux x86_64 and Linux arm64 release
   tarballs, aggregate `SHA256SUMS`, generated `imx.rb`,
   `CONFORMANCE_REPORT.md`, and `conformance-summary.json`. Hosted tag
   automation is Linux-only unless a macOS run is explicitly approved in the
@@ -48,11 +49,11 @@ proof is local/manual only unless explicitly approved in the current turn.
 | Fuzz smoke | `scripts/run-fuzz.sh` | `target/fuzz-runs/*/summary.json` | FARBFELD, QOI, PNG, and PNM identify/decode with retained crash artifacts | required before tag |
 | Scheduled fuzz | `.github/workflows/rust-fuzz-scheduled.yml` | `scheduled-fuzz-evidence` artifact | longer cargo-fuzz run with artifact retention | required CI lane |
 | Bench/RSS thresholds | `scripts/bench-release.sh` | `target/release-bench-*/threshold-summary.json` | throughput and process/library RSS sanity budgets | required before tag |
-| Bench regression | `scripts/bench-regression.sh` | `target/bench-regression-*/regression-report.json` | v0.8.0 vs v0.5.0 throughput/RSS baseline; new v0.8.0 PNG metrics without a baseline are warnings, RSS growth is enforced where a baseline exists | required before tag |
+| Bench regression | `scripts/bench-regression.sh` | `target/bench-regression-*/regression-report.json` | v0.8.x vs v0.5.0 throughput/RSS baseline; new v0.8.x PNG metrics without a baseline are warnings, RSS growth is enforced where a baseline exists | required before tag |
 | Source install verify | `scripts/verify-install.sh` | `target/install-verify/install-summary.json` | fresh checkout install plus supported identify/transcode/prefix/PPM16/PNG smoke | required before tag |
-| Package/SHA/no-link | `scripts/package-release.sh` plus hosted Linux workflow; local macOS or explicitly approved manual evidence for macOS targets | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive smoke, exact-prefix smoke, PPM16/PNG smoke, no ImageMagick linkage for each claimed platform; v0.8.0 hosted automation prepares Linux x86_64 and Linux arm64 release artifacts | required before publishing that platform archive |
+| Package/SHA/no-link | `scripts/package-release.sh` plus hosted Linux workflow; local macOS or explicitly approved manual evidence for macOS targets | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive smoke, exact-prefix smoke, PPM16/PNG smoke, no ImageMagick linkage for each claimed platform; v0.8.x hosted automation prepares Linux x86_64 and Linux arm64 release artifacts | required before publishing that platform archive |
 | Published archive smoke | `scripts/verify-release-archive.sh` | `target/release-archive-smoke/<target>/summary.json` | downloads the selected GitHub release archive, verifies that archive against aggregate SHA256SUMS, no-link, identify/transcode/same-format/prefix smoke; hosted CI covers Linux only | required after release publish |
-| Homebrew tap smoke | `brew install jskoiz/imx/imx` and `brew test jskoiz/imx/imx` | `jskoiz/homebrew-imx` Linux formula/archive workflow plus local macOS or explicitly approved manual terminal output | formula URL/SHA fetch, binary version check, PPM identify, PPM-to-QOI smoke, PNG smoke, exact-prefix smoke, and FARBFELD/QOI/PBM/PGM/PNG/PPM same-format rewrite smoke; local/manual Homebrew install proof for tap claims | required for tap claim; no hosted macOS tap smoke is claimed |
+| Homebrew tap smoke | `brew install Formula/imx.rb` and `brew test imx` in the checked-out tap | `jskoiz/homebrew-imx` Linux formula/archive workflow plus local macOS or explicitly approved manual terminal output | formula URL/SHA fetch, binary version check, PPM identify, PPM-to-QOI smoke, PNG smoke, exact-prefix smoke, and FARBFELD/QOI/PBM/PGM/PNG/PPM same-format rewrite smoke; local/manual Homebrew install proof for tap claims | required for tap claim; no hosted macOS tap smoke is claimed |
 | Conformance report | `scripts/generate-conformance-report.sh` | `CONFORMANCE_REPORT.md`, `conformance-summary.json` | generated from CI evidence and attached to the release | required release asset |
 
 ## Local Verification
@@ -88,7 +89,7 @@ imx --version
 After a release is published, each claimed platform must run:
 
 ```sh
-IMX_VERSION=v0.8.0 IMX_RELEASE_TARGET=<target> \
+IMX_VERSION=v0.8.1 IMX_RELEASE_TARGET=<target> \
   bash scripts/verify-release-archive.sh
 ```
 
@@ -151,8 +152,8 @@ IMX_VERSION=v0.8.0 IMX_RELEASE_TARGET=<target> \
 - FARBFELD/PPM16/PGM16 to QOI is lossy for non-8-bit-representable 16-bit
   samples.
 - Color to PGM/PBM is lossy and ignores alpha.
-- No Windows, crates.io, Homebrew/core, or unverified macOS v0.8.0 package is
-  claimed. Linux arm64 is claimed only for published v0.8.0 archives and tap
+- No Windows, crates.io, Homebrew/core, or unverified macOS v0.8.x package is
+  claimed. Linux arm64 is claimed only for published v0.8.1 archives and tap
   blocks verified from release `SHA256SUMS`; Homebrew support is tap-only
   through `jskoiz/imx`.
 
@@ -177,7 +178,7 @@ IMX_VERSION=v0.8.0 IMX_RELEASE_TARGET=<target> \
 
 ## Next Smallest Milestone
 
-After the v0.8.0 release/tap publication, the next compatibility slice should
+After the v0.8.1 release/tap hardening, the next compatibility slice should
 remain bounded to one tested behavior with oracle evidence. JPEG, TIFF, GIF,
 WebP, APNG, delegates, MagickCore, MagickWand, and full ImageMagick CLI
 compatibility remain too broad for a single next milestone.

@@ -4,12 +4,15 @@ use imx_core::{
     pixel_len, try_vec_with_capacity, Format, Identify, Image, ImageError, PixelFormat,
     MAX_PIXEL_BYTES,
 };
-use png::{BitDepth, ColorType, Compression, Decoder, Encoder, Filter, Limits, Transformations};
+use png::{
+    BitDepth, ColorType, Compression, Decoder, DecodingError, Encoder, EncodingError, Filter,
+    Limits, Transformations,
+};
 
 pub const MAGIC: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
 
 pub fn identify(input: &[u8]) -> Result<Identify, ImageError> {
-    let reader = png_reader(input)?;
+    let reader = png_reader(input, "identify")?;
     let info = reader.info();
     let pixel_format = supported_pixel_format(info.color_type, info.bit_depth)?;
     Ok(Identify {
@@ -21,7 +24,7 @@ pub fn identify(input: &[u8]) -> Result<Identify, ImageError> {
 }
 
 pub fn decode(input: &[u8]) -> Result<Image, ImageError> {
-    let mut reader = png_reader(input)?;
+    let mut reader = png_reader(input, "decode")?;
     let output_len = reader
         .output_buffer_size()
         .ok_or(ImageError::LengthOverflow)?;
@@ -35,7 +38,7 @@ pub fn decode(input: &[u8]) -> Result<Image, ImageError> {
     pixels.resize(output_len, 0);
     let output = reader
         .next_frame(&mut pixels)
-        .map_err(|err| png_error("decode", err))?;
+        .map_err(|err| png_decode_error("decode", err))?;
     pixels.truncate(output.buffer_size());
     let pixel_format = supported_pixel_format(output.color_type, output.bit_depth)?;
 
@@ -68,11 +71,14 @@ pub fn encode(image: &Image) -> Result<Vec<u8>, ImageError> {
     encoder
         .write_header()
         .and_then(|mut writer| writer.write_image_data(encoded.pixels()))
-        .map_err(|err| png_error("encode", err))?;
+        .map_err(png_encode_error)?;
     Ok(out)
 }
 
-fn png_reader(input: &[u8]) -> Result<png::Reader<Cursor<&[u8]>>, ImageError> {
+fn png_reader<'a>(
+    input: &'a [u8],
+    operation: &'static str,
+) -> Result<png::Reader<Cursor<&'a [u8]>>, ImageError> {
     if input.len() < MAGIC.len() {
         return Err(ImageError::UnexpectedEof {
             expected: MAGIC.len(),
@@ -92,7 +98,7 @@ fn png_reader(input: &[u8]) -> Result<png::Reader<Cursor<&[u8]>>, ImageError> {
     decoder.set_transformations(Transformations::IDENTITY);
     let reader = decoder
         .read_info()
-        .map_err(|err| png_error("decode", err))?;
+        .map_err(|err| png_decode_error(operation, err))?;
     validate_info(reader.info())?;
     Ok(reader)
 }
@@ -175,13 +181,48 @@ fn expand_gray_alpha(bit_depth: BitDepth, input: &[u8]) -> Result<Vec<u8>, Image
     }
 }
 
-fn png_error(operation: &'static str, err: impl std::fmt::Display) -> ImageError {
+fn png_decode_error(operation: &'static str, err: DecodingError) -> ImageError {
+    if matches!(err, DecodingError::LimitsExceeded) {
+        return ImageError::ImageTooLarge {
+            required: MAX_PIXEL_BYTES.saturating_add(1),
+            limit: MAX_PIXEL_BYTES,
+        };
+    }
     ImageError::UnsupportedFormat(format!("PNG {operation} failed: {err}"))
+}
+
+fn png_encode_error(err: EncodingError) -> ImageError {
+    if matches!(err, EncodingError::LimitsExceeded) {
+        return ImageError::ImageTooLarge {
+            required: MAX_PIXEL_BYTES.saturating_add(1),
+            limit: MAX_PIXEL_BYTES,
+        };
+    }
+    ImageError::UnsupportedFormat(format!("PNG encode failed: {err}"))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn png_fixture(
+        width: u32,
+        height: u32,
+        color_type: ColorType,
+        bit_depth: BitDepth,
+        pixels: &[u8],
+    ) -> Vec<u8> {
+        let mut out = Vec::new();
+        let mut encoder = Encoder::new(&mut out, width, height);
+        encoder.set_color(color_type);
+        encoder.set_depth(bit_depth);
+        encoder
+            .write_header()
+            .unwrap()
+            .write_image_data(pixels)
+            .unwrap();
+        out
+    }
 
     #[test]
     fn encodes_and_decodes_rgb8_png() {
@@ -213,8 +254,67 @@ mod tests {
     }
 
     #[test]
+    fn decodes_grayscale_alpha_png_to_rgba8() {
+        let png = png_fixture(
+            2,
+            1,
+            ColorType::GrayscaleAlpha,
+            BitDepth::Eight,
+            &[0x20, 0x80, 0xff, 0x40],
+        );
+        assert_eq!(
+            identify(&png).unwrap().stable_line(),
+            "format=PNG width=2 height=1 channels=RGBA depth=8"
+        );
+        assert_eq!(
+            decode(&png).unwrap(),
+            Image::new(
+                2,
+                1,
+                PixelFormat::Rgba8,
+                vec![0x20, 0x20, 0x20, 0x80, 0xff, 0xff, 0xff, 0x40],
+            )
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn decodes_grayscale_alpha_png_to_rgba16() {
+        let png = png_fixture(
+            2,
+            1,
+            ColorType::GrayscaleAlpha,
+            BitDepth::Sixteen,
+            &[0x12, 0x34, 0x80, 0x00, 0xff, 0xff, 0x00, 0x01],
+        );
+        assert_eq!(
+            identify(&png).unwrap().stable_line(),
+            "format=PNG width=2 height=1 channels=RGBA depth=16"
+        );
+        assert_eq!(
+            decode(&png).unwrap(),
+            Image::new(
+                2,
+                1,
+                PixelFormat::Rgba16Be,
+                vec![
+                    0x12, 0x34, 0x12, 0x34, 0x12, 0x34, 0x80, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff,
+                    0xff, 0x00, 0x01,
+                ],
+            )
+            .unwrap()
+        );
+    }
+
+    #[test]
     fn rejects_truncated_png() {
         let err = decode(MAGIC).unwrap_err().to_string();
         assert!(err.contains("PNG decode failed"), "{err}");
+    }
+
+    #[test]
+    fn truncated_identify_reports_identify_operation() {
+        let err = identify(MAGIC).unwrap_err().to_string();
+        assert!(err.contains("PNG identify failed"), "{err}");
     }
 }

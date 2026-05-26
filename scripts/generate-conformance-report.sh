@@ -71,7 +71,8 @@ $archive_table
 | Benchmark thresholds | ${bench_thresholds:-missing} |
 | Benchmark regression | ${bench_regression:-missing} |
 | Fresh source install | ${install_summary:-missing} |
-| Release archive SHA/no-link/smoke | release archive smoke summaries from CI matrix |
+| Package archive SHA/no-link/smoke | package-release artifacts and linkage evidence before publication |
+| Published archive smoke | post-publish \`scripts/verify-release-archive.sh\` evidence from release jobs |
 
 ## Compatibility Coverage
 
@@ -80,7 +81,7 @@ $archive_table
   unsupported max values, and failed CLI output behavior.
 - ImageMagick differential tests cover decoded-pixel compatibility for
   FARBFELD/QOI/PBM/PGM/PNG/PPM identify, prefixed identify, transcode, prefixed
-  transcode, deterministic same-format rewrite paths, and high-depth PPM
+  transcode, deterministic same-format rewrite paths, and high-depth PPM/PNG
   identify/decode/transcode cases.
 - Cargo-fuzz targets exercise FARBFELD, QOI, PNG, and shared PNM identify/decode
   entrypoints with seeded corpora.
