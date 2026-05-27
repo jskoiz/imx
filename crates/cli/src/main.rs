@@ -2,7 +2,8 @@ use std::env;
 use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::process;
+use std::process::{self, Command};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use imx_core::{Format, ImageError, MAX_PIXEL_BYTES};
 
@@ -10,7 +11,7 @@ const MAX_INPUT_BYTES: u64 = MAX_PIXEL_BYTES as u64 + 1024 * 1024;
 
 fn usage() -> ! {
     eprintln!(
-        "usage:\n  imx --help\n  imx --version\n  imx identify [FORMAT:]<input.bmp|input.ff|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported formats: bmp (.bmp), farbfeld (.ff, .farbfeld), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm)\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:"
+        "usage:\n  imx --help\n  imx --version\n  imx identify [FORMAT:]<input.bmp|input.ff|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\n  imx self-test\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported formats: bmp (.bmp), farbfeld (.ff, .farbfeld), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm)\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:"
     );
     process::exit(2);
 }
@@ -39,7 +40,7 @@ fn main() {
     match args.as_slice() {
         [_, flag] if flag == "--help" || flag == "-h" || flag == "help" => {
             println!(
-                "IMX Developer Preview\n\nusage:\n  imx identify [FORMAT:]<input.bmp|input.ff|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported transcodes: BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM, including deterministic same-format rewrites except lossy JPEG re-encoding\nsupported resize: nearest-neighbor exact dimensions and aspect-preserving fit for existing supported formats\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, no overwrite or collision renaming\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:\nunsupported: stdin/stdout, recursive directory walking, crop/rotate, delegates, color management, and formats beyond BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM"
+                "IMX Developer Preview\n\nusage:\n  imx identify [FORMAT:]<input.bmp|input.ff|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\n  imx self-test\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported transcodes: BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM, including deterministic same-format rewrites except lossy JPEG re-encoding\nsupported resize: nearest-neighbor exact dimensions and aspect-preserving fit for existing supported formats\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, no overwrite or collision renaming\nsupported self-test: offline install confidence check for identify/transcode/resize/resize-fit/batch-convert across supported formats\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:\nunsupported: stdin/stdout, recursive directory walking, crop/rotate, delegates, color management, and formats beyond BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM"
             );
             process::exit(0);
         }
@@ -55,9 +56,423 @@ fn main() {
             resize_fit(dimensions, input, output)
         }
         [_, command, rest @ ..] if command == "batch-convert" => batch_convert(rest),
+        [_, command] if command == "self-test" => self_test(),
+        [_, command, ..] if command == "self-test" => usage(),
+        [_, command, ..] if is_unsupported_command_shape(command) => usage(),
         [_, input, output] => transcode(input, output),
         _ => usage(),
     }
+}
+
+fn is_unsupported_command_shape(command: &str) -> bool {
+    matches!(command, "convert" | "magick" | "mogrify")
+}
+
+#[derive(Clone, Debug)]
+struct SelfTestFixture {
+    format: Format,
+    path: PathBuf,
+    expected_identify: &'static str,
+}
+
+fn self_test() -> ! {
+    if let Err(err) = run_self_test() {
+        fail(format!("self-test failed: {err}"));
+    }
+    println!("self-test: passed");
+    process::exit(0);
+}
+
+fn run_self_test() -> Result<(), String> {
+    let work_dir = self_test_work_dir()?;
+    let keep_work_dir = env::var("IMX_SELF_TEST_KEEP")
+        .map(|value| value == "1")
+        .unwrap_or(false);
+    let result = run_self_test_in(&work_dir);
+    if !keep_work_dir {
+        let _ = fs::remove_dir_all(&work_dir);
+    }
+    result
+}
+
+fn self_test_work_dir() -> Result<PathBuf, String> {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|err| format!("failed to read system clock: {err}"))?
+        .as_nanos();
+    let path = env::temp_dir().join(format!("imx-self-test-{}-{nanos}", process::id()));
+    fs::create_dir_all(&path).map_err(|err| {
+        format!(
+            "failed to create self-test directory {}: {err}",
+            path.display()
+        )
+    })?;
+    Ok(path)
+}
+
+fn run_self_test_in(work_dir: &Path) -> Result<(), String> {
+    let binary = env::current_exe().map_err(|err| format!("failed to locate imx binary: {err}"))?;
+    let fixture_dir = work_dir.join("fixtures");
+    fs::create_dir_all(&fixture_dir).map_err(|err| {
+        format!(
+            "failed to create fixture directory {}: {err}",
+            fixture_dir.display()
+        )
+    })?;
+    let fixtures = write_self_test_fixtures(&fixture_dir)?;
+
+    for fixture in &fixtures {
+        let stdout = run_self_test_command(
+            &binary,
+            &format!("identify unprefixed {}", fixture.format.name()),
+            &["identify".to_string(), path_string(&fixture.path)?],
+        )?;
+        require_exact_stdout(&stdout, fixture.expected_identify)?;
+        let input = prefixed_path(fixture.format, &fixture.path)?;
+        let stdout = run_self_test_command(
+            &binary,
+            &format!("identify {}", fixture.format.name()),
+            &["identify".to_string(), input],
+        )?;
+        require_exact_stdout(&stdout, fixture.expected_identify)?;
+    }
+    println!("self-test: identify ok");
+
+    let decode_dir = work_dir.join("decode-transcodes");
+    fs::create_dir_all(&decode_dir).map_err(|err| {
+        format!(
+            "failed to create transcode directory {}: {err}",
+            decode_dir.display()
+        )
+    })?;
+    for fixture in &fixtures {
+        let output = decode_dir.join(format!(
+            "{}-to-ppm.ppm",
+            fixture.format.name().to_ascii_lowercase()
+        ));
+        let input = prefixed_path(fixture.format, &fixture.path)?;
+        let output_arg = prefixed_path(Format::Ppm, &output)?;
+        run_self_test_command(
+            &binary,
+            &format!("transcode {} to PPM", fixture.format.name()),
+            &[input, output_arg],
+        )?;
+        let stdout = run_self_test_command(
+            &binary,
+            &format!("identify {} decoded PPM", fixture.format.name()),
+            &["identify".to_string(), prefixed_path(Format::Ppm, &output)?],
+        )?;
+        require_stdout_contains(&stdout, "format=PPM width=2 height=1")?;
+    }
+    let ppm = fixtures
+        .iter()
+        .find(|fixture| fixture.format == Format::Ppm)
+        .ok_or_else(|| "missing PPM self-test fixture".to_string())?;
+    let encode_dir = work_dir.join("encode-transcodes");
+    fs::create_dir_all(&encode_dir).map_err(|err| {
+        format!(
+            "failed to create encode directory {}: {err}",
+            encode_dir.display()
+        )
+    })?;
+    for fixture in &fixtures {
+        let output = encode_dir.join(format!(
+            "ppm-to-{}.{}",
+            fixture.format.name().to_ascii_lowercase(),
+            format_extension(fixture.format)
+        ));
+        run_self_test_command(
+            &binary,
+            &format!("transcode PPM to {}", fixture.format.name()),
+            &[
+                prefixed_path(Format::Ppm, &ppm.path)?,
+                prefixed_path(fixture.format, &output)?,
+            ],
+        )?;
+        let stdout = run_self_test_command(
+            &binary,
+            &format!("identify encoded {}", fixture.format.name()),
+            &[
+                "identify".to_string(),
+                prefixed_path(fixture.format, &output)?,
+            ],
+        )?;
+        require_exact_stdout(&stdout, fixture.expected_identify)?;
+    }
+    println!("self-test: transcode ok");
+
+    let resize_dir = work_dir.join("resize");
+    fs::create_dir_all(&resize_dir).map_err(|err| {
+        format!(
+            "failed to create resize directory {}: {err}",
+            resize_dir.display()
+        )
+    })?;
+    for fixture in &fixtures {
+        let output = resize_dir.join(format!(
+            "{}.{}",
+            fixture.format.name().to_ascii_lowercase(),
+            format_extension(fixture.format)
+        ));
+        run_self_test_command(
+            &binary,
+            &format!("resize {}", fixture.format.name()),
+            &[
+                "resize".to_string(),
+                "3x2".to_string(),
+                prefixed_path(fixture.format, &fixture.path)?,
+                prefixed_path(fixture.format, &output)?,
+            ],
+        )?;
+        let stdout = run_self_test_command(
+            &binary,
+            &format!("identify resized {}", fixture.format.name()),
+            &[
+                "identify".to_string(),
+                prefixed_path(fixture.format, &output)?,
+            ],
+        )?;
+        require_exact_stdout(&stdout, &resized_expected(fixture.expected_identify, 3, 2))?;
+    }
+    println!("self-test: resize ok");
+
+    let fit_dir = work_dir.join("resize-fit");
+    fs::create_dir_all(&fit_dir).map_err(|err| {
+        format!(
+            "failed to create resize-fit directory {}: {err}",
+            fit_dir.display()
+        )
+    })?;
+    for fixture in &fixtures {
+        let output = fit_dir.join(format!(
+            "{}.{}",
+            fixture.format.name().to_ascii_lowercase(),
+            format_extension(fixture.format)
+        ));
+        run_self_test_command(
+            &binary,
+            &format!("resize-fit {}", fixture.format.name()),
+            &[
+                "resize-fit".to_string(),
+                "5x5".to_string(),
+                prefixed_path(fixture.format, &fixture.path)?,
+                prefixed_path(fixture.format, &output)?,
+            ],
+        )?;
+        let stdout = run_self_test_command(
+            &binary,
+            &format!("identify resize-fit {}", fixture.format.name()),
+            &[
+                "identify".to_string(),
+                prefixed_path(fixture.format, &output)?,
+            ],
+        )?;
+        require_exact_stdout(&stdout, &resized_expected(fixture.expected_identify, 5, 3))?;
+    }
+    println!("self-test: resize-fit ok");
+
+    let pgm = fixtures
+        .iter()
+        .find(|fixture| fixture.format == Format::Pgm)
+        .ok_or_else(|| "missing PGM self-test fixture".to_string())?;
+    let batch_inputs = work_dir.join("batch-inputs");
+    fs::create_dir_all(&batch_inputs).map_err(|err| {
+        format!(
+            "failed to create batch input directory {}: {err}",
+            batch_inputs.display()
+        )
+    })?;
+    let batch_ppm = batch_inputs.join("batch-rgb.ppm");
+    let batch_pgm = batch_inputs.join("batch-gray.pgm");
+    fs::copy(&ppm.path, &batch_ppm)
+        .map_err(|err| format!("failed to prepare batch PPM fixture: {err}"))?;
+    fs::copy(&pgm.path, &batch_pgm)
+        .map_err(|err| format!("failed to prepare batch PGM fixture: {err}"))?;
+    for fixture in &fixtures {
+        let output_dir = work_dir.join(format!(
+            "batch-{}",
+            fixture.format.name().to_ascii_lowercase()
+        ));
+        fs::create_dir_all(&output_dir).map_err(|err| {
+            format!(
+                "failed to create batch output directory {}: {err}",
+                output_dir.display()
+            )
+        })?;
+        run_self_test_command(
+            &binary,
+            &format!("batch-convert to {}", fixture.format.name()),
+            &[
+                "batch-convert".to_string(),
+                "--to".to_string(),
+                fixture.format.name().to_string(),
+                "--output-dir".to_string(),
+                path_string(&output_dir)?,
+                "--resize-fit".to_string(),
+                "5x5".to_string(),
+                prefixed_path(Format::Ppm, &batch_ppm)?,
+                prefixed_path(Format::Pgm, &batch_pgm)?,
+            ],
+        )?;
+        for stem in ["batch-rgb", "batch-gray"] {
+            let output = output_dir.join(format!("{stem}.{}", format_extension(fixture.format)));
+            let stdout = run_self_test_command(
+                &binary,
+                &format!("identify batch {} {stem}", fixture.format.name()),
+                &[
+                    "identify".to_string(),
+                    prefixed_path(fixture.format, &output)?,
+                ],
+            )?;
+            require_stdout_contains(
+                &stdout,
+                &format!("format={} width=5 height=3", fixture.format.name()),
+            )?;
+        }
+    }
+    println!("self-test: batch-convert ok");
+
+    Ok(())
+}
+
+fn write_self_test_fixtures(output_dir: &Path) -> Result<Vec<SelfTestFixture>, String> {
+    let rgb = imx_core::Image::new(
+        2,
+        1,
+        imx_core::PixelFormat::Rgb8,
+        vec![255, 0, 0, 0, 0, 255],
+    )
+    .map_err(|err| format!("failed to build RGB fixture: {err}"))?;
+    let bilevel = imx_core::Image::new(2, 1, imx_core::PixelFormat::Bilevel, vec![0, 255])
+        .map_err(|err| format!("failed to build PBM fixture: {err}"))?;
+    let gray = imx_core::Image::new(2, 1, imx_core::PixelFormat::Gray8, vec![0, 255])
+        .map_err(|err| format!("failed to build PGM fixture: {err}"))?;
+
+    let fixtures = [
+        (
+            Format::Bmp,
+            "input.bmp",
+            imx_codec_bmp::encode(&rgb),
+            "format=BMP width=2 height=1 channels=RGB depth=8",
+        ),
+        (
+            Format::Farbfeld,
+            "input.ff",
+            imx_codec_farbfeld::encode(&rgb),
+            "format=FARBFELD width=2 height=1 channels=RGBA depth=16",
+        ),
+        (
+            Format::Jpeg,
+            "input.jpg",
+            imx_codec_jpeg::encode(&rgb),
+            "format=JPEG width=2 height=1 channels=RGB depth=8",
+        ),
+        (
+            Format::Qoi,
+            "input.qoi",
+            imx_codec_qoi::encode_image(&rgb, imx_codec_qoi::QOI_SRGB),
+            "format=QOI width=2 height=1 channels=RGBA depth=8",
+        ),
+        (
+            Format::Pbm,
+            "input.pbm",
+            imx_codec_pnm::encode_pbm(&bilevel),
+            "format=PBM width=2 height=1 channels=GRAY depth=1",
+        ),
+        (
+            Format::Pgm,
+            "input.pgm",
+            imx_codec_pnm::encode_pgm(&gray),
+            "format=PGM width=2 height=1 channels=GRAY depth=8",
+        ),
+        (
+            Format::Png,
+            "input.png",
+            imx_codec_png::encode(&rgb),
+            "format=PNG width=2 height=1 channels=RGB depth=8",
+        ),
+        (
+            Format::Ppm,
+            "input.ppm",
+            imx_codec_pnm::encode_ppm(&rgb),
+            "format=PPM width=2 height=1 channels=RGB depth=8",
+        ),
+    ];
+
+    let mut written = Vec::new();
+    for (format, name, bytes, expected_identify) in fixtures {
+        let path = output_dir.join(name);
+        let bytes = bytes.map_err(|err| {
+            format!(
+                "failed to encode {} self-test fixture {name}: {err}",
+                format.name()
+            )
+        })?;
+        fs::write(&path, bytes).map_err(|err| {
+            format!(
+                "failed to write {} self-test fixture {}: {err}",
+                format.name(),
+                path.display()
+            )
+        })?;
+        written.push(SelfTestFixture {
+            format,
+            path,
+            expected_identify,
+        });
+    }
+    Ok(written)
+}
+
+fn run_self_test_command(binary: &Path, label: &str, args: &[String]) -> Result<String, String> {
+    let output = Command::new(binary)
+        .args(args)
+        .output()
+        .map_err(|err| format!("{label} could not start: {err}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "{label} exited with status {}; stderr: {}",
+            output
+                .status
+                .code()
+                .map(|code| code.to_string())
+                .unwrap_or_else(|| "signal".to_string()),
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+fn require_exact_stdout(actual: &str, expected: &str) -> Result<(), String> {
+    if actual == expected {
+        return Ok(());
+    }
+    Err(format!("expected stdout {expected:?}, got {actual:?}"))
+}
+
+fn require_stdout_contains(actual: &str, expected: &str) -> Result<(), String> {
+    if actual.contains(expected) {
+        return Ok(());
+    }
+    Err(format!(
+        "expected stdout to contain {expected:?}, got {actual:?}"
+    ))
+}
+
+fn resized_expected(expected_identify: &str, width: u32, height: u32) -> String {
+    expected_identify
+        .replace("width=2", &format!("width={width}"))
+        .replace("height=1", &format!("height={height}"))
+}
+
+fn prefixed_path(format: Format, path: &Path) -> Result<String, String> {
+    Ok(format!("{}:{}", format.name(), path_string(path)?))
+}
+
+fn path_string(path: &Path) -> Result<String, String> {
+    path.to_str()
+        .map(str::to_string)
+        .ok_or_else(|| format!("path is not valid UTF-8: {}", path.display()))
 }
 
 fn identify(input_path: &str) -> ! {
@@ -240,8 +655,12 @@ fn encode_image(format: Format, image: &imx_core::Image) -> Result<Vec<u8>, Imag
 }
 
 fn read(path: &str) -> Vec<u8> {
-    let mut file =
-        fs::File::open(path).unwrap_or_else(|err| fail(format!("failed to read {path}: {err}")));
+    let mut file = fs::File::open(path).unwrap_or_else(|err| {
+        if err.kind() == std::io::ErrorKind::NotFound {
+            fail(format!("missing input: {path}"));
+        }
+        fail(format!("failed to read {path}: {err}"));
+    });
     if let Ok(metadata) = file.metadata() {
         if metadata.len() > MAX_INPUT_BYTES {
             fail(format!(
@@ -269,7 +688,9 @@ fn read(path: &str) -> Vec<u8> {
 fn reject_same_path(input_path: &str, output_path: &str) {
     if let (Ok(input), Ok(output)) = (fs::canonicalize(input_path), fs::canonicalize(output_path)) {
         if input == output {
-            fail("input and output paths must be different");
+            fail(format!(
+                "input and output paths must be different: {input_path} and {output_path}"
+            ));
         }
     }
 }
@@ -509,9 +930,12 @@ fn parse_batch_output_format(value: &str) -> Result<Format, String> {
 
 fn validate_output_dir<'a>(path: &'a Path, original: &str) -> &'a Path {
     let metadata = fs::metadata(path).unwrap_or_else(|err| {
+        if err.kind() == std::io::ErrorKind::NotFound {
+            fail(format!("missing output directory: {original}"));
+        }
         fail(format!(
             "failed to inspect output directory {original}: {err}"
-        ))
+        ));
     });
     if !metadata.is_dir() {
         fail(format!("output directory is not a directory: {original}"));

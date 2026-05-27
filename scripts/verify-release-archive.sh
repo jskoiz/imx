@@ -143,6 +143,7 @@ if [[ "$archive_version" != "imx ${version#v}" ]]; then
   echo "error: archive binary version mismatch: expected imx ${version#v}, got $archive_version" >&2
   exit 1
 fi
+run_archive_binary self-test >/dev/null
 
 smoke_dir="$work_dir/smoke"
 mkdir -p "$smoke_dir"

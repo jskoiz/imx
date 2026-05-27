@@ -2,7 +2,7 @@
 set -eu
 
 repo="${IMX_REPO:-jskoiz/imx}"
-version="${IMX_VERSION:-v0.16.0}"
+version="${IMX_VERSION:-v0.17.0}"
 install_dir="${IMX_INSTALL_DIR:-$HOME/.local/bin}"
 run_smoke="${IMX_INSTALL_SMOKE:-1}"
 min_glibc="2.34"
@@ -115,6 +115,7 @@ fi
 echo "$installed_version"
 
 if [ "$run_smoke" != "0" ] && [ "$run_smoke" != "false" ]; then
+  "$install_dir/imx" self-test >/dev/null
   smoke_dir="$work_dir/smoke"
   mkdir -p "$smoke_dir"
   printf 'P3\n2 2\n255\n255 0 0 0 255 0 0 0 255 255 255 255\n' >"$smoke_dir/input.ppm"

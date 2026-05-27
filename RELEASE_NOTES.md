@@ -1,5 +1,24 @@
 # IMX Release Notes
 
+## IMX v0.17.0 Self-Test and Diagnostics Slice
+
+- Adds `imx self-test`, an offline installed-binary confidence check that
+  creates temporary fixtures and invokes the installed `imx` binary for
+  identify, prefixed identify, transcode, exact resize, resize-fit, and
+  batch-convert across BMP, FARBFELD, JPEG, QOI, PBM, PGM, PNG, and PPM.
+- Extends install verification, package smoke, release-archive smoke,
+  differential corpus evidence, benchmark smoke, generated conformance reports,
+  and Homebrew formula smoke so release and tap artifacts exercise the same
+  user-visible self-test path.
+- Tightens CLI diagnostics and exit-code tests for unknown prefixes, mismatched
+  prefixes, missing inputs, unsupported BMP variants, invalid geometry,
+  same-path output, missing batch output directories, and unsupported command
+  shapes.
+- Keeps the release bounded: no new formats, stdin/stdout, recursive batch
+  mode, `magick` alias, full ImageMagick CLI parsing, delegates, profiles,
+  color management, metadata preservation, MagickCore, MagickWand,
+  Homebrew/core, crates.io, Windows, or hosted macOS/iOS Actions.
+
 ## IMX v0.16.0 Bounded BMP Slice
 
 - Adds bounded uncompressed Windows BMP support for `.bmp` paths and exact

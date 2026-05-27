@@ -22,6 +22,7 @@ cat >"$out_dir/summary.json" <<EOF
   "generated_at": "$generated_at",
   "fixtures": "generated-fixtures/manifest.json",
   "coverage": [
+    "BMP RGB24 and RGBA32",
     "FARBFELD RGBA16",
     "JPEG progressive grayscale",
     "QOI RGB linear",

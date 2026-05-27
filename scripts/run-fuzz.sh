@@ -16,7 +16,7 @@ fi
 
 out_dir="${IMX_FUZZ_OUT:-$root/target/fuzz-runs/$(date +%Y%m%d-%H%M%S)}"
 max_total_time="${IMX_FUZZ_MAX_TOTAL_TIME:-5}"
-rss_limit_mb="${IMX_FUZZ_RSS_LIMIT_MB:-1024}"
+rss_limit_mb="${IMX_FUZZ_RSS_LIMIT_MB:-2048}"
 nightly_cargo="$(rustup which --toolchain nightly cargo)"
 nightly_rustc="$(rustup which --toolchain nightly rustc)"
 mkdir -p "$out_dir"

@@ -25,6 +25,26 @@ fn imx() -> &'static str {
     env!("CARGO_BIN_EXE_imx")
 }
 
+fn assert_failure(output: std::process::Output, code: i32, expected_stderr: &str) {
+    assert_eq!(
+        output.status.code(),
+        Some(code),
+        "expected exit code {code}, got {:?}; stdout={:?}; stderr={:?}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.starts_with("error: ") || code == 2,
+        "expected error prefix for exit {code}, got {stderr:?}"
+    );
+    assert!(
+        stderr.contains(expected_stderr),
+        "expected stderr to contain {expected_stderr:?}, got {stderr:?}"
+    );
+}
+
 fn prefixed(prefix: &str, path: &Path) -> String {
     format!("{prefix}:{}", path.to_str().unwrap())
 }
@@ -2106,6 +2126,8 @@ fn help_and_version_are_available() {
             assert!(stdout.contains("imx resize <width>x<height>"));
             assert!(stdout.contains("imx resize-fit <width>x<height>"));
             assert!(stdout.contains("imx batch-convert --to <FORMAT> --output-dir <dir>"));
+            assert!(stdout.contains("imx self-test"));
+            assert!(stdout.contains("offline install confidence check"));
             assert!(stdout.contains("nearest-neighbor exact dimensions and aspect-preserving fit"));
             assert!(stdout.contains("no overwrite or collision renaming"));
             assert!(stdout.contains(".bmp"));
@@ -2117,6 +2139,40 @@ fn help_and_version_are_available() {
             assert!(stdout.contains("PNG:"));
         }
     }
+}
+
+#[test]
+fn self_test_command_exercises_installed_surface() {
+    let output = Command::new(imx()).arg("self-test").output().unwrap();
+    assert!(
+        output.status.success(),
+        "self-test failed with stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    for expected in [
+        "self-test: identify ok",
+        "self-test: transcode ok",
+        "self-test: resize ok",
+        "self-test: resize-fit ok",
+        "self-test: batch-convert ok",
+        "self-test: passed",
+    ] {
+        assert!(
+            stdout.contains(expected),
+            "missing {expected:?} in {stdout:?}"
+        );
+    }
+}
+
+#[test]
+fn self_test_rejects_extra_arguments_as_usage() {
+    let output = Command::new(imx())
+        .args(["self-test", "extra"])
+        .output()
+        .unwrap();
+    assert_failure(output, 2, "usage:");
 }
 
 #[test]
@@ -2438,6 +2494,101 @@ fn malformed_format_prefixes_are_rejected() {
 }
 
 #[test]
+fn diagnostic_failures_have_stable_exit_codes_and_context() {
+    let dir = temp_dir("diagnostic_exit_codes");
+    let output_dir = dir.join("out");
+    fs::create_dir_all(&output_dir).unwrap();
+    let image = Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap();
+    let ppm = dir.join("input.ppm");
+    let png = dir.join("input.png");
+    let bmp = dir.join("compressed.bmp");
+    fs::write(&ppm, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
+    fs::write(&png, imx_codec_png::encode(&image).unwrap()).unwrap();
+    let mut compressed_bmp = imx_codec_bmp::encode(&image).unwrap();
+    compressed_bmp[30..34].copy_from_slice(&1_u32.to_le_bytes());
+    fs::write(&bmp, compressed_bmp).unwrap();
+    let missing = dir.join("missing.ppm");
+    let resized = dir.join("resized.ppm");
+    let missing_output_dir = dir.join("missing-output-dir");
+
+    let cases = vec![
+        (
+            vec!["identify".to_string(), prefixed("GIF", &ppm)],
+            1,
+            "unsupported format prefix: GIF",
+        ),
+        (
+            vec!["identify".to_string(), prefixed("PNG", &ppm)],
+            1,
+            "format prefix PNG does not match detected format PPM",
+        ),
+        (
+            vec![
+                "identify".to_string(),
+                missing.to_string_lossy().into_owned(),
+            ],
+            1,
+            "missing input:",
+        ),
+        (
+            vec!["identify".to_string(), prefixed("BMP", &bmp)],
+            1,
+            "failed to identify BMP input",
+        ),
+        (
+            vec![
+                "resize".to_string(),
+                "0x2".to_string(),
+                prefixed("PPM", &ppm),
+                prefixed("PPM", &resized),
+            ],
+            1,
+            "resize dimensions must be non-zero",
+        ),
+        (
+            vec![prefixed("PPM", &ppm), prefixed("PPM", &ppm)],
+            1,
+            "input and output paths must be different",
+        ),
+        (
+            vec![
+                "batch-convert".to_string(),
+                "--to".to_string(),
+                "PPM".to_string(),
+                "--output-dir".to_string(),
+                missing_output_dir.to_string_lossy().into_owned(),
+                prefixed("PPM", &ppm),
+            ],
+            1,
+            "missing output directory:",
+        ),
+        (
+            vec!["self-test".to_string(), "extra".to_string()],
+            2,
+            "usage:",
+        ),
+        (
+            vec!["convert".to_string(), ppm.to_string_lossy().into_owned()],
+            2,
+            "usage:",
+        ),
+    ];
+
+    for (args, expected_code, expected_error) in cases {
+        let output = Command::new(imx()).args(&args).output().unwrap();
+        assert_failure(output, expected_code, expected_error);
+    }
+
+    let output = Command::new(imx())
+        .args(["identify", prefixed("BMP", &bmp).as_str()])
+        .output()
+        .unwrap();
+    assert_failure(output, 1, "BMP compression is not supported");
+
+    assert_eq!(fs::read_dir(&output_dir).unwrap().count(), 0);
+}
+
+#[test]
 fn all_supported_prefixes_reject_mismatched_inputs_and_outputs() {
     let dir = temp_dir("prefix_mismatch_matrix");
     let fixtures = write_supported_fixtures(&dir);
@@ -2548,10 +2699,11 @@ fn lowercase_mixed_case_and_alias_prefixes_do_not_expand_prefix_surface() {
             .output()
             .unwrap();
         assert!(!output.status.success());
+        let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(
-            String::from_utf8_lossy(&output.stderr).contains("failed to read"),
+            stderr.contains("missing input:") && stderr.contains(&arg),
             "{alias}: should remain an ordinary path segment, got stderr={}",
-            String::from_utf8_lossy(&output.stderr)
+            stderr
         );
     }
 }

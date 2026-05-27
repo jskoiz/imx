@@ -140,6 +140,7 @@ if [[ "$packaged_version" != "imx $version" ]]; then
   echo "error: packaged binary version mismatch: expected imx $version, got $packaged_version" >&2
   exit 1
 fi
+run_packaged_binary self-test >/dev/null
 file "$packaged_binary" >"$artifact_dir/file-$target.txt"
 case "$target" in
   aarch64-unknown-linux-gnu)

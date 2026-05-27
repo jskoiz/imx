@@ -133,6 +133,18 @@ assert_contains "$bmp_formula" '"resize", "1x1", "BMP:output.bmp", "BMP:resized.
 assert_contains "$bmp_formula" '"resize-fit", "5x5", "BMP:output.bmp", "BMP:fit.bmp"'
 assert_contains "$bmp_formula" '"batch-convert", "--to", "BMP", "--output-dir", "batch-bmp", "--resize-fit", "5x5", "PPM:input.ppm"'
 assert_contains "$bmp_formula" "format=BMP width=5 height=3 channels=RGB depth=8"
+assert_not_contains "$bmp_formula" '"self-test"'
+
+self_test_release="$work_dir/self-test-release.SHA256SUMS"
+write_checksums "$self_test_release" \
+  imx-preview-0.17.0-x86_64-unknown-linux-gnu.tar.gz \
+  imx-preview-0.17.0-aarch64-unknown-linux-gnu.tar.gz
+self_test_formula="$work_dir/self-test-release.rb"
+bash scripts/generate-homebrew-formula.sh v0.17.0 "$self_test_release" "$self_test_formula"
+assert_formula_syntax "$self_test_formula"
+assert_contains "$self_test_formula" 'system bin/"imx", "self-test"'
+assert_contains "$self_test_formula" "BMP:output.bmp"
+assert_contains "$self_test_formula" '"batch-convert", "--to", "BMP", "--output-dir", "batch-bmp", "--resize-fit", "5x5", "PPM:input.ppm"'
 
 all_targets="$work_dir/all-targets.SHA256SUMS"
 write_checksums "$all_targets" \

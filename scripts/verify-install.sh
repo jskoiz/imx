@@ -17,6 +17,7 @@ git clone "$repo_url" "$checkout" >/dev/null
   git checkout "$revision" >/dev/null
   cargo install --path crates/cli --bin imx --locked --root "$install_root" >/dev/null
   "$install_root/bin/imx" --version
+  "$install_root/bin/imx" self-test
 
   fixture_dir="$work_dir/fixtures"
   cargo run -p imx-cli --bin imx-generate-fixtures -- "$fixture_dir" >/dev/null

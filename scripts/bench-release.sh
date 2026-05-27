@@ -43,6 +43,7 @@ run_timed() {
 iterations="${IMX_BENCH_ITERATIONS:-10}"
 IMX_BENCH_ITERATIONS="$iterations" cargo bench --bench throughput >"$out_dir/standalone-library-bench.stdout" 2>"$out_dir/standalone-library-bench.stderr"
 
+run_timed standalone-self-test "$root/target/release/imx" self-test
 run_timed standalone-ff-to-qoi "$root/target/release/imx" "$fixture_dir/gradient-64.ff" "$out_dir/standalone-gradient.qoi"
 run_timed standalone-ff-to-bmp "$root/target/release/imx" "$fixture_dir/gradient-64.ff" "$out_dir/standalone-gradient.bmp"
 run_timed standalone-ff-to-pbm "$root/target/release/imx" "$fixture_dir/gradient-64.ff" "$out_dir/standalone-gradient.pbm"

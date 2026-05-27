@@ -200,6 +200,18 @@ jpeg_progressive_cases=0
 batch_convert_runs=0
 batch_convert_output_cases=0
 batch_convert_safety_cases=0
+self_test_cases=0
+
+run_self_test_case() {
+  if "$imx" self-test >"$out_dir/self-test.stdout" 2>"$out_dir/self-test.stderr"; then
+    record "self-test" passed "IMX self-test completed"
+    passes=$((passes + 1))
+    self_test_cases=$((self_test_cases + 1))
+  else
+    record "self-test" failed "IMX self-test failed"
+    failures=$((failures + 1))
+  fi
+}
 
 run_identify_case() {
   local fmt="$1"
@@ -844,6 +856,7 @@ for fmt in "${formats[@]}"; do
   run_identify_case "$fmt"
   run_prefixed_identify_case "$fmt"
 done
+run_self_test_case
 run_ppm16_identify_case plain
 run_ppm16_identify_case prefixed
 run_png16_identify_case plain
@@ -900,6 +913,7 @@ cat >"$summary" <<EOF
   "transcode_cases": 79,
   "resize_cases": 16,
   "resize_fit_cases": 16,
+  "self_test_cases": $self_test_cases,
   "batch_convert_runs": $batch_convert_runs,
   "batch_convert_output_cases": $batch_convert_output_cases,
   "batch_convert_safety_cases": $batch_convert_safety_cases,

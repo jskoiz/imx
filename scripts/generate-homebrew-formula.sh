@@ -29,6 +29,7 @@ resize_smoke=0
 resize_fit_smoke=0
 batch_convert_smoke=0
 bmp_smoke=0
+self_test_smoke=0
 if [[ "$formula_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
   major="${BASH_REMATCH[1]}"
   minor="${BASH_REMATCH[2]}"
@@ -61,6 +62,9 @@ if [[ "$formula_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
   fi
   if ((major > 0 || minor >= 16)); then
     bmp_smoke=1
+  fi
+  if ((major > 0 || minor >= 17)); then
+    self_test_smoke=1
   fi
 fi
 
@@ -176,6 +180,12 @@ cat <<'EOF'
     system bin/"imx", "input.ppm", "output.qoi"
     assert_match "format=QOI width=2 height=1 channels=RGBA depth=8", shell_output("#{bin/"imx"} identify output.qoi")
 EOF
+
+if [[ "$self_test_smoke" == 1 ]]; then
+  cat <<'EOF'
+    system bin/"imx", "self-test"
+EOF
+fi
 
 if [[ "$prefix_smoke" == 1 ]]; then
   cat <<'EOF'

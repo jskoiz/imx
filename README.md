@@ -1,13 +1,13 @@
 # IMX Developer Preview
 
 IMX is a standalone Rust image tool built one ImageMagick-compatible slice at a
-time. The current published developer-preview version is `v0.16.0`: it supports
+time. The current published developer-preview version is `v0.17.0`: it supports
 deterministic identify, cross-format transcode, same-format rewrite, exact
 uppercase format-prefix workflows, bounded nearest-neighbor exact resize,
-aspect-preserving resize-fit, safe batch conversion, high-depth PPM, and a
-bounded PNG raster surface, bounded uncompressed BMP, plus bounded 8-bit
-baseline/progressive JPEG grayscale/RGB support, for BMP, FARBFELD, JPEG, QOI,
-PNG, and Netpbm PBM/PGM/PPM through the `imx` binary.
+aspect-preserving resize-fit, safe batch conversion, an offline installed-binary
+self-test, high-depth PPM, a bounded PNG raster surface, bounded uncompressed
+BMP, plus bounded 8-bit baseline/progressive JPEG grayscale/RGB support, for
+BMP, FARBFELD, JPEG, QOI, PNG, and Netpbm PBM/PGM/PPM through the `imx` binary.
 
 IMX is not an ImageMagick fork and does not link to MagickCore, MagickWand,
 delegates, modules, `policy.xml`, or ImageMagick's build system. ImageMagick is
@@ -75,9 +75,17 @@ and deterministic same-format rewrites. It does not add indexed, RLE,
 bitfields, OS/2, color-table, high-depth BMP, or broader ImageMagick BMP
 semantics.
 
+The v0.17.0 release adds `imx self-test`, an offline installed-binary smoke
+check that creates temporary fixtures and exercises identify, transcode, exact
+resize, resize-fit, and batch-convert across BMP, FARBFELD, JPEG, QOI, PBM,
+PGM, PNG, and PPM. It also tightens CLI diagnostics and exit-code tests for
+unknown prefixes, mismatched prefixes, missing paths, unsupported variants,
+invalid geometry, same-path outputs, and batch-convert failures. It does not
+replace ImageMagick differential, fuzz, benchmark, or release archive gates.
+
 ## Install
 
-Install the published v0.16.0 tap release:
+Install the published v0.17.0 tap release:
 
 ```sh
 brew tap jskoiz/imx
@@ -86,41 +94,41 @@ imx --version
 ```
 
 This uses the `jskoiz/homebrew-imx` tap formula generated from each published
-release's `SHA256SUMS`. For v0.16.0, tap support is limited to archive targets
-present in the current v0.16.0 release and verified by tap smoke. It is not a
+release's `SHA256SUMS`. For v0.17.0, tap support is limited to archive targets
+present in the current v0.17.0 release and verified by tap smoke. It is not a
 Homebrew/core formula. Published Linux archives require glibc 2.34 or newer.
 Release/archive smoke checks this by asserting that published Linux binaries do
-not reference `GLIBC_*` symbols newer than `GLIBC_2.34`; the v0.16.0 release
+not reference `GLIBC_*` symbols newer than `GLIBC_2.34`; the v0.17.0 release
 workflow verifies that ceiling from the published assets.
 
 Hosted GitHub Actions for the tap are Linux-only; macOS install proof must be
 run locally or manually after explicit approval.
 
-Install the published v0.16.0 release archive directly:
+Install the published v0.17.0 release archive directly:
 
 ```sh
-IMX_VERSION=v0.16.0
+IMX_VERSION=v0.17.0
 curl -fsSL "https://raw.githubusercontent.com/jskoiz/imx/${IMX_VERSION}/scripts/install.sh" | sh
 ```
 
 The installer verifies the published `SHA256SUMS`, installs `imx`, asserts the
 installed version, checks for glibc 2.34 or newer on Linux, and runs a small
-identify/transcode/resize/resize-fit/batch-convert smoke test. Hosted v0.16.0
-tag automation publishes Linux archives for:
+`imx self-test` plus identify/transcode/resize/resize-fit/batch-convert smoke.
+Hosted v0.17.0 tag automation publishes Linux archives for:
 
-- `imx-preview-0.16.0-x86_64-unknown-linux-gnu.tar.gz`
-- `imx-preview-0.16.0-aarch64-unknown-linux-gnu.tar.gz`
+- `imx-preview-0.17.0-x86_64-unknown-linux-gnu.tar.gz`
+- `imx-preview-0.17.0-aarch64-unknown-linux-gnu.tar.gz`
 
-macOS v0.16.0 archives or tap blocks require recorded local/manual proof before
+macOS v0.17.0 archives or tap blocks require recorded local/manual proof before
 being claimed. No Windows, crates.io, Homebrew/core, or package-manager
-distribution beyond the `jskoiz/imx` tap is claimed. The v0.16.0 release URL is:
+distribution beyond the `jskoiz/imx` tap is claimed. The v0.17.0 release URL is:
 
 ```text
-https://github.com/jskoiz/imx/releases/tag/v0.16.0
+https://github.com/jskoiz/imx/releases/tag/v0.17.0
 ```
 
 The release-attached `imx.rb` is the formula source used to update the
-`jskoiz/homebrew-imx` tap from the published `SHA256SUMS`. For v0.16.0, Linux
+`jskoiz/homebrew-imx` tap from the published `SHA256SUMS`. For v0.17.0, Linux
 x86_64 and Linux arm64 tap blocks are generated from the release checksums and
 verified by Linux-only tap smoke.
 
@@ -149,6 +157,7 @@ imx resize-fit <width>x<height> [FORMAT:]<input.bmp|input.ff|input.farbfeld|inpu
 imx batch-convert --to <BMP|FARBFELD|JPEG|QOI|PBM|PGM|PNG|PPM> --output-dir <dir> \
   [--resize <width>x<height>|--resize-fit <width>x<height>] \
   [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>...
+imx self-test
 imx [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
   [FORMAT:]<output.bmp|output.ff|output.farbfeld|output.jpg|output.jpeg|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
 ```
@@ -168,8 +177,10 @@ Successful `identify` prints one stable key-value line:
 format=<FORMAT> width=<WIDTH> height=<HEIGHT> channels=<GRAY|RGB|RGBA> depth=<1|8|16>
 ```
 
-Successful transcodes are silent and write the output file. Data and IO
-failures exit `1`; unsupported command shapes exit `2`.
+Successful transcodes are silent and write the output file. `imx self-test`
+prints `self-test: ... ok` progress lines and `self-test: passed` on success.
+Data, IO, malformed input, and validation failures exit `1` with `error: ...`;
+usage and unsupported command shapes exit `2`.
 
 Successful resize writes the output file silently. Dimensions must be lowercase
 `<width>x<height>` with non-zero unsigned 32-bit decimal values. Exact resize
@@ -336,17 +347,18 @@ IMX_INSTALL_REPO_URL=https://github.com/jskoiz/imx.git ./scripts/verify-install.
 Verify published Linux release archives after GitHub release publication:
 
 ```sh
-IMX_VERSION=v0.16.0 IMX_RELEASE_TARGET=x86_64-unknown-linux-gnu ./scripts/verify-release-archive.sh
+IMX_VERSION=v0.17.0 IMX_RELEASE_TARGET=x86_64-unknown-linux-gnu ./scripts/verify-release-archive.sh
 ```
 
-Verify the v0.16.0 Homebrew tap install smoke:
+Verify the v0.17.0 Homebrew tap install smoke:
 
 ```sh
 brew tap jskoiz/imx
 brew install imx
 brew test imx
 imx --version
-test "$(imx --version)" = "imx 0.16.0"
+imx self-test
+test "$(imx --version)" = "imx 0.17.0"
 ```
 
 `brew test` verifies installation only. Compatibility remains covered by the
@@ -394,6 +406,9 @@ The v0.12.0 real-world intake reliability contract is tracked in
 the generated/in-test corpus plan in
 [docs/v0.12.0-curated-corpus.md](docs/v0.12.0-curated-corpus.md). The v0.16.0
 BMP contract is tracked in [docs/v0.16.0-bmp.md](docs/v0.16.0-bmp.md). The
+v0.17.0 self-test and diagnostics contract is tracked in
+[docs/v0.17.0-self-test-diagnostics.md](docs/v0.17.0-self-test-diagnostics.md).
+The
 v0.15.0 safe batch conversion contract is tracked in
 [docs/v0.15.0-batch-convert.md](docs/v0.15.0-batch-convert.md), the v0.14.0
 resize-fit contract remains in

@@ -1,6 +1,6 @@
 # IMX Compatibility Readiness
 
-Status: v0.16.0 is the current published developer-preview release surface. It carries
+Status: v0.17.0 is the current published developer-preview release surface. It carries
 forward the v0.6.0 exact format-prefix surface, the v0.7.0 high-depth PPM
 surface, the v0.8.0 bounded PNG raster slice, and the v0.9.0 bounded JPEG
 slice, plus v0.10.0 bounded JPEG EXIF Orientation normalization and v0.11.0
@@ -9,10 +9,12 @@ reliability coverage for already-supported formats. The v0.13.0 release adds
 bounded nearest-neighbor exact resize for the same supported formats, and
 v0.14.0 adds aspect-preserving resize-fit. v0.15.0 adds safe batch conversion,
 and v0.16.0 adds bounded uncompressed BMP support on top of the existing
-identify/transcode/resize/resize-fit/batch-convert surface. Release and tap
-support are claimed only for the Linux archive targets present in the published
-v0.16.0 GitHub `SHA256SUMS` and verified by Linux-only release/archive and tap
-smoke. Published Linux archives require glibc 2.34 or newer, with
+identify/transcode/resize/resize-fit/batch-convert surface. v0.17.0 adds an
+offline installed-binary self-test and hardens CLI diagnostic/exit-code proof.
+Release and tap support are claimed only for the Linux archive targets present
+in the published v0.17.0 GitHub `SHA256SUMS` and verified by Linux-only
+release/archive and tap smoke. Published Linux archives require glibc 2.34 or
+newer, with
 release/archive smoke checking that published Linux binaries do not reference
 `GLIBC_*` symbols newer than `GLIBC_2.34`. Hosted release proof is Linux-only.
 Automatic hosted macOS/iOS GitHub Actions remain disabled; macOS proof is
@@ -79,13 +81,20 @@ local/manual only unless explicitly approved in the current turn.
   same-format rewrite. It does not add indexed BMP, RLE, bitfields, OS/2
   headers, color tables, high-depth BMP, profiles, metadata preservation, or
   full ImageMagick BMP behavior.
+- v0.17.0 adds `imx self-test`, an offline installed-binary confidence check
+  that creates temporary fixtures and invokes the installed binary for
+  identify, prefixed identify, transcode, resize, resize-fit, and batch-convert
+  across BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM. It also tests clearer CLI
+  failures for unknown prefixes, mismatched prefixes, missing paths,
+  unsupported variants, invalid geometry, same-path output, batch output-dir
+  failures, and unsupported command shapes.
 - Published v0.4.0 release targets are Linux x86_64, macOS arm64, and macOS
-  x86_64. The current v0.16.0 hosted release targets are Linux x86_64 and Linux
+  x86_64. The current v0.17.0 hosted release targets are Linux x86_64 and Linux
   arm64 only, without hosted macOS/iOS Actions.
 - ImageMagick remains an oracle for tests and benchmarks only; shipped binaries
   must not link to ImageMagick, MagickCore, MagickWand, delegates, modules,
   `policy.xml`, or ImageMagick's build system.
-- v0.16.0 distribution artifacts are the Linux x86_64 and Linux arm64 release
+- v0.17.0 distribution artifacts are the Linux x86_64 and Linux arm64 release
   tarballs, aggregate `SHA256SUMS`, generated `imx.rb`,
   `CONFORMANCE_REPORT.md`, and `conformance-summary.json`. Hosted tag
   automation is Linux-only unless a macOS run is explicitly approved in the
@@ -95,18 +104,18 @@ local/manual only unless explicitly approved in the current turn.
 
 | Gate | Producer | Artifact Path | Coverage | Result |
 | --- | --- | --- | --- | --- |
-| Release gates | `scripts/ci.sh` | terminal plus CI logs | fmt, clippy, tests, fixture generation, fuzz smoke, benchmark smoke, differential tests | required before tag |
-| Differential corpus | `scripts/differential-corpus.sh` | `target/differential-corpus-*/summary.json` | identify for 8 formats, prefixed identify for 8 formats, high-depth PPM/PNG identify, directed transcodes across BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM, a prefixed transcode ring covering every supported prefix as input/output, plain and prefixed resize plus resize-fit for 8 formats, batch-convert runs across all destination formats plus safety cases, 16-bit PPM/PNG preserving transcodes, JPEG RGB8 lossy metric evidence, EXIF Orientation cases against ImageMagick `-auto-orient`, and progressive JPEG RGB/gray/orientation cases | required before tag |
+| Release gates | `scripts/ci.sh` | terminal plus CI logs | fmt, clippy, tests, fixture generation, self-test and diagnostics tests, fuzz smoke, benchmark smoke, differential tests | required before tag |
+| Differential corpus | `scripts/differential-corpus.sh` | `target/differential-corpus-*/summary.json` | identify for 8 formats, prefixed identify for 8 formats, high-depth PPM/PNG identify, directed transcodes across BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM, a prefixed transcode ring covering every supported prefix as input/output, plain and prefixed resize plus resize-fit for 8 formats, batch-convert runs across all destination formats plus safety cases, an `imx self-test` result row, 16-bit PPM/PNG preserving transcodes, JPEG RGB8 lossy metric evidence, EXIF Orientation cases against ImageMagick `-auto-orient`, and progressive JPEG RGB/gray/orientation cases | required before tag |
 | Curated intake corpus | `scripts/curated-corpus.sh` and `cargo test --test curated_corpus` | `target/curated-corpus/summary.json` | generated/in-test representative intake cases, malformed diagnostic assertions, and resource-boundary checks for supported formats only | required before tag |
 | Fuzz smoke | `scripts/run-fuzz.sh` | `target/fuzz-runs/*/summary.json` | BMP, FARBFELD, JPEG, QOI, PNG, and PNM identify/decode with retained crash artifacts | required before tag |
 | Scheduled fuzz | `.github/workflows/rust-fuzz-scheduled.yml` | `scheduled-fuzz-evidence` artifact | longer cargo-fuzz run with artifact retention | required CI lane |
 | Bench/RSS thresholds | `scripts/bench-release.sh` | `target/release-bench-*/threshold-summary.json` | throughput and process/library RSS sanity budgets | required before tag |
-| Bench regression | `scripts/bench-regression.sh` | `target/bench-regression-*/regression-report.json` | v0.16.x vs v0.5.0 throughput/RSS baseline; newer PNG/JPEG/BMP/resize/resize-fit/batch metrics without a baseline are warnings, RSS growth is enforced where a baseline exists | required before tag |
-| Source install verify | `scripts/verify-install.sh` | `target/install-verify/install-summary.json` | fresh checkout install plus supported identify/transcode/resize/resize-fit/batch-convert/prefix/BMP/PPM16/PNG/JPEG/orientation/progressive smoke | required before tag |
-| Package/SHA/no-link | `scripts/package-release.sh` plus hosted Linux workflow; local macOS or explicitly approved manual evidence for macOS targets | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive smoke, exact-prefix, resize, resize-fit, and batch-convert smoke, BMP/PPM16/PNG/JPEG/orientation/progressive/intake smoke, no ImageMagick linkage, and max `GLIBC_* <= GLIBC_2.34` for each claimed Linux platform; v0.16.x hosted automation prepares Linux x86_64 and Linux arm64 release artifacts | required before publishing that platform archive |
-| Published archive smoke | `scripts/verify-release-archive.sh` | `target/release-archive-smoke/<target>/summary.json` | downloads the selected GitHub release archive, verifies that archive against aggregate SHA256SUMS, no-link, max `GLIBC_* <= GLIBC_2.34`, and identify/transcode/resize/resize-fit/batch-convert/same-format/prefix smoke; hosted CI covers Linux only | required after release publish |
-| Homebrew tap smoke | `brew tap jskoiz/imx <checkout>`, `brew install jskoiz/imx/imx`, and `brew test jskoiz/imx/imx` from the checked-out tap | `jskoiz/homebrew-imx` Linux formula/archive workflow plus local macOS or explicitly approved manual terminal output | formula URL/SHA fetch, binary version check, PPM identify, PPM-to-QOI smoke, BMP/PNG/JPEG/orientation/progressive smoke, exact-prefix smoke, resize/resize-fit/batch-convert smoke, and BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM same-format rewrite smoke; local/manual Homebrew install proof for tap claims | required for tap claim; no hosted macOS tap smoke is claimed |
-| Conformance report | `scripts/generate-conformance-report.sh` | `CONFORMANCE_REPORT.md`, `conformance-summary.json` | generated from CI evidence and attached to the release | required release asset |
+| Bench regression | `scripts/bench-regression.sh` | `target/bench-regression-*/regression-report.json` | v0.17.x vs v0.5.0 throughput/RSS baseline; newer PNG/JPEG/BMP/resize/resize-fit/batch/self-test metrics without a baseline are warnings, RSS growth is enforced where a baseline exists | required before tag |
+| Source install verify | `scripts/verify-install.sh` | `target/install-verify/install-summary.json` | fresh checkout install plus `imx self-test` and supported identify/transcode/resize/resize-fit/batch-convert/prefix/BMP/PPM16/PNG/JPEG/orientation/progressive smoke | required before tag |
+| Package/SHA/no-link | `scripts/package-release.sh` plus hosted Linux workflow; local macOS or explicitly approved manual evidence for macOS targets | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive `imx self-test`, exact-prefix, resize, resize-fit, and batch-convert smoke, BMP/PPM16/PNG/JPEG/orientation/progressive/intake smoke, no ImageMagick linkage, and max `GLIBC_* <= GLIBC_2.34` for each claimed Linux platform; v0.17.x hosted automation prepares Linux x86_64 and Linux arm64 release artifacts | required before publishing that platform archive |
+| Published archive smoke | `scripts/verify-release-archive.sh` | `target/release-archive-smoke/<target>/summary.json` | downloads the selected GitHub release archive, verifies that archive against aggregate SHA256SUMS, no-link, max `GLIBC_* <= GLIBC_2.34`, and self-test/identify/transcode/resize/resize-fit/batch-convert/same-format/prefix smoke; hosted CI covers Linux only | required after release publish |
+| Homebrew tap smoke | `brew tap jskoiz/imx <checkout>`, `brew install jskoiz/imx/imx`, and `brew test jskoiz/imx/imx` from the checked-out tap | `jskoiz/homebrew-imx` Linux formula/archive workflow plus local macOS or explicitly approved manual terminal output | formula URL/SHA fetch, binary version check, `imx self-test`, PPM identify, PPM-to-QOI smoke, BMP/PNG/JPEG/orientation/progressive smoke, exact-prefix smoke, resize/resize-fit/batch-convert smoke, and BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM same-format rewrite smoke; local/manual Homebrew install proof for tap claims | required for tap claim; no hosted macOS tap smoke is claimed |
+| Conformance report | `scripts/generate-conformance-report.sh` | `CONFORMANCE_REPORT.md`, `conformance-summary.json` | generated from CI evidence, with strict release evidence checks for conformance release assets | required release asset |
 
 ## Local Verification
 
@@ -141,7 +150,7 @@ imx --version
 After a release is published, each claimed platform must run:
 
 ```sh
-IMX_VERSION=v0.16.0 IMX_RELEASE_TARGET=<target> \
+IMX_VERSION=v0.17.0 IMX_RELEASE_TARGET=<target> \
   bash scripts/verify-release-archive.sh
 ```
 
@@ -218,8 +227,8 @@ published binary references a `GLIBC_*` symbol newer than `GLIBC_2.34`.
 - FARBFELD/PPM16/PGM16 to QOI is lossy for non-8-bit-representable 16-bit
   samples.
 - Color to PGM/PBM is lossy and ignores alpha.
-- No Windows, crates.io, Homebrew/core, or unverified macOS v0.16.x package is
-  claimed. Linux arm64 is claimed only for published v0.16.0 archives and tap
+- No Windows, crates.io, Homebrew/core, or unverified macOS v0.17.x package is
+  claimed. Linux arm64 is claimed only for published v0.17.0 archives and tap
   blocks verified from release `SHA256SUMS`; Homebrew support is tap-only
   through `jskoiz/imx`.
 
@@ -238,13 +247,17 @@ published binary references a `GLIBC_*` symbol newer than `GLIBC_2.34`.
   behavior as cross-format transcodes.
 - Release archive smoke tests verify the installed binary from the archive, not
   only a source checkout, on each platform where evidence is recorded.
+- `imx self-test` gives users and package scripts a no-network way to smoke the
+  installed binary across all supported formats and primary commands.
+- CLI diagnostic tests lock down error prefix and exit-code behavior for the
+  most common user-facing failure classes.
 - Homebrew tap smoke verifies formula installation only; compatibility remains
   covered by differential corpus, fuzz, benchmark, and conformance gates.
 - Scheduled fuzz retains crash artifacts under the uploaded fuzz evidence.
 
 ## Next Smallest Milestone
 
-After the v0.16.0 release/tap closure, the next milestone should improve
+After the v0.17.0 release/tap closure, the next milestone should improve
 everyday usefulness with one bounded operation or format gap, prove it against
 ImageMagick where applicable, and keep package/tap proof current. TIFF, GIF,
 WebP, APNG, delegates, MagickCore, MagickWand, color management, metadata
