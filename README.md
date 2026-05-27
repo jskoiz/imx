@@ -36,10 +36,11 @@ progressive input and still writes deterministic quality-90 baseline JPEG
 output.
 
 The v0.12.0 release keeps the v0.11.0 format and command surface and adds a
-bounded real-world intake reliability slice for already-supported input
+bounded representative intake reliability slice for already-supported input
 families. The claim covers only the tested generated/in-test intake fixtures,
-diagnostics, and resource-boundary cases; it does not add formats, transforms,
-streaming, metadata preservation, or broader ImageMagick CLI behavior.
+diagnostics, and resource-boundary cases; no externally sourced real-world file
+corpus is claimed, and it does not add formats, transforms, streaming, metadata
+preservation, or broader ImageMagick CLI behavior.
 
 The v0.13.0 release adds one explicit resize command:
 `imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>`. Resize uses
@@ -401,7 +402,7 @@ hosted macOS GitHub Actions.
 See [COMPATIBILITY.md](COMPATIBILITY.md) for the exact behavior contract and
 [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) for current release evidence,
 known gaps, and the next adoption milestone.
-The v0.12.0 real-world intake reliability contract is tracked in
+The v0.12.0 representative intake reliability contract is tracked in
 [docs/v0.12.0-real-world-intake.md](docs/v0.12.0-real-world-intake.md), with
 the generated/in-test corpus plan in
 [docs/v0.12.0-curated-corpus.md](docs/v0.12.0-curated-corpus.md). The v0.16.0
@@ -417,7 +418,7 @@ bounded exact resize contract remains in
 [docs/v0.13.0-resize.md](docs/v0.13.0-resize.md). The
 v0.11.0 progressive JPEG contract is tracked in
 [docs/v0.11.0-progressive-jpeg.md](docs/v0.11.0-progressive-jpeg.md). The
-v0.10.0 real-photo reliability contract is tracked in
+v0.10.0 JPEG EXIF Orientation fixture reliability contract is tracked in
 [docs/v0.10.0-real-photo.md](docs/v0.10.0-real-photo.md). The v0.9.0 JPEG implementation contract is tracked in
 [docs/v0.9.0-jpeg.md](docs/v0.9.0-jpeg.md). The v0.8.0 implementation contract is tracked in
 [docs/v0.8.0-png.md](docs/v0.8.0-png.md). The v0.7.0 high-depth PPM contract is

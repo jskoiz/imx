@@ -91,6 +91,43 @@ fn jpeg_with_exif_orientation(jpeg: &[u8], orientation: u16) -> Vec<u8> {
     jpeg_with_exif_app1(jpeg, &app1)
 }
 
+fn jpeg_with_camera_exif_orientation_le(jpeg: &[u8], orientation: u16) -> Vec<u8> {
+    let app0 = b"JFIF\0\x01\x01\0\0\x01\0\x01\0\0";
+    let mut app1 = Vec::from(b"Exif\0\0II*\0\x08\0\0\0".as_slice());
+    app1.extend_from_slice(&1_u16.to_le_bytes());
+    app1.extend_from_slice(&0x0112_u16.to_le_bytes());
+    app1.extend_from_slice(&3_u16.to_le_bytes());
+    app1.extend_from_slice(&1_u32.to_le_bytes());
+    app1.extend_from_slice(&orientation.to_le_bytes());
+    app1.extend_from_slice(&[0, 0]);
+    app1.extend_from_slice(&0_u32.to_le_bytes());
+
+    let mut out = Vec::new();
+    out.extend_from_slice(&jpeg[..2]);
+    out.extend_from_slice(&[0xff, 0xe0]);
+    out.extend_from_slice(&u16::try_from(app0.len() + 2).unwrap().to_be_bytes());
+    out.extend_from_slice(app0);
+    out.extend_from_slice(&[0xff, 0xe1]);
+    out.extend_from_slice(&u16::try_from(app1.len() + 2).unwrap().to_be_bytes());
+    out.extend_from_slice(&app1);
+    out.extend_from_slice(&jpeg[2..]);
+    out
+}
+
+fn top_down_bmp(mut bmp: Vec<u8>, width: usize, height: usize, bytes_per_pixel: usize) -> Vec<u8> {
+    let pixel_offset = u32::from_le_bytes(bmp[10..14].try_into().unwrap()) as usize;
+    let row_stride = (width * bytes_per_pixel).div_ceil(4) * 4;
+    let raster_len = row_stride * height;
+    let raster = bmp[pixel_offset..pixel_offset + raster_len].to_vec();
+    for row in 0..height {
+        let dst = pixel_offset + row * row_stride;
+        let src = (height - 1 - row) * row_stride;
+        bmp[dst..dst + row_stride].copy_from_slice(&raster[src..src + row_stride]);
+    }
+    bmp[22..26].copy_from_slice(&(-(height as i32)).to_le_bytes());
+    bmp
+}
+
 fn write_supported_fixtures(dir: &Path) -> Vec<(&'static str, PathBuf, &'static str)> {
     let ff = dir.join("input.ff");
     let bmp = dir.join("input.bmp");
@@ -488,6 +525,96 @@ fn jpeg_exif_orientation_affects_identify_and_transcode_dimensions() {
             .unwrap()
             .stable_line(),
         "format=PPM width=2 height=3 channels=RGB depth=8"
+    );
+}
+
+#[test]
+fn camera_style_little_endian_exif_orientation_affects_identify_and_transcode_dimensions() {
+    let dir = temp_dir("jpeg_camera_exif_orientation");
+    let input = dir.join("input.jpg");
+    let output_ppm = dir.join("oriented.ppm");
+    let image = Image::new(3, 2, PixelFormat::Rgb8, vec![0x80; 3 * 2 * 3]).unwrap();
+    let jpeg = imx_codec_jpeg::encode(&image).unwrap();
+    fs::write(&input, jpeg_with_camera_exif_orientation_le(&jpeg, 6)).unwrap();
+
+    let input_arg = prefixed("JPEG", &input);
+    let identify = Command::new(imx())
+        .args(["identify", input_arg.as_str()])
+        .output()
+        .unwrap();
+    assert!(
+        identify.status.success(),
+        "camera-style JPEG EXIF identify failed with stderr={}",
+        String::from_utf8_lossy(&identify.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(identify.stdout).unwrap().trim(),
+        "format=JPEG width=2 height=3 channels=RGB depth=8"
+    );
+
+    let output_arg = prefixed("PPM", &output_ppm);
+    let transcode = Command::new(imx())
+        .args([input_arg.as_str(), output_arg.as_str()])
+        .output()
+        .unwrap();
+    assert!(
+        transcode.status.success(),
+        "camera-style JPEG EXIF transcode failed with stderr={}",
+        String::from_utf8_lossy(&transcode.stderr)
+    );
+    assert_eq!(
+        imx_codec_pnm::identify_ppm(&fs::read(output_ppm).unwrap())
+            .unwrap()
+            .stable_line(),
+        "format=PPM width=2 height=3 channels=RGB depth=8"
+    );
+}
+
+#[test]
+fn top_down_bmp_identify_and_transcode_preserve_logical_rows() {
+    let dir = temp_dir("top_down_bmp");
+    let input = dir.join("input.bmp");
+    let output = dir.join("output.ff");
+    let image = Image::new(
+        3,
+        2,
+        PixelFormat::Rgb8,
+        vec![
+            255, 0, 0, 0, 255, 0, 0, 0, 255, 12, 34, 56, 78, 90, 123, 222, 111, 3,
+        ],
+    )
+    .unwrap();
+    let bmp = top_down_bmp(imx_codec_bmp::encode(&image).unwrap(), 3, 2, 3);
+    fs::write(&input, bmp).unwrap();
+
+    let input_arg = prefixed("BMP", &input);
+    let identify = Command::new(imx())
+        .args(["identify", input_arg.as_str()])
+        .output()
+        .unwrap();
+    assert!(
+        identify.status.success(),
+        "top-down BMP identify failed with stderr={}",
+        String::from_utf8_lossy(&identify.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(identify.stdout).unwrap().trim(),
+        "format=BMP width=3 height=2 channels=RGB depth=8"
+    );
+
+    let output_arg = prefixed("FARBFELD", &output);
+    let transcode = Command::new(imx())
+        .args([input_arg.as_str(), output_arg.as_str()])
+        .output()
+        .unwrap();
+    assert!(
+        transcode.status.success(),
+        "top-down BMP transcode failed with stderr={}",
+        String::from_utf8_lossy(&transcode.stderr)
+    );
+    assert_eq!(
+        imx_codec_farbfeld::decode(&fs::read(output).unwrap()).unwrap(),
+        image.to_rgba16be().unwrap()
     );
 }
 

@@ -192,11 +192,92 @@ if row["status"] != "passed":
 PY
 }
 
+assert_identify_parity() {
+  local case_id="$1"
+  local imx_out="$2"
+  local oracle_out="$3"
+  local expected_format="$4"
+  local expected_width="$5"
+  local expected_height="$6"
+  local expected_channels="$7"
+  local expected_depth="$8"
+  local expected_oracle_depths="${9:-$expected_depth}"
+  python3 - "$case_id" "$imx_out" "$oracle_out" "$expected_format" "$expected_width" "$expected_height" "$expected_channels" "$expected_depth" "$expected_oracle_depths" <<'PY'
+import re
+import sys
+
+(
+    case_id,
+    imx_path,
+    oracle_path,
+    expected_format,
+    expected_width,
+    expected_height,
+    expected_channels,
+    expected_depth,
+    expected_oracle_depths,
+) = sys.argv[1:10]
+
+imx_text = open(imx_path, encoding="utf-8").read().strip()
+oracle_text = open(oracle_path, encoding="utf-8").read().strip()
+match = re.fullmatch(
+    r"format=([A-Z]+) width=([0-9]+) height=([0-9]+) channels=([A-Z]+) depth=([0-9]+)",
+    imx_text,
+)
+if not match:
+    raise SystemExit(f"{case_id}: could not parse IMX identify line: {imx_text!r}")
+imx_format, imx_width, imx_height, imx_channels, imx_depth = match.groups()
+expected = (expected_format, expected_width, expected_height, expected_channels, expected_depth)
+actual = (imx_format, imx_width, imx_height, imx_channels, imx_depth)
+if actual != expected:
+    raise SystemExit(f"{case_id}: IMX identify {actual} != expected {expected}")
+
+parts = oracle_text.split("|")
+if len(parts) != 6:
+    raise SystemExit(f"{case_id}: could not parse ImageMagick identify line: {oracle_text!r}")
+oracle_format, oracle_width, oracle_height, _colorspace, oracle_depth, oracle_channels = parts
+oracle_format = "BMP" if oracle_format.startswith("BMP") else oracle_format
+lower_channels = oracle_channels.lower()
+if "gray" in lower_channels:
+    oracle_bucket = "GRAY"
+elif "rgba" in lower_channels or "srgba" in lower_channels:
+    oracle_bucket = "RGBA"
+elif "rgb" in lower_channels or "srgb" in lower_channels:
+    oracle_bucket = "RGB"
+else:
+    raise SystemExit(f"{case_id}: unsupported ImageMagick channel description: {oracle_channels!r}")
+allowed_depths = set(expected_oracle_depths.split(","))
+oracle_actual = (oracle_format, oracle_width, oracle_height, oracle_bucket)
+oracle_expected = (expected_format, expected_width, expected_height, expected_channels)
+if oracle_actual != oracle_expected:
+    raise SystemExit(f"{case_id}: ImageMagick identify {oracle_actual} != expected {oracle_expected}")
+if oracle_depth not in allowed_depths:
+    raise SystemExit(f"{case_id}: ImageMagick depth {oracle_depth} not in {sorted(allowed_depths)}")
+PY
+}
+
+identify_expectation() {
+  case "$1" in
+    bmp) echo "BMP|64|64|RGB|8|8" ;;
+    farbfeld) echo "FARBFELD|64|64|RGBA|16|16" ;;
+    jpeg) echo "JPEG|64|64|RGB|8|8" ;;
+    qoi) echo "QOI|64|64|RGBA|8|8" ;;
+    pbm) echo "PBM|64|64|GRAY|1|1" ;;
+    pgm) echo "PGM|64|64|GRAY|16|16" ;;
+    png) echo "PNG|64|64|RGBA|8|8" ;;
+    ppm) echo "PPM|64|64|RGB|8|8" ;;
+    *) echo "error: unknown format $1" >&2; exit 2 ;;
+  esac
+}
+
 failures=0
 passes=0
+identify_cases=0
 jpeg_metric_cases=0
 jpeg_orientation_cases=0
 jpeg_progressive_cases=0
+intake_identify_cases=0
+intake_pixel_cases=0
 batch_convert_runs=0
 batch_convert_output_cases=0
 batch_convert_safety_cases=0
@@ -215,36 +296,44 @@ run_self_test_case() {
 
 run_identify_case() {
   local fmt="$1"
-  local label input imx_out oracle_out
+  local label input imx_out oracle_out expectation expected_format expected_width expected_height expected_channels expected_depth expected_oracle_depths
+  identify_cases=$((identify_cases + 1))
   label="$(format_label "$fmt")"
   input="$(fixture_path "$fmt")"
   imx_out="$out_dir/identify-$fmt.imx.txt"
   oracle_out="$out_dir/identify-$fmt.oracle.txt"
+  expectation="$(identify_expectation "$fmt")"
+  IFS='|' read -r expected_format expected_width expected_height expected_channels expected_depth expected_oracle_depths <<<"$expectation"
 
   if "$imx" identify "$input" >"$imx_out" 2>"$out_dir/identify-$fmt.imx.stderr" &&
-    "$oracle" identify -format '%m %w %h %[colorspace] %[depth]' "$label:$input" >"$oracle_out" 2>"$out_dir/identify-$fmt.oracle.stderr"; then
-    record "identify.$fmt" passed "$label identify accepted by IMX and ImageMagick"
+    "$oracle" identify -format '%m|%w|%h|%[colorspace]|%[depth]|%[channels]' "$label:$input" >"$oracle_out" 2>"$out_dir/identify-$fmt.oracle.stderr" &&
+    assert_identify_parity "identify.$fmt" "$imx_out" "$oracle_out" "$expected_format" "$expected_width" "$expected_height" "$expected_channels" "$expected_depth" "$expected_oracle_depths" >"$out_dir/identify-$fmt.parity.stdout" 2>"$out_dir/identify-$fmt.parity.stderr"; then
+    record "identify.$fmt" passed "$label identify metadata matches IMX policy and ImageMagick geometry/channel/depth"
     passes=$((passes + 1))
   else
-    record "identify.$fmt" failed "$label identify failed in IMX or ImageMagick"
+    record "identify.$fmt" failed "$label identify metadata parity failed"
     failures=$((failures + 1))
   fi
 }
 
 run_prefixed_identify_case() {
   local fmt="$1"
-  local label input imx_out oracle_out
+  local label input imx_out oracle_out expectation expected_format expected_width expected_height expected_channels expected_depth expected_oracle_depths
+  identify_cases=$((identify_cases + 1))
   label="$(format_label "$fmt")"
   input="$(fixture_path "$fmt")"
   imx_out="$out_dir/identify-prefixed-$fmt.imx.txt"
   oracle_out="$out_dir/identify-prefixed-$fmt.oracle.txt"
+  expectation="$(identify_expectation "$fmt")"
+  IFS='|' read -r expected_format expected_width expected_height expected_channels expected_depth expected_oracle_depths <<<"$expectation"
 
   if "$imx" identify "$label:$input" >"$imx_out" 2>"$out_dir/identify-prefixed-$fmt.imx.stderr" &&
-    "$oracle" identify -format '%m %w %h %[colorspace] %[depth]' "$label:$input" >"$oracle_out" 2>"$out_dir/identify-prefixed-$fmt.oracle.stderr"; then
-    record "identify-prefixed.$fmt" passed "$label-prefixed identify accepted by IMX and ImageMagick"
+    "$oracle" identify -format '%m|%w|%h|%[colorspace]|%[depth]|%[channels]' "$label:$input" >"$oracle_out" 2>"$out_dir/identify-prefixed-$fmt.oracle.stderr" &&
+    assert_identify_parity "identify-prefixed.$fmt" "$imx_out" "$oracle_out" "$expected_format" "$expected_width" "$expected_height" "$expected_channels" "$expected_depth" "$expected_oracle_depths" >"$out_dir/identify-prefixed-$fmt.parity.stdout" 2>"$out_dir/identify-prefixed-$fmt.parity.stderr"; then
+    record "identify-prefixed.$fmt" passed "$label-prefixed identify metadata matches IMX policy and ImageMagick geometry/channel/depth"
     passes=$((passes + 1))
   else
-    record "identify-prefixed.$fmt" failed "$label-prefixed identify failed in IMX or ImageMagick"
+    record "identify-prefixed.$fmt" failed "$label-prefixed identify metadata parity failed"
     failures=$((failures + 1))
   fi
 }
@@ -252,6 +341,7 @@ run_prefixed_identify_case() {
 run_ppm16_identify_case() {
   local mode="$1"
   local input imx_input case_id imx_out oracle_out
+  identify_cases=$((identify_cases + 1))
   input="$(ppm16_fixture_path)"
   case_id="identify-ppm16"
   imx_input="$input"
@@ -263,16 +353,12 @@ run_ppm16_identify_case() {
   oracle_out="$out_dir/$case_id.oracle.txt"
 
   if "$imx" identify "$imx_input" >"$imx_out" 2>"$out_dir/$case_id.imx.stderr" &&
-    "$oracle" identify -format '%m %w %h %[colorspace] %[depth]' "PPM:$input" >"$oracle_out" 2>"$out_dir/$case_id.oracle.stderr"; then
-    if grep -q 'depth=16' "$imx_out"; then
-      record "$case_id" passed "high-depth PPM identify accepted by IMX and ImageMagick"
-      passes=$((passes + 1))
-    else
-      record "$case_id" failed "high-depth PPM identify did not report depth=16"
-      failures=$((failures + 1))
-    fi
+    "$oracle" identify -format '%m|%w|%h|%[colorspace]|%[depth]|%[channels]' "PPM:$input" >"$oracle_out" 2>"$out_dir/$case_id.oracle.stderr" &&
+    assert_identify_parity "$case_id" "$imx_out" "$oracle_out" PPM 64 64 RGB 16 16 >"$out_dir/$case_id.parity.stdout" 2>"$out_dir/$case_id.parity.stderr"; then
+    record "$case_id" passed "high-depth PPM identify metadata matches IMX policy and ImageMagick"
+    passes=$((passes + 1))
   else
-    record "$case_id" failed "high-depth PPM identify failed in IMX or ImageMagick"
+    record "$case_id" failed "high-depth PPM identify metadata parity failed"
     failures=$((failures + 1))
   fi
 }
@@ -280,6 +366,7 @@ run_ppm16_identify_case() {
 run_png16_identify_case() {
   local mode="$1"
   local input imx_input case_id imx_out oracle_out
+  identify_cases=$((identify_cases + 1))
   input="$(png16_fixture_path)"
   case_id="identify-png16"
   imx_input="$input"
@@ -291,16 +378,12 @@ run_png16_identify_case() {
   oracle_out="$out_dir/$case_id.oracle.txt"
 
   if "$imx" identify "$imx_input" >"$imx_out" 2>"$out_dir/$case_id.imx.stderr" &&
-    "$oracle" identify -format '%m %w %h %[colorspace] %[depth]' "PNG:$input" >"$oracle_out" 2>"$out_dir/$case_id.oracle.stderr"; then
-    if grep -q 'depth=16' "$imx_out"; then
-      record "$case_id" passed "high-depth PNG identify accepted by IMX and ImageMagick"
-      passes=$((passes + 1))
-    else
-      record "$case_id" failed "high-depth PNG identify did not report depth=16"
-      failures=$((failures + 1))
-    fi
+    "$oracle" identify -format '%m|%w|%h|%[colorspace]|%[depth]|%[channels]' "PNG:$input" >"$oracle_out" 2>"$out_dir/$case_id.oracle.stderr" &&
+    assert_identify_parity "$case_id" "$imx_out" "$oracle_out" PNG 64 64 RGBA 16 16 >"$out_dir/$case_id.parity.stdout" 2>"$out_dir/$case_id.parity.stderr"; then
+    record "$case_id" passed "high-depth PNG identify metadata matches IMX policy and ImageMagick"
+    passes=$((passes + 1))
   else
-    record "$case_id" failed "high-depth PNG identify failed in IMX or ImageMagick"
+    record "$case_id" failed "high-depth PNG identify metadata parity failed"
     failures=$((failures + 1))
   fi
 }
@@ -308,6 +391,7 @@ run_png16_identify_case() {
 run_jpeg_orientation_case() {
   local orientation="$1"
   local input case_id imx_identify imx_output oracle_output imx_raw oracle_raw expected_dimensions
+  identify_cases=$((identify_cases + 1))
   input="$fixture_dir/photo-orientation-o$orientation.jpg"
   case_id="jpeg-orientation.o$orientation"
   imx_identify="$out_dir/$case_id.identify.imx.txt"
@@ -374,6 +458,7 @@ run_jpeg_progressive_case() {
   local auto_orient="${4:-0}"
   local case_id imx_identify imx_output oracle_output imx_raw oracle_raw
   local -a oracle_args
+  identify_cases=$((identify_cases + 1))
   case_id="jpeg-progressive.$name"
   imx_identify="$out_dir/$case_id.identify.imx.txt"
   imx_output="$out_dir/$case_id.imx.ppm"
@@ -426,6 +511,127 @@ run_jpeg_progressive_case() {
     jpeg_progressive_cases=$((jpeg_progressive_cases + 1))
   else
     record "$case_id.transcode" failed "IMX progressive JPEG output exceeds ImageMagick tolerance"
+    failures=$((failures + 1))
+  fi
+}
+
+run_jpeg_intake_case() {
+  local name="$1"
+  local input="$2"
+  local expected_width="$3"
+  local expected_height="$4"
+  local case_id imx_identify oracle_identify imx_output oracle_output imx_raw oracle_raw
+  case_id="jpeg-intake.$name"
+  imx_identify="$out_dir/$case_id.identify.imx.txt"
+  oracle_identify="$out_dir/$case_id.identify.oracle.txt"
+  imx_output="$out_dir/$case_id.imx.ppm"
+  oracle_output="$out_dir/$case_id.oracle.ppm"
+  imx_raw="$out_dir/$case_id.imx.rgb"
+  oracle_raw="$out_dir/$case_id.oracle.rgb"
+  identify_cases=$((identify_cases + 1))
+  intake_identify_cases=$((intake_identify_cases + 1))
+
+  if "$imx" identify "JPEG:$input" >"$imx_identify" 2>"$out_dir/$case_id.identify.imx.stderr" &&
+    "$oracle" identify -auto-orient -format '%m|%w|%h|%[colorspace]|%[depth]|%[channels]' "JPEG:$input" >"$oracle_identify" 2>"$out_dir/$case_id.identify.oracle.stderr" &&
+    assert_identify_parity "$case_id.identify" "$imx_identify" "$oracle_identify" JPEG "$expected_width" "$expected_height" RGB 8 8 >"$out_dir/$case_id.identify.parity.stdout" 2>"$out_dir/$case_id.identify.parity.stderr"; then
+    record "$case_id.identify" passed "JPEG intake identify metadata matches oriented ImageMagick geometry/channel/depth"
+    passes=$((passes + 1))
+  else
+    record "$case_id.identify" failed "JPEG intake identify metadata parity failed"
+    failures=$((failures + 1))
+    return
+  fi
+
+  if ! "$imx" "JPEG:$input" "PPM:$imx_output" >"$out_dir/$case_id.imx.stdout" 2>"$out_dir/$case_id.imx.stderr"; then
+    record "$case_id.transcode" failed "IMX JPEG intake transcode failed"
+    failures=$((failures + 1))
+    return
+  fi
+  if ! "$oracle" "JPEG:$input" -auto-orient "PPM:$oracle_output" >"$out_dir/$case_id.oracle.stdout" 2>"$out_dir/$case_id.oracle.stderr"; then
+    record "$case_id.transcode" failed "ImageMagick JPEG intake transcode failed"
+    failures=$((failures + 1))
+    return
+  fi
+  if ! "$oracle" "PPM:$imx_output" -depth 8 "RGB:$imx_raw" >"$out_dir/$case_id.imx-decode.stdout" 2>"$out_dir/$case_id.imx-decode.stderr"; then
+    record "$case_id.transcode" failed "ImageMagick could not decode IMX JPEG intake output"
+    failures=$((failures + 1))
+    return
+  fi
+  if ! "$oracle" "PPM:$oracle_output" -depth 8 "RGB:$oracle_raw" >"$out_dir/$case_id.oracle-decode.stdout" 2>"$out_dir/$case_id.oracle-decode.stderr"; then
+    record "$case_id.transcode" failed "ImageMagick could not decode oracle JPEG intake output"
+    failures=$((failures + 1))
+    return
+  fi
+
+  if record_jpeg_metrics "$case_id.transcode" "$imx_raw" "$oracle_raw" >"$out_dir/$case_id.metrics.stdout" 2>"$out_dir/$case_id.metrics.stderr"; then
+    record "$case_id.transcode" passed "JPEG intake decoded RGB pixels are within ImageMagick -auto-orient tolerance"
+    passes=$((passes + 1))
+    jpeg_metric_cases=$((jpeg_metric_cases + 1))
+    intake_pixel_cases=$((intake_pixel_cases + 1))
+  else
+    record "$case_id.transcode" failed "JPEG intake decoded RGB pixels exceed ImageMagick -auto-orient tolerance"
+    failures=$((failures + 1))
+  fi
+}
+
+run_lossless_intake_case() {
+  local name="$1"
+  local label="$2"
+  local input="$3"
+  local expected_width="$4"
+  local expected_height="$5"
+  local expected_channels="$6"
+  local expected_depth="$7"
+  local expected_oracle_depths="${8:-$expected_depth}"
+  local case_id imx_identify oracle_identify imx_ff oracle_ff imx_raw oracle_raw
+  case_id="intake.$name"
+  imx_identify="$out_dir/$case_id.identify.imx.txt"
+  oracle_identify="$out_dir/$case_id.identify.oracle.txt"
+  imx_ff="$out_dir/$case_id.imx.ff"
+  oracle_ff="$out_dir/$case_id.oracle.ff"
+  imx_raw="$out_dir/$case_id.imx.rgba16be"
+  oracle_raw="$out_dir/$case_id.oracle.rgba16be"
+  identify_cases=$((identify_cases + 1))
+  intake_identify_cases=$((intake_identify_cases + 1))
+
+  if "$imx" identify "$label:$input" >"$imx_identify" 2>"$out_dir/$case_id.identify.imx.stderr" &&
+    "$oracle" identify -format '%m|%w|%h|%[colorspace]|%[depth]|%[channels]' "$label:$input" >"$oracle_identify" 2>"$out_dir/$case_id.identify.oracle.stderr" &&
+    assert_identify_parity "$case_id.identify" "$imx_identify" "$oracle_identify" "$label" "$expected_width" "$expected_height" "$expected_channels" "$expected_depth" "$expected_oracle_depths" >"$out_dir/$case_id.identify.parity.stdout" 2>"$out_dir/$case_id.identify.parity.stderr"; then
+    record "$case_id.identify" passed "$label intake identify metadata matches IMX policy and ImageMagick geometry/channel/depth"
+    passes=$((passes + 1))
+  else
+    record "$case_id.identify" failed "$label intake identify metadata parity failed"
+    failures=$((failures + 1))
+    return
+  fi
+
+  if ! "$imx" "$label:$input" "FARBFELD:$imx_ff" >"$out_dir/$case_id.imx.stdout" 2>"$out_dir/$case_id.imx.stderr"; then
+    record "$case_id.pixels" failed "IMX lossless intake transcode to FARBFELD failed"
+    failures=$((failures + 1))
+    return
+  fi
+  if ! "$oracle" "$label:$input" "FARBFELD:$oracle_ff" >"$out_dir/$case_id.oracle.stdout" 2>"$out_dir/$case_id.oracle.stderr"; then
+    record "$case_id.pixels" failed "ImageMagick lossless intake transcode to FARBFELD failed"
+    failures=$((failures + 1))
+    return
+  fi
+  if ! "$oracle" "FARBFELD:$imx_ff" -depth 16 -endian MSB "RGBA:$imx_raw" >"$out_dir/$case_id.imx-decode.stdout" 2>"$out_dir/$case_id.imx-decode.stderr"; then
+    record "$case_id.pixels" failed "ImageMagick could not decode IMX intake FARBFELD output"
+    failures=$((failures + 1))
+    return
+  fi
+  if ! "$oracle" "FARBFELD:$oracle_ff" -depth 16 -endian MSB "RGBA:$oracle_raw" >"$out_dir/$case_id.oracle-decode.stdout" 2>"$out_dir/$case_id.oracle-decode.stderr"; then
+    record "$case_id.pixels" failed "ImageMagick could not decode oracle intake FARBFELD output"
+    failures=$((failures + 1))
+    return
+  fi
+
+  if cmp -s "$imx_raw" "$oracle_raw"; then
+    record "$case_id.pixels" passed "$label intake decoded 16-bit RGBA pixels match ImageMagick oracle output"
+    passes=$((passes + 1))
+    intake_pixel_cases=$((intake_pixel_cases + 1))
+  else
+    record "$case_id.pixels" failed "$label intake decoded 16-bit RGBA pixels differ from ImageMagick oracle output"
     failures=$((failures + 1))
   fi
 }
@@ -868,6 +1074,22 @@ done
 run_jpeg_progressive_case rgb "$fixture_dir/progressive-rgb-4x3.jpg" "width=4 height=3 channels=RGB depth=8"
 run_jpeg_progressive_case gray "$fixture_dir/progressive-gray-4x2.jpg" "width=4 height=2 channels=GRAY depth=8"
 run_jpeg_progressive_case orientation-o6 "$fixture_dir/progressive-orientation-o6.jpg" "width=3 height=4 channels=RGB depth=8" 1
+run_jpeg_intake_case camera-exif-le-o6 "$fixture_dir/jpeg-camera-exif-le-o6.jpg" 2 3
+run_jpeg_intake_case progressive-camera-exif-le-o6 "$fixture_dir/progressive-camera-exif-le-o6.jpg" 3 4
+
+run_lossless_intake_case farbfeld-rgba16 FARBFELD "$fixture_dir/intake-farbfeld-rgba16-2x2.ff" 2 2 RGBA 16 16
+run_lossless_intake_case qoi-rgb-linear QOI "$fixture_dir/intake-qoi-rgb-linear-2x2.qoi" 2 2 RGB 8 8
+run_lossless_intake_case ppm-comments-high-max PPM "$fixture_dir/intake-comments-2x1.ppm" 2 1 RGB 16 10
+run_lossless_intake_case ppm-binary-comments-crlf PPM "$fixture_dir/intake-ppm-binary-comments-crlf-2x1.ppm" 2 1 RGB 8 8
+run_lossless_intake_case pgm16 PGM "$fixture_dir/intake-pgm16-2x1.pgm" 2 1 GRAY 16 16
+run_lossless_intake_case pgm-binary-comments-crlf PGM "$fixture_dir/intake-pgm-binary-comments-crlf-3x1.pgm" 3 1 GRAY 8 8
+run_lossless_intake_case png-rgba16 PNG "$fixture_dir/intake-rgba16-1x1.png" 1 1 RGBA 16 16
+run_lossless_intake_case png-gray8 PNG "$fixture_dir/intake-gray8-3x1.png" 3 1 GRAY 8 8
+run_lossless_intake_case png-rgb16 PNG "$fixture_dir/intake-rgb16-2x1.png" 2 1 RGB 16 16
+run_lossless_intake_case bmp-rgb24 BMP "$fixture_dir/intake-rgb24-3x2.bmp" 3 2 RGB 8 8
+run_lossless_intake_case bmp-rgba32 BMP "$fixture_dir/intake-rgba32-2x2.bmp" 2 2 RGBA 8 8
+run_lossless_intake_case bmp-top-down-rgb24 BMP "$fixture_dir/intake-top-down-rgb24-3x2.bmp" 3 2 RGB 8 8
+run_lossless_intake_case bmp-top-down-rgba32 BMP "$fixture_dir/intake-top-down-rgba32-2x2.bmp" 2 2 RGBA 8 8
 
 for src in "${formats[@]}"; do
   for dst in "${formats[@]}"; do
@@ -909,7 +1131,9 @@ cat >"$summary" <<EOF
   "fixture_manifest": "fixtures/manifest.json",
   "results": "results.jsonl",
   "jpeg_metrics": "jpeg-metrics.jsonl",
-  "identify_cases": 23,
+  "identify_cases": $identify_cases,
+  "intake_identify_cases": $intake_identify_cases,
+  "intake_pixel_cases": $intake_pixel_cases,
   "transcode_cases": 79,
   "resize_cases": 16,
   "resize_fit_cases": 16,

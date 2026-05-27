@@ -114,6 +114,9 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         &progressive_gray_jpeg
     ));
     let progressive_orientation_6 = jpeg_with_exif_orientation(&progressive_rgb_jpeg, 6)?;
+    let camera_exif_le_o6 = jpeg_with_camera_exif_orientation_le(&photo_orientation_jpeg, 6)?;
+    let progressive_camera_exif_le_o6 =
+        jpeg_with_camera_exif_orientation_le(&progressive_rgb_jpeg, 6)?;
     let intake_farbfeld = imx_codec_farbfeld::encode(&Image::new(
         2,
         2,
@@ -141,6 +144,20 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         PixelFormat::Rgba16Be,
         vec![0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0],
     )?)?;
+    let intake_png_gray8 = imx_codec_png::encode(&Image::new(
+        3,
+        1,
+        PixelFormat::Gray8,
+        vec![0x00, 0x80, 0xff],
+    )?)?;
+    let intake_png_rgb16 = imx_codec_png::encode(&Image::new(
+        2,
+        1,
+        PixelFormat::Rgb16Be,
+        vec![
+            0x00, 0x01, 0x12, 0x34, 0xff, 0xfe, 0xab, 0xcd, 0x80, 0x00, 0x01, 0x23,
+        ],
+    )?)?;
     let intake_bmp_rgb24 = imx_codec_bmp::encode(&Image::new(
         3,
         2,
@@ -155,6 +172,34 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         PixelFormat::Rgba8,
         vec![255, 0, 0, 255, 0, 255, 0, 128, 0, 0, 255, 64, 12, 34, 56, 0],
     )?)?;
+    let intake_bmp_top_down_rgb24 = top_down_bmp(
+        imx_codec_bmp::encode(&Image::new(
+            3,
+            2,
+            PixelFormat::Rgb8,
+            vec![
+                255, 0, 0, 0, 255, 0, 0, 0, 255, 12, 34, 56, 78, 90, 123, 222, 111, 3,
+            ],
+        )?)?,
+        3,
+        2,
+        3,
+    )?;
+    let intake_bmp_top_down_rgba32 = top_down_bmp(
+        imx_codec_bmp::encode(&Image::new(
+            2,
+            2,
+            PixelFormat::Rgba8,
+            vec![255, 0, 0, 255, 0, 255, 0, 128, 0, 0, 255, 64, 12, 34, 56, 0],
+        )?)?,
+        2,
+        2,
+        4,
+    )?;
+    let intake_ppm_binary_comments_crlf =
+        b"P6\r\n# binary comments and CRLF\r\n2\t1\r\n255\r\n\x00\x80\xff\xff\x40\x00".to_vec();
+    let intake_pgm_binary_comments_crlf =
+        b"P5\r\n# binary comments and CRLF\r\n3\t1\r\n255\r\n\x00\x80\xff".to_vec();
 
     let files = [
         ("gradient-64.ff", gradient_ff),
@@ -185,6 +230,11 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         ("progressive-rgb-4x3.jpg", progressive_rgb_jpeg),
         ("progressive-gray-4x2.jpg", progressive_gray_jpeg),
         ("progressive-orientation-o6.jpg", progressive_orientation_6),
+        ("jpeg-camera-exif-le-o6.jpg", camera_exif_le_o6),
+        (
+            "progressive-camera-exif-le-o6.jpg",
+            progressive_camera_exif_le_o6,
+        ),
         ("photo-orientation-o1.jpg", orientation_1),
         ("photo-orientation-o2.jpg", orientation_2),
         ("photo-orientation-o3.jpg", orientation_3),
@@ -196,10 +246,22 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         ("intake-farbfeld-rgba16-2x2.ff", intake_farbfeld),
         ("intake-qoi-rgb-linear-2x2.qoi", intake_qoi_rgb_linear),
         ("intake-comments-2x1.ppm", intake_ppm_comments),
+        (
+            "intake-ppm-binary-comments-crlf-2x1.ppm",
+            intake_ppm_binary_comments_crlf,
+        ),
         ("intake-pgm16-2x1.pgm", intake_pgm16),
+        (
+            "intake-pgm-binary-comments-crlf-3x1.pgm",
+            intake_pgm_binary_comments_crlf,
+        ),
         ("intake-rgba16-1x1.png", intake_png_rgba16),
+        ("intake-gray8-3x1.png", intake_png_gray8),
+        ("intake-rgb16-2x1.png", intake_png_rgb16),
         ("intake-rgb24-3x2.bmp", intake_bmp_rgb24),
         ("intake-rgba32-2x2.bmp", intake_bmp_rgba32),
+        ("intake-top-down-rgb24-3x2.bmp", intake_bmp_top_down_rgb24),
+        ("intake-top-down-rgba32-2x2.bmp", intake_bmp_top_down_rgba32),
     ];
 
     let mut manifest = String::from("# IMX generated fixtures\n");
@@ -267,6 +329,54 @@ fn jpeg_with_exif_orientation(
     out.extend_from_slice(&app1);
     out.extend_from_slice(&jpeg[2..]);
     Ok(out)
+}
+
+fn jpeg_with_camera_exif_orientation_le(
+    jpeg: &[u8],
+    orientation: u16,
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let mut app0 = Vec::from(b"JFIF\0\x01\x01\0\0\x01\0\x01\0\0".as_slice());
+    let app0_len = u16::try_from(app0.len() + 2)?;
+
+    let mut app1 = Vec::from(b"Exif\0\0II*\0\x08\0\0\0".as_slice());
+    app1.extend_from_slice(&1_u16.to_le_bytes());
+    app1.extend_from_slice(&0x0112_u16.to_le_bytes());
+    app1.extend_from_slice(&3_u16.to_le_bytes());
+    app1.extend_from_slice(&1_u32.to_le_bytes());
+    app1.extend_from_slice(&orientation.to_le_bytes());
+    app1.extend_from_slice(&[0, 0]);
+    app1.extend_from_slice(&0_u32.to_le_bytes());
+    let app1_len = u16::try_from(app1.len() + 2)?;
+
+    let mut out = Vec::new();
+    out.extend_from_slice(&jpeg[..2]);
+    out.extend_from_slice(&[0xff, 0xe0]);
+    out.extend_from_slice(&app0_len.to_be_bytes());
+    out.append(&mut app0);
+    out.extend_from_slice(&[0xff, 0xe1]);
+    out.extend_from_slice(&app1_len.to_be_bytes());
+    out.extend_from_slice(&app1);
+    out.extend_from_slice(&jpeg[2..]);
+    Ok(out)
+}
+
+fn top_down_bmp(
+    mut bmp: Vec<u8>,
+    width: usize,
+    height: usize,
+    bytes_per_pixel: usize,
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let pixel_offset = u32::from_le_bytes(bmp[10..14].try_into()?) as usize;
+    let row_stride = (width * bytes_per_pixel).div_ceil(4) * 4;
+    let raster_len = row_stride * height;
+    let raster = bmp[pixel_offset..pixel_offset + raster_len].to_vec();
+    for row in 0..height {
+        let dst = pixel_offset + row * row_stride;
+        let src = (height - 1 - row) * row_stride;
+        bmp[dst..dst + row_stride].copy_from_slice(&raster[src..src + row_stride]);
+    }
+    bmp[22..26].copy_from_slice(&(-(height as i32)).to_le_bytes());
+    Ok(bmp)
 }
 
 fn fnv64(bytes: &[u8]) -> u64 {

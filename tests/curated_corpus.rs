@@ -23,6 +23,43 @@ fn png_fixture(
     out
 }
 
+fn jpeg_with_camera_exif_orientation_le(jpeg: &[u8], orientation: u16) -> Vec<u8> {
+    let app0 = b"JFIF\0\x01\x01\0\0\x01\0\x01\0\0";
+    let mut app1 = Vec::from(b"Exif\0\0II*\0\x08\0\0\0".as_slice());
+    app1.extend_from_slice(&1_u16.to_le_bytes());
+    app1.extend_from_slice(&0x0112_u16.to_le_bytes());
+    app1.extend_from_slice(&3_u16.to_le_bytes());
+    app1.extend_from_slice(&1_u32.to_le_bytes());
+    app1.extend_from_slice(&orientation.to_le_bytes());
+    app1.extend_from_slice(&[0, 0]);
+    app1.extend_from_slice(&0_u32.to_le_bytes());
+
+    let mut out = Vec::new();
+    out.extend_from_slice(&jpeg[..2]);
+    out.extend_from_slice(&[0xff, 0xe0]);
+    out.extend_from_slice(&u16::try_from(app0.len() + 2).unwrap().to_be_bytes());
+    out.extend_from_slice(app0);
+    out.extend_from_slice(&[0xff, 0xe1]);
+    out.extend_from_slice(&u16::try_from(app1.len() + 2).unwrap().to_be_bytes());
+    out.extend_from_slice(&app1);
+    out.extend_from_slice(&jpeg[2..]);
+    out
+}
+
+fn top_down_bmp(mut bmp: Vec<u8>, width: usize, height: usize, bytes_per_pixel: usize) -> Vec<u8> {
+    let pixel_offset = u32::from_le_bytes(bmp[10..14].try_into().unwrap()) as usize;
+    let row_stride = (width * bytes_per_pixel).div_ceil(4) * 4;
+    let raster_len = row_stride * height;
+    let raster = bmp[pixel_offset..pixel_offset + raster_len].to_vec();
+    for row in 0..height {
+        let dst = pixel_offset + row * row_stride;
+        let src = (height - 1 - row) * row_stride;
+        bmp[dst..dst + row_stride].copy_from_slice(&raster[src..src + row_stride]);
+    }
+    bmp[22..26].copy_from_slice(&(-(height as i32)).to_le_bytes());
+    bmp
+}
+
 fn identify(format: Format, input: &[u8]) -> Result<Identify, ImageError> {
     match format {
         Format::Bmp => imx_codec_bmp::identify(input),
@@ -77,6 +114,22 @@ fn representative_intake_corpus_identifies_and_decodes() {
         png::BitDepth::Eight,
         &[0x20, 0x80, 0xff, 0x40],
     );
+    let gray_png = imx_codec_png::encode(
+        &Image::new(3, 1, PixelFormat::Gray8, vec![0x00, 0x80, 0xff]).unwrap(),
+    )
+    .unwrap();
+    let rgb16_png = imx_codec_png::encode(
+        &Image::new(
+            2,
+            1,
+            PixelFormat::Rgb16Be,
+            vec![
+                0x00, 0x01, 0x12, 0x34, 0xff, 0xfe, 0xab, 0xcd, 0x80, 0x00, 0x01, 0x23,
+            ],
+        )
+        .unwrap(),
+    )
+    .unwrap();
     let rgba16_png = imx_codec_png::encode(
         &Image::new(
             1,
@@ -99,6 +152,7 @@ fn representative_intake_corpus_identifies_and_decodes() {
         .unwrap(),
     )
     .unwrap();
+    let bmp_top_down_rgb24 = top_down_bmp(bmp_rgb24.clone(), 3, 2, 3);
     let bmp_rgba32 = imx_codec_bmp::encode(
         &Image::new(
             2,
@@ -109,6 +163,25 @@ fn representative_intake_corpus_identifies_and_decodes() {
         .unwrap(),
     )
     .unwrap();
+    let bmp_top_down_rgba32 = top_down_bmp(bmp_rgba32.clone(), 2, 2, 4);
+    let camera_jpeg = jpeg_with_camera_exif_orientation_le(
+        &imx_codec_jpeg::encode(
+            &Image::new(
+                3,
+                2,
+                PixelFormat::Rgb8,
+                vec![
+                    32, 64, 96, 96, 128, 160, 160, 192, 224, 224, 192, 160, 160, 128, 96, 96, 64,
+                    32,
+                ],
+            )
+            .unwrap(),
+        )
+        .unwrap(),
+        6,
+    );
+    let progressive_camera_jpeg =
+        jpeg_with_camera_exif_orientation_le(&progressive_jpeg_fixtures::progressive_rgb_jpeg(), 6);
 
     let cases = vec![
         (
@@ -124,6 +197,18 @@ fn representative_intake_corpus_identifies_and_decodes() {
             "format=BMP width=2 height=2 channels=RGBA depth=8",
         ),
         (
+            "bmp-top-down-rgb24",
+            Format::Bmp,
+            bmp_top_down_rgb24,
+            "format=BMP width=3 height=2 channels=RGB depth=8",
+        ),
+        (
+            "bmp-top-down-rgba32",
+            Format::Bmp,
+            bmp_top_down_rgba32,
+            "format=BMP width=2 height=2 channels=RGBA depth=8",
+        ),
+        (
             "farbfeld-rgba16",
             Format::Farbfeld,
             imx_codec_farbfeld::encode(&rgba16).unwrap(),
@@ -134,6 +219,18 @@ fn representative_intake_corpus_identifies_and_decodes() {
             Format::Jpeg,
             progressive_jpeg_fixtures::progressive_gray_jpeg(),
             "format=JPEG width=4 height=2 channels=GRAY depth=8",
+        ),
+        (
+            "jpeg-camera-exif-le-o6",
+            Format::Jpeg,
+            camera_jpeg,
+            "format=JPEG width=2 height=3 channels=RGB depth=8",
+        ),
+        (
+            "progressive-jpeg-camera-exif-le-o6",
+            Format::Jpeg,
+            progressive_camera_jpeg,
+            "format=JPEG width=3 height=4 channels=RGB depth=8",
         ),
         (
             "qoi-rgb-linear",
@@ -160,10 +257,22 @@ fn representative_intake_corpus_identifies_and_decodes() {
             "format=PGM width=2 height=1 channels=GRAY depth=16",
         ),
         (
+            "pgm-binary-comments-crlf",
+            Format::Pgm,
+            b"P5\r\n# binary comments and CRLF\r\n3\t1\r\n255\r\n\x00\x80\xff".to_vec(),
+            "format=PGM width=3 height=1 channels=GRAY depth=8",
+        ),
+        (
             "png-gray-alpha",
             Format::Png,
             gray_alpha_png,
             "format=PNG width=2 height=1 channels=RGBA depth=8",
+        ),
+        (
+            "png-gray8",
+            Format::Png,
+            gray_png,
+            "format=PNG width=3 height=1 channels=GRAY depth=8",
         ),
         (
             "png-rgba16",
@@ -172,10 +281,22 @@ fn representative_intake_corpus_identifies_and_decodes() {
             "format=PNG width=1 height=1 channels=RGBA depth=16",
         ),
         (
+            "png-rgb16",
+            Format::Png,
+            rgb16_png,
+            "format=PNG width=2 height=1 channels=RGB depth=16",
+        ),
+        (
             "ppm-ascii-high-max",
             Format::Ppm,
             b"P3\n# high max\n2 1\n1023\n0 512 1023\n1023 256 128\n".to_vec(),
             "format=PPM width=2 height=1 channels=RGB depth=16",
+        ),
+        (
+            "ppm-binary-comments-crlf",
+            Format::Ppm,
+            b"P6\r\n# binary comments and CRLF\r\n2\t1\r\n255\r\n\x00\x80\xff\xff\x40\x00".to_vec(),
+            "format=PPM width=2 height=1 channels=RGB depth=8",
         ),
     ];
 

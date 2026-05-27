@@ -21,14 +21,20 @@ cp "$generated_dir/intake-qoi-rgb-linear-2x2.qoi" "$corpus_root/qoi_decode/intak
 cp "$generated_dir/gradient-64.png" "$corpus_root/png_decode/gradient-64.png"
 cp "$generated_dir/gradient-64-png16.png" "$corpus_root/png_decode/gradient-64-png16.png"
 cp "$generated_dir/intake-rgba16-1x1.png" "$corpus_root/png_decode/intake-rgba16-1x1.png"
+cp "$generated_dir/intake-gray8-3x1.png" "$corpus_root/png_decode/intake-gray8-3x1.png"
+cp "$generated_dir/intake-rgb16-2x1.png" "$corpus_root/png_decode/intake-rgb16-2x1.png"
 cp "$generated_dir/gradient-64.bmp" "$corpus_root/bmp_decode/gradient-64.bmp"
 cp "$generated_dir/intake-rgb24-3x2.bmp" "$corpus_root/bmp_decode/intake-rgb24-3x2.bmp"
 cp "$generated_dir/intake-rgba32-2x2.bmp" "$corpus_root/bmp_decode/intake-rgba32-2x2.bmp"
+cp "$generated_dir/intake-top-down-rgb24-3x2.bmp" "$corpus_root/bmp_decode/intake-top-down-rgb24-3x2.bmp"
+cp "$generated_dir/intake-top-down-rgba32-2x2.bmp" "$corpus_root/bmp_decode/intake-top-down-rgba32-2x2.bmp"
 cp "$generated_dir/gradient-64.jpg" "$corpus_root/jpeg_decode/gradient-64.jpg"
 cp "$generated_dir/gray-4x1.jpg" "$corpus_root/jpeg_decode/gray-4x1.jpg"
 cp "$generated_dir/progressive-rgb-4x3.jpg" "$corpus_root/jpeg_decode/progressive-rgb-4x3.jpg"
 cp "$generated_dir/progressive-gray-4x2.jpg" "$corpus_root/jpeg_decode/progressive-gray-4x2.jpg"
 cp "$generated_dir/progressive-orientation-o6.jpg" "$corpus_root/jpeg_decode/progressive-orientation-o6.jpg"
+cp "$generated_dir/jpeg-camera-exif-le-o6.jpg" "$corpus_root/jpeg_decode/jpeg-camera-exif-le-o6.jpg"
+cp "$generated_dir/progressive-camera-exif-le-o6.jpg" "$corpus_root/jpeg_decode/progressive-camera-exif-le-o6.jpg"
 for orientation in 1 2 3 4 5 6 7 8; do
   cp "$generated_dir/photo-orientation-o$orientation.jpg" "$corpus_root/jpeg_decode/photo-orientation-o$orientation.jpg"
 done
@@ -36,10 +42,14 @@ cp "$generated_dir/gradient-64.ppm" "$corpus_root/pnm_decode/gradient-64.ppm"
 cp "$generated_dir/gradient-64.pbm" "$corpus_root/pnm_decode/gradient-64.pbm"
 cp "$generated_dir/gradient-64.pgm" "$corpus_root/pnm_decode/gradient-64.pgm"
 cp "$generated_dir/intake-comments-2x1.ppm" "$corpus_root/pnm_decode/intake-comments-2x1.ppm"
+cp "$generated_dir/intake-ppm-binary-comments-crlf-2x1.ppm" "$corpus_root/pnm_decode/intake-ppm-binary-comments-crlf-2x1.ppm"
 cp "$generated_dir/intake-pgm16-2x1.pgm" "$corpus_root/pnm_decode/intake-pgm16-2x1.pgm"
+cp "$generated_dir/intake-pgm-binary-comments-crlf-3x1.pgm" "$corpus_root/pnm_decode/intake-pgm-binary-comments-crlf-3x1.pgm"
 
 printf 'farbfeld' >"$corpus_root/farbfeld_decode/header-only.ff"
 printf 'qoif\x00\x00\x00\x01\x00\x00\x00\x01\x03\x00' >"$corpus_root/qoi_decode/header-only.qoi"
+printf 'qoif\x00\x00\x00\x02\x00\x00\x00\x01\x03\x00\xfd\x00\x00\x00\x00\x00\x00\x00\x01' >"$corpus_root/qoi_decode/final-run-clips-to-image.qoi"
+printf 'qoif\x00\x00\x00\x01\x00\x00\x00\x01\x03\x00\xfe\x01\x02\x03\x00\x00\x00\x00\x00\x00\x00\x01TRAIL' >"$corpus_root/qoi_decode/trailing-bytes-after-image.qoi"
 printf '\x89PNG\r\n\x1a\n' >"$corpus_root/png_decode/signature-only.png"
 printf 'BM' >"$corpus_root/bmp_decode/magic-only.bmp"
 printf 'BM\x36\x00\x00\x00\x00\x00\x00\x00\x36\x00\x00\x00\x28\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x01\x00\x18\x00\x01\x00\x00\x00' >"$corpus_root/bmp_decode/compressed-truncated.bmp"
@@ -50,6 +60,7 @@ printf '\xff\xd8\xff\xe0\x00\x01' >"$corpus_root/jpeg_decode/bad-app0-length.jpg
 printf '\xff\xd8\xff\xe1\x00\x10Exif\x00\x00ZZ\x00\x2a\x00\x00\x00\x08\xff\xd9' >"$corpus_root/jpeg_decode/bad-exif-endian.jpg"
 printf '\xff\xd8\xff\xe1\x00\x20Exif\x00\x00MM\x00\x2a\x00\x00\x00\x08\x00\x01\x01\x12\x00\x03\x00\x00\x00\x01\x00\x09\x00\x00\x00\x00\x00\x00\xff\xd9' >"$corpus_root/jpeg_decode/bad-exif-orientation.jpg"
 printf '\xff\xd8\xff\xc0\x00\x11\x08\x00\x00\x00\x01\x03\x01\x11\x00\x02\x11\x01\x03\x11\x01\xff\xd9' >"$corpus_root/jpeg_decode/zero-width-sof.jpg"
+printf '\xff\xd8\xff\xc0\x00\x11\x08\xff\xff\xff\xff\x03\x01\x11\x00\x02\x11\x01\x03\x11\x01\xff\xd9' >"$corpus_root/jpeg_decode/oversized-sof.jpg"
 printf 'P3\n# comment\n2 1\n31\n0 15 31 31 0 15\n' >"$corpus_root/pnm_decode/ascii-ppm-max31.ppm"
 printf 'P6\n2 1\n255\n\xff\x00\x00\x00\x80\xff' >"$corpus_root/pnm_decode/binary-ppm-2x1.ppm"
 printf 'P3\n2 1\n1023\n0 512 1023 1023 256 128\n' >"$corpus_root/pnm_decode/ascii-ppm-max1023.ppm"
@@ -92,5 +103,64 @@ printf 'P2\n1 1\n65536\n0\n' >"$corpus_root/pnm_decode/pgm-p2-maxval-65536.pgm"
 printf 'P5\n1 1\n255X' >"$corpus_root/pnm_decode/pgm-p5-missing-raster-separator.pgm"
 printf 'P2\n# unterminated comment' >"$corpus_root/pnm_decode/pgm-p2-comment-eof.pgm"
 printf 'P5\n100000 100000\n255\n' >"$corpus_root/pnm_decode/pgm-p5-huge-dims.pgm"
+
+python3 - "$generated_dir" "$corpus_root" <<'PY'
+import struct
+import sys
+import zlib
+from pathlib import Path
+
+generated = Path(sys.argv[1])
+corpus = Path(sys.argv[2])
+png_dir = corpus / "png_decode"
+bmp_dir = corpus / "bmp_decode"
+
+
+def chunk(kind, data):
+    body = kind + data
+    return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF)
+
+
+def png(width, height, bit_depth, color_type, payload, extra=()):
+    ihdr = struct.pack(">IIBBBBB", width, height, bit_depth, color_type, 0, 0, 0)
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", ihdr)
+        + b"".join(extra)
+        + chunk(b"IDAT", zlib.compress(payload))
+        + chunk(b"IEND", b"")
+    )
+
+
+(png_dir / "indexed-valid-container.png").write_bytes(
+    b"\x89PNG\r\n\x1a\n"
+    + chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 3, 0, 0, 0))
+    + chunk(b"PLTE", b"\x00\x00\x00\xff\xff\xff")
+    + chunk(b"IDAT", zlib.compress(b"\x00\x00"))
+    + chunk(b"IEND", b"")
+)
+(png_dir / "low-bit-gray-valid-container.png").write_bytes(png(1, 1, 1, 0, b"\x00\x80"))
+(png_dir / "interlaced-valid-container.png").write_bytes(
+    b"\x89PNG\r\n\x1a\n"
+    + chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 1))
+    + chunk(b"IDAT", zlib.compress(b"\x00\xff\x00\x00"))
+    + chunk(b"IEND", b"")
+)
+(png_dir / "trns-valid-container.png").write_bytes(
+    png(1, 1, 8, 0, b"\x00\x00", [chunk(b"tRNS", b"\x00\x00")])
+)
+(png_dir / "apng-valid-container.png").write_bytes(
+    png(1, 1, 8, 2, b"\x00\xff\x00\x00", [chunk(b"acTL", struct.pack(">II", 1, 0))])
+)
+(png_dir / "huge-ihdr-valid-crc.png").write_bytes(png(100000, 100000, 8, 6, b""))
+
+bad_crc = bytearray((generated / "gradient-64.png").read_bytes())
+bad_crc[32] ^= 0xFF
+(png_dir / "bad-crc.png").write_bytes(bad_crc)
+
+bmp = bytearray((generated / "intake-rgb24-3x2.bmp").read_bytes())
+bmp[2:6] = struct.pack("<I", 40)
+(bmp_dir / "declared-file-size-too-small.bmp").write_bytes(bmp)
+PY
 
 echo "$corpus_root"

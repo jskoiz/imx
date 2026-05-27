@@ -4,8 +4,9 @@ Status: v0.17.0 is the current published developer-preview release surface. It c
 forward the v0.6.0 exact format-prefix surface, the v0.7.0 high-depth PPM
 surface, the v0.8.0 bounded PNG raster slice, and the v0.9.0 bounded JPEG
 slice, plus v0.10.0 bounded JPEG EXIF Orientation normalization and v0.11.0
-bounded progressive JPEG input support, plus v0.12.0 real-world intake
-reliability coverage for already-supported formats. The v0.13.0 release adds
+bounded progressive JPEG input support, plus v0.12.0 representative generated
+and in-test intake reliability coverage for already-supported formats. The
+v0.13.0 release adds
 bounded nearest-neighbor exact resize for the same supported formats, and
 v0.14.0 adds aspect-preserving resize-fit. v0.15.0 adds safe batch conversion,
 and v0.16.0 adds bounded uncompressed BMP support on top of the existing
@@ -52,10 +53,11 @@ local/manual only unless explicitly approved in the current turn.
   inputs work through `.jpg`, `.jpeg`, and exact `JPEG:` identify/transcode
   forms, carry forward EXIF Orientation normalization, and still re-encode JPEG
   output as deterministic baseline quality-90 JPEG.
-- v0.12.0 adds a bounded real-world intake reliability slice without adding
-  format breadth. It proves generated/in-test corpus cases for comments,
+- v0.12.0 adds a bounded representative intake reliability slice without
+  adding format breadth. It proves generated/in-test corpus cases for comments,
   high-max Netpbm input, grayscale-alpha/16-bit PNG, progressive JPEG, QOI RGB
-  linear input, clearer malformed diagnostics, and resource-boundary rejection.
+  linear input, clearer malformed diagnostics, and resource-boundary rejection;
+  no externally sourced real-world file corpus is claimed.
 - v0.13.0 adds `imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>`
   for exact nearest-neighbor resize across FARBFELD, JPEG, QOI, PBM, PGM, PNG,
   and PPM only. It does not add crop/rotate, new filters, metadata

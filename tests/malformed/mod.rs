@@ -183,6 +183,22 @@ fn qoi_rejects_bad_headers_and_truncated_opcode_payloads() {
 }
 
 #[test]
+fn qoi_accepts_documented_trailing_bytes_and_clipped_final_runs() {
+    let mut clipped_run = qoi_header(2, 1, 3, imx_codec_qoi::QOI_SRGB);
+    clipped_run.push(imx_codec_qoi::QOI_OP_RUN | 61);
+    clipped_run.extend_from_slice(&imx_codec_qoi::END_MARKER);
+    let decoded = imx_codec_qoi::decode(&clipped_run).unwrap();
+    assert_eq!(decoded.pixels, vec![0, 0, 0, 0, 0, 0]);
+
+    let mut trailing = qoi_header(1, 1, 3, imx_codec_qoi::QOI_SRGB);
+    trailing.extend_from_slice(&[imx_codec_qoi::QOI_OP_RGB, 1, 2, 3]);
+    trailing.extend_from_slice(&imx_codec_qoi::END_MARKER);
+    trailing.extend_from_slice(b"TRAIL");
+    let decoded = imx_codec_qoi::decode(&trailing).unwrap();
+    assert_eq!(decoded.pixels, vec![1, 2, 3]);
+}
+
+#[test]
 fn png_rejects_malformed_and_unsupported_inputs() {
     assert_eq!(
         imx_codec_png::decode(b"not png"),
@@ -318,6 +334,13 @@ fn bmp_rejects_malformed_and_unsupported_inputs() {
     assert!(matches!(
         imx_codec_bmp::decode(truncated),
         Err(ImageError::UnexpectedEof { .. })
+    ));
+
+    let mut declared_too_small = bmp.clone();
+    set_le_u32(&mut declared_too_small, 2, 40);
+    assert!(matches!(
+        imx_codec_bmp::decode(&declared_too_small),
+        Err(ImageError::UnexpectedEof { actual: 40, .. })
     ));
 
     let mut huge = bmp.clone();

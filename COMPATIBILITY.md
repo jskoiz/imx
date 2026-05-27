@@ -374,20 +374,21 @@ FARBFELD/QOI to PGM:
   bounded read fallback, when metadata is available.
 - The cap is an IMX safety policy, not ImageMagick parity.
 
-## Real-World Intake Reliability Coverage
+## Representative Intake Reliability Coverage
 
 The v0.12.0 intake reliability claim does not add formats or command syntax. It
-adds evidence for representative already-supported inputs that tend to appear in
-real files or failure reports:
+adds evidence for generated and in-test fixtures that represent patterns seen
+in real files or failure reports. No externally sourced real-world file corpus
+is claimed.
 
 - FARBFELD RGBA16 input with nontrivial channel values.
-- BMP RGB24 and RGBA32 input.
-- Progressive grayscale JPEG input.
+- BMP bottom-up and top-down RGB24/RGBA32 input.
+- Progressive grayscale JPEG and camera-style EXIF Orientation input.
 - QOI RGB input with linear colorspace.
 - PBM ASCII input with comments and adjacent raster samples.
-- PGM scaled ASCII and binary 16-bit input.
-- PNG grayscale-alpha and RGBA16 input.
-- PPM ASCII input with comments and high `maxval`.
+- PGM scaled ASCII, binary CRLF/comment, and binary 16-bit input.
+- PNG grayscale, grayscale-alpha, RGB16, and RGBA16 input.
+- PPM ASCII high-`maxval` and binary CRLF/comment input.
 - Malformed BMP, FARBFELD, QOI, PBM, PGM, PPM, PNG, and JPEG diagnostics with clear
   operation/path context at the CLI.
 - Resource-boundary checks for the 512 MiB decoded-pixel cap without requiring
@@ -400,15 +401,16 @@ fixtures are vendored.
 
 The compatibility lane keeps `scripts/differential-corpus.sh` as a
 report-producing ImageMagick oracle lane. It generates the deterministic fixture
-corpus, runs `imx identify` for BMP, FARBFELD, JPEG, QOI, PBM, PGM, PNG, and
-PPM fixtures, runs prefixed identify cases for the same eight formats, runs
-additional high-depth PPM and PNG identify cases, then checks directed
-transcodes between the eight supported formats plus a prefixed transcode ring
-that exercises every supported prefix as input and output. It also checks
-plain and prefixed nearest-neighbor resize for every supported format. It runs
-plain and prefixed nearest-neighbor resize-fit for every supported format. It
-runs high-depth PPM and PNG transcode cases for 16-bit preserving destinations
-and records an `imx self-test` result row.
+corpus, runs `imx identify` metadata parity for BMP, FARBFELD, JPEG, QOI, PBM,
+PGM, PNG, and PPM fixtures, runs prefixed identify cases for the same eight
+formats, runs additional high-depth PPM and PNG identify cases, and adds
+representative intake identify/pixel parity for generated and in-test fixture
+families. It then checks directed transcodes between the eight supported
+formats plus a prefixed transcode ring that exercises every supported prefix as
+input and output. It also checks plain and prefixed nearest-neighbor resize for
+every supported format. It runs plain and prefixed nearest-neighbor resize-fit
+for every supported format. It runs high-depth PPM and PNG transcode cases for
+16-bit preserving destinations and records an `imx self-test` result row.
 
 Most transcode results are decoded through ImageMagick to canonical 8-bit RGBA
 raw pixels and compared with the ImageMagick oracle output for the same source

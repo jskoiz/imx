@@ -99,10 +99,12 @@
 - Keeps the v0.11.0 supported format and command surface unchanged:
   FARBFELD, JPEG, QOI, PBM, PGM, PNG, PPM identify/transcode/same-format
   rewrites with exact uppercase prefixes.
-- Adds a curated intake corpus covering representative already-supported cases:
-  FARBFELD RGBA16, progressive grayscale JPEG, QOI RGB linear, PBM comments,
-  PGM scaled and 16-bit samples, PNG grayscale-alpha/RGBA16, and PPM high
-  `maxval` with comments.
+- Adds a curated intake corpus covering representative generated/in-test cases:
+  FARBFELD RGBA16, BMP bottom-up/top-down RGB24/RGBA32, progressive grayscale
+  JPEG plus camera-style EXIF Orientation, QOI RGB linear, PBM comments, PGM
+  scaled/binary-comment/16-bit samples, PNG grayscale/grayscale-alpha/RGB16/RGBA16,
+  and PPM high `maxval` plus binary-comment input. No externally sourced
+  real-world file corpus is claimed.
 - Tightens malformed diagnostics by adding operation/path context at the CLI,
   clearer PNM over-max and PBM sample errors, uppercase FARBFELD header
   wording, and precise EOF accounting for truncated QOI multi-byte opcodes.

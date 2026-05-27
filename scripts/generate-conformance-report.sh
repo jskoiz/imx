@@ -137,9 +137,10 @@ Git revision: \`$git_rev\`
   output names, existing-directory output, collision preflight, no overwrite,
   no recursive directory walking, no glob parsing, and no partial commit after
   transform or encode failure. The v0.12 intake reliability claim remains
-  limited to generated and in-test corpus cases covering comments, high maxval
+  limited to representative generated and in-test corpus cases covering comments, high maxval
   Netpbm input, grayscale-alpha/16-bit PNG input, progressive JPEG input, QOI
-  RGB linear input, malformed diagnostics, and resource-boundary rejection.
+  RGB linear input, malformed diagnostics, and resource-boundary rejection. No
+  externally sourced real-world file corpus is claimed.
 - Runtime dependency policy: no ImageMagick, MagickCore, MagickWand, delegates,
   modules, \`policy.xml\`, or ImageMagick build system linkage.
 - Linux release archive policy: published glibc archives must not reference a
@@ -174,15 +175,19 @@ $glibc_symbols_report
 - Golden fixtures cover representative BMP, FARBFELD, JPEG, QOI, PBM, PGM,
   PNG, and PPM bytes.
 - Curated intake corpus coverage adds representative generated or in-test
-  cases for BMP RGB24/RGBA32, FARBFELD RGBA16, progressive JPEG grayscale, QOI RGB linear, PBM
-  ASCII comments, PGM scaled/16-bit, PNG grayscale-alpha/RGBA16, PPM high
-  maxval comments, explicit malformed diagnostics, and resource-boundary
-  rejection.
+  cases for BMP bottom-up/top-down RGB24/RGBA32, FARBFELD RGBA16, progressive
+  grayscale JPEG plus camera-style EXIF Orientation, QOI RGB linear, PBM ASCII
+  comments, PGM scaled/16-bit/binary-comment input, PNG grayscale/grayscale-alpha/RGB16/RGBA16,
+  PPM high-maxval/commented/binary-comment input, explicit malformed
+  diagnostics, and resource-boundary rejection. No externally sourced
+  real-world file corpus is claimed.
 - Malformed-input tests cover invalid headers, truncation, oversized dimensions,
   unsupported max values, malformed EXIF Orientation metadata, and failed CLI
   output behavior.
-- ImageMagick differential tests cover decoded-pixel compatibility for
-  BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM identify, prefixed identify, transcode,
+- ImageMagick differential tests cover identify metadata parity for
+  BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM identify, prefixed identify, and
+  representative intake fixtures. They cover decoded-pixel parity for
+  representative generated/in-test intake, transcode,
   prefixed transcode, plain and prefixed resize against ImageMagick
   \`-filter Point -resize <width>x<height>!\`, plain and prefixed resize-fit
   against ImageMagick \`-filter Point -resize <width>x<height>\`,
@@ -207,13 +212,18 @@ $glibc_symbols_report
 
 ## Confirmed Non-Goals
 
-- No full ImageMagick CLI parser or \`magick\` alias.
+- No full ImageMagick CLI parser, \`magick\` alias, \`convert\` alias, or
+  \`mogrify\` alias.
 - No stdin/stdout streaming, delegates, profiles, color management, transforms
   beyond the explicit nearest-neighbor resize, resize-fit, and safe batch
   composition commands, MagickCore, or
   MagickWand.
 - No prefixes beyond exact \`BMP:\`, \`FARBFELD:\`, \`JPEG:\`, \`QOI:\`, \`PBM:\`,
-  \`PGM:\`, \`PNG:\`, and \`PPM:\`.
+  \`PGM:\`, \`PNG:\`, and \`PPM:\`; short aliases like \`JPG:\` are not
+  supported.
+- No extensionless output format selection.
+- No recursive batch walking, shell glob parsing, overwrites, or partial batch
+  output commits after transform or encode failure.
 - No APNG, indexed/palette PNG, low-bit PNG, PNG color management/profile
   preservation, TIFF, PAM, PFM, GIF, WebP, indexed BMP, compressed BMP,
   bitfields BMP, OS/2 BMP, or high-depth BMP support in this conformance
@@ -237,7 +247,8 @@ cat >"$out_dir/conformance-summary.json" <<EOF
   "batch_convert": "safe batch-convert supports existing BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM inputs, exact uppercase target formats, deterministic output names, collision preflight, and optional resize/resize-fit composition",
   "self_test": "imx self-test creates temporary fixtures and exercises identify/transcode/resize/resize-fit/batch-convert across BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM without ImageMagick or network access",
   "cli_diagnostics": "CLI tests cover exit code and error-prefix behavior for unknown prefixes, mismatched prefixes, missing paths, unsupported variants, invalid geometry, same-path output, batch failures, and unsupported command shapes",
-  "intake_reliability": "generated and in-test corpus cases cover representative supported-format intake, malformed diagnostics, and resource-boundary rejection",
+  "intake_reliability": "representative generated and in-test corpus cases cover supported-format intake, malformed diagnostics, and resource-boundary rejection",
+  "real_world_files": "No externally sourced real-world file corpus is claimed.",
   "git_rev": "$git_rev",
   "generated_at": "$generated_at",
   "differential_summary": "${differential_summary:-}",
