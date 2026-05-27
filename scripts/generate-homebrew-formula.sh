@@ -27,6 +27,7 @@ jpeg_progressive_smoke=0
 intake_smoke=0
 resize_smoke=0
 resize_fit_smoke=0
+batch_convert_smoke=0
 if [[ "$formula_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
   major="${BASH_REMATCH[1]}"
   minor="${BASH_REMATCH[2]}"
@@ -53,6 +54,9 @@ if [[ "$formula_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
   fi
   if ((major > 0 || minor >= 14)); then
     resize_fit_smoke=1
+  fi
+  if ((major > 0 || minor >= 15)); then
+    batch_convert_smoke=1
   fi
 fi
 
@@ -251,6 +255,17 @@ if [[ "$resize_fit_smoke" == 1 ]]; then
   cat <<'EOF'
     system bin/"imx", "resize-fit", "5x5", "PPM:input.ppm", "PPM:fit.ppm"
     assert_match "format=PPM width=5 height=3 channels=RGB depth=8", shell_output("#{bin/"imx"} identify PPM:fit.ppm")
+EOF
+fi
+
+if [[ "$batch_convert_smoke" == 1 ]]; then
+  cat <<'EOF'
+    mkdir "batch"
+    (testpath/"batch-ppm.ppm").write "P3\n2 1\n255\n255 0 0 0 0 255\n"
+    (testpath/"batch-pgm.pgm").write "P2\n2 1\n255\n0 255\n"
+    system bin/"imx", "batch-convert", "--to", "PPM", "--output-dir", "batch", "--resize-fit", "5x5", "PPM:batch-ppm.ppm", "PGM:batch-pgm.pgm"
+    assert_match "format=PPM width=5 height=3 channels=RGB depth=8", shell_output("#{bin/"imx"} identify PPM:batch/batch-ppm.ppm")
+    assert_match "format=PPM width=5 height=3 channels=RGB depth=8", shell_output("#{bin/"imx"} identify PPM:batch/batch-pgm.ppm")
 EOF
 fi
 

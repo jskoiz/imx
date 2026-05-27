@@ -1691,6 +1691,91 @@ fn standalone_resize_fit_matches_imagemagick_point_resize_for_decoded_pixels() {
 }
 
 #[test]
+fn standalone_batch_convert_resize_fit_matches_imagemagick_decoded_pixels() {
+    let Some(magick) = require_or_skip(magick_command(), "ImageMagick oracle") else {
+        return;
+    };
+    let Some(standalone) = require_or_skip(standalone_imx_command(), "standalone imx binary")
+    else {
+        return;
+    };
+    let dir = temp_dir("batch_resize_fit");
+    let input = dir.join("source.ppm");
+    let output_dir = dir.join("batch");
+    fs::create_dir_all(&output_dir).unwrap();
+    let imx_png = output_dir.join("source.png");
+    let oracle_png = dir.join("oracle.png");
+    let imx_rgb = dir.join("imx.rgb");
+    let oracle_rgb = dir.join("oracle.rgb");
+    fs::write(
+        &input,
+        imx_codec_pnm::encode_ppm(&rgb8_gradient(9, 7)).unwrap(),
+    )
+    .unwrap();
+
+    let imx_batch = run_magick(
+        &standalone,
+        &[
+            "batch-convert".to_string(),
+            "--to".to_string(),
+            "PNG".to_string(),
+            "--output-dir".to_string(),
+            output_dir.display().to_string(),
+            "--resize-fit".to_string(),
+            "5x5".to_string(),
+            format!("PPM:{}", input.display()),
+        ],
+    );
+    assert!(
+        imx_batch.status.success(),
+        "standalone batch-convert resize-fit failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&imx_batch.stdout),
+        String::from_utf8_lossy(&imx_batch.stderr)
+    );
+
+    let oracle_resize = run_magick(
+        &magick,
+        &[
+            format!("PPM:{}", input.display()),
+            "-filter".to_string(),
+            "Point".to_string(),
+            "-resize".to_string(),
+            "5x5".to_string(),
+            format!("PNG:{}", oracle_png.display()),
+        ],
+    );
+    if !assert_success_or_skip(&oracle_resize, "ImageMagick point resize-fit batch oracle") {
+        return;
+    }
+
+    let imx_decode = run_magick(
+        &magick,
+        &[
+            format!("PNG:{}", imx_png.display()),
+            "-depth".to_string(),
+            "8".to_string(),
+            format!("RGB:{}", imx_rgb.display()),
+        ],
+    );
+    let oracle_decode = run_magick(
+        &magick,
+        &[
+            format!("PNG:{}", oracle_png.display()),
+            "-depth".to_string(),
+            "8".to_string(),
+            format!("RGB:{}", oracle_rgb.display()),
+        ],
+    );
+    if !assert_success_or_skip(&imx_decode, "ImageMagick decode IMX batch PNG")
+        || !assert_success_or_skip(&oracle_decode, "ImageMagick decode oracle batch PNG")
+    {
+        return;
+    }
+
+    assert_eq!(fs::read(imx_rgb).unwrap(), fs::read(oracle_rgb).unwrap());
+}
+
+#[test]
 fn supported_identify_fields_match_imagemagick_oracle_when_available() {
     let Some(magick) = require_or_skip(magick_command(), "ImageMagick oracle") else {
         return;

@@ -1,5 +1,29 @@
 # IMX Release Notes
 
+## IMX v0.15.0 Safe Batch Conversion Slice
+
+- Adds one explicit safe batch command:
+  `imx batch-convert --to <FORMAT> --output-dir <dir>
+  [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...`.
+- Supports batch conversion for the existing FARBFELD, JPEG, QOI, PBM, PGM,
+  PNG, and PPM surface only, using exact uppercase target formats and existing
+  exact input prefixes.
+- Reuses existing decode/encode, exact resize, resize-fit, prefix validation,
+  and per-output atomic write behavior. Batch outputs are deterministic
+  `<input-stem>.<target-extension>` files in an existing output directory.
+- Fails before writing on missing inputs, duplicate planned output names,
+  existing outputs, same-path outputs, invalid prefixes, invalid dimensions,
+  and unsupported formats. It does not add overwrite mode or collision
+  suffixing.
+- Extends CLI tests, ImageMagick differential proof, differential corpus,
+  install verification, package/archive smoke, benchmark smoke, conformance
+  wording, and Homebrew formula/archive smoke with batch-convert evidence.
+- Keeps the slice bounded: no recursion, no glob parsing beyond shell-expanded
+  input arguments, no stdin/stdout, no watch mode, no parallel execution, no
+  metadata preservation, no new formats, no `magick` alias, no full ImageMagick
+  CLI parsing, no Homebrew/core, no crates.io, no Windows, and no hosted
+  macOS/iOS Actions.
+
 ## IMX v0.14.0 Resize-Fit Slice
 
 - Adds one explicit aspect-preserving resize command:

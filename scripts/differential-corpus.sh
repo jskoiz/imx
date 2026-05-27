@@ -190,6 +190,9 @@ passes=0
 jpeg_metric_cases=0
 jpeg_orientation_cases=0
 jpeg_progressive_cases=0
+batch_convert_runs=0
+batch_convert_output_cases=0
+batch_convert_safety_cases=0
 
 run_identify_case() {
   local fmt="$1"
@@ -572,6 +575,168 @@ run_resize_case() {
   fi
 }
 
+run_batch_convert_case() {
+  local dst="$1"
+  local dst_label dst_ext batch_input_dir batch_output_dir
+  local src src_label input copied_input imx_output oracle_output imx_raw oracle_raw case_id raw_format
+  local -a batch_args oracle_args
+  dst_label="$(format_label "$dst")"
+  dst_ext="$(format_ext "$dst")"
+  batch_input_dir="$out_dir/batch-convert-inputs-$dst"
+  batch_output_dir="$out_dir/batch-convert-outputs-$dst"
+  mkdir -p "$batch_input_dir" "$batch_output_dir"
+
+  batch_args=("batch-convert" "--to" "$dst_label" "--output-dir" "$batch_output_dir")
+  for src in "${formats[@]}"; do
+    input="$(fixture_path_for_case "$src" "$dst")"
+    copied_input="$batch_input_dir/batch-$src.$(format_ext "$src")"
+    cp "$input" "$copied_input"
+    src_label="$(format_label "$src")"
+    batch_args+=("$src_label:$copied_input")
+  done
+
+  if ! "$imx" "${batch_args[@]}" >"$out_dir/batch-convert.$dst.imx.stdout" 2>"$out_dir/batch-convert.$dst.imx.stderr"; then
+    record "batch-convert.$dst" failed "IMX batch-convert to $dst_label failed"
+    failures=$((failures + 1))
+    return
+  fi
+  record "batch-convert.$dst" passed "IMX batch-convert to $dst_label completed"
+  passes=$((passes + 1))
+  batch_convert_runs=$((batch_convert_runs + 1))
+
+  for src in "${formats[@]}"; do
+    src_label="$(format_label "$src")"
+    copied_input="$batch_input_dir/batch-$src.$(format_ext "$src")"
+    imx_output="$batch_output_dir/batch-$src.$dst_ext"
+    oracle_output="$out_dir/batch-convert.$src.$dst.oracle.$dst_ext"
+    imx_raw="$out_dir/batch-convert.$src.$dst.imx.rgba"
+    oracle_raw="$out_dir/batch-convert.$src.$dst.oracle.rgba"
+    raw_format="RGBA"
+    if [[ "$src" == "jpeg" || "$dst" == "jpeg" ]]; then
+      imx_raw="$out_dir/batch-convert.$src.$dst.imx.rgb"
+      oracle_raw="$out_dir/batch-convert.$src.$dst.oracle.rgb"
+      raw_format="RGB"
+    fi
+    case_id="batch-convert.$src.$dst"
+
+    if [[ ! -f "$imx_output" ]]; then
+      record "$case_id" failed "IMX batch output is missing"
+      failures=$((failures + 1))
+      continue
+    fi
+
+    oracle_args=("$src_label:$copied_input")
+    if [[ "$dst" == "jpeg" ]]; then
+      oracle_args+=("-quality" "90" "-sampling-factor" "4:4:4" "-interlace" "none" "-strip")
+    fi
+    oracle_args+=("$dst_label:$oracle_output")
+    if ! "$oracle" "${oracle_args[@]}" >"$out_dir/$case_id.oracle.stdout" 2>"$out_dir/$case_id.oracle.stderr"; then
+      record "$case_id" failed "ImageMagick oracle batch comparison transcode failed"
+      failures=$((failures + 1))
+      continue
+    fi
+
+    if ! "$oracle" "$dst_label:$imx_output" -depth 8 "$raw_format:$imx_raw" >"$out_dir/$case_id.imx-decode.stdout" 2>"$out_dir/$case_id.imx-decode.stderr"; then
+      record "$case_id" failed "ImageMagick could not decode IMX batch output"
+      failures=$((failures + 1))
+      continue
+    fi
+
+    if ! "$oracle" "$dst_label:$oracle_output" -depth 8 "$raw_format:$oracle_raw" >"$out_dir/$case_id.oracle-decode.stdout" 2>"$out_dir/$case_id.oracle-decode.stderr"; then
+      record "$case_id" failed "ImageMagick could not decode oracle batch output"
+      failures=$((failures + 1))
+      continue
+    fi
+
+    if [[ "$src" == "jpeg" || "$dst" == "jpeg" ]]; then
+      if record_jpeg_metrics "$case_id" "$imx_raw" "$oracle_raw" >"$out_dir/$case_id.metrics.stdout" 2>"$out_dir/$case_id.metrics.stderr"; then
+        record "$case_id" passed "$src_label batch-convert to $dst_label decoded RGB pixels are within JPEG tolerance"
+        passes=$((passes + 1))
+        jpeg_metric_cases=$((jpeg_metric_cases + 1))
+        batch_convert_output_cases=$((batch_convert_output_cases + 1))
+      else
+        record "$case_id" failed "$src_label batch-convert to $dst_label decoded RGB pixels exceed JPEG tolerance"
+        failures=$((failures + 1))
+      fi
+    elif cmp -s "$imx_raw" "$oracle_raw"; then
+      record "$case_id" passed "$src_label batch-convert to $dst_label decoded pixels match oracle output"
+      passes=$((passes + 1))
+      batch_convert_output_cases=$((batch_convert_output_cases + 1))
+    else
+      record "$case_id" failed "$src_label batch-convert to $dst_label decoded pixels differ from oracle output"
+      failures=$((failures + 1))
+    fi
+  done
+}
+
+run_batch_convert_safety_cases() {
+  local safety_dir inputs_a inputs_b outputs output before_count after_count
+  safety_dir="$out_dir/batch-convert-safety"
+  mkdir -p "$safety_dir"
+  inputs_a="$safety_dir/a"
+  inputs_b="$safety_dir/b"
+  outputs="$safety_dir/out"
+  mkdir -p "$inputs_a" "$inputs_b" "$outputs"
+  cp "$fixture_dir/gradient-64.ppm" "$inputs_a/same.ppm"
+  cp "$fixture_dir/gradient-64.png" "$inputs_b/same.png"
+  if "$imx" batch-convert --to QOI --output-dir "$outputs" "$inputs_a/same.ppm" "$inputs_b/same.png" >"$out_dir/batch-convert-safety.collision.stdout" 2>"$out_dir/batch-convert-safety.collision.stderr"; then
+    record "batch-convert-safety.collision" failed "batch collision unexpectedly succeeded"
+    failures=$((failures + 1))
+  elif [[ -z "$(find "$outputs" -type f -print -quit)" ]]; then
+    record "batch-convert-safety.collision" passed "batch collision failed before writing outputs"
+    passes=$((passes + 1))
+    batch_convert_safety_cases=$((batch_convert_safety_cases + 1))
+  else
+    record "batch-convert-safety.collision" failed "batch collision left partial outputs"
+    failures=$((failures + 1))
+  fi
+
+  rm -rf "$outputs"
+  mkdir -p "$outputs"
+  printf 'existing' >"$outputs/input.qoi"
+  cp "$fixture_dir/gradient-64.ppm" "$safety_dir/input.ppm"
+  if "$imx" batch-convert --to QOI --output-dir "$outputs" "$safety_dir/input.ppm" >"$out_dir/batch-convert-safety.existing.stdout" 2>"$out_dir/batch-convert-safety.existing.stderr"; then
+    record "batch-convert-safety.existing-output" failed "batch existing output unexpectedly succeeded"
+    failures=$((failures + 1))
+  elif [[ "$(cat "$outputs/input.qoi")" == "existing" ]]; then
+    record "batch-convert-safety.existing-output" passed "batch existing output failed and preserved target"
+    passes=$((passes + 1))
+    batch_convert_safety_cases=$((batch_convert_safety_cases + 1))
+  else
+    record "batch-convert-safety.existing-output" failed "batch existing output was modified"
+    failures=$((failures + 1))
+  fi
+
+  if "$imx" batch-convert --to PPM --output-dir "$safety_dir" "$safety_dir/input.ppm" >"$out_dir/batch-convert-safety.same-path.stdout" 2>"$out_dir/batch-convert-safety.same-path.stderr"; then
+    record "batch-convert-safety.same-path" failed "batch same-path unexpectedly succeeded"
+    failures=$((failures + 1))
+  else
+    record "batch-convert-safety.same-path" passed "batch same-path failed"
+    passes=$((passes + 1))
+    batch_convert_safety_cases=$((batch_convert_safety_cases + 1))
+  fi
+
+  rm -rf "$outputs"
+  mkdir -p "$outputs"
+  cp "$fixture_dir/gradient-64.ppm" "$safety_dir/good.ppm"
+  printf 'not an image' >"$safety_dir/bad.ppm"
+  before_count="$(find "$outputs" -type f | wc -l | tr -d ' ')"
+  if "$imx" batch-convert --to QOI --output-dir "$outputs" "$safety_dir/good.ppm" "$safety_dir/bad.ppm" >"$out_dir/batch-convert-safety.malformed.stdout" 2>"$out_dir/batch-convert-safety.malformed.stderr"; then
+    record "batch-convert-safety.malformed" failed "batch malformed input unexpectedly succeeded"
+    failures=$((failures + 1))
+  else
+    after_count="$(find "$outputs" -type f | wc -l | tr -d ' ')"
+    if [[ "$before_count" == "$after_count" ]]; then
+      record "batch-convert-safety.malformed" passed "batch malformed input failed before committing earlier output"
+      passes=$((passes + 1))
+      batch_convert_safety_cases=$((batch_convert_safety_cases + 1))
+    else
+      record "batch-convert-safety.malformed" failed "batch malformed input left partial outputs"
+      failures=$((failures + 1))
+    fi
+  fi
+}
+
 run_ppm16_transcode_case() {
   local dst="$1"
   local dst_label input imx_output oracle_output imx_raw oracle_raw case_id raw_format
@@ -705,6 +870,10 @@ for prefixed_fmt in farbfeld jpeg qoi pbm pgm png ppm; do
   run_resize_case "$prefixed_fmt" prefixed
   run_resize_case "$prefixed_fmt" prefixed fit
 done
+for dst in "${formats[@]}"; do
+  run_batch_convert_case "$dst"
+done
+run_batch_convert_safety_cases
 
 status="passed"
 if [[ "$failures" != "0" ]]; then
@@ -724,6 +893,9 @@ cat >"$summary" <<EOF
   "transcode_cases": 63,
   "resize_cases": 14,
   "resize_fit_cases": 14,
+  "batch_convert_runs": $batch_convert_runs,
+  "batch_convert_output_cases": $batch_convert_output_cases,
+  "batch_convert_safety_cases": $batch_convert_safety_cases,
   "jpeg_metric_cases": $jpeg_metric_cases,
   "jpeg_orientation_cases": $jpeg_orientation_cases,
   "jpeg_progressive_cases": $jpeg_progressive_cases,

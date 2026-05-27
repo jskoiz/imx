@@ -95,6 +95,8 @@ Git revision: \`$git_rev\`
 - Commands: \`imx --help\`, \`imx --version\`, \`imx identify [FORMAT:]<input>\`,
   \`imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\`,
   \`imx resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\`, and
+  \`imx batch-convert --to <FORMAT> --output-dir <dir>
+  [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\`, and
   two-argument transcodes between supported formats, including exact
   \`FARBFELD:\`, \`JPEG:\`, \`QOI:\`, \`PBM:\`, \`PGM:\`, \`PNG:\`, and \`PPM:\`
   operand prefixes and deterministic same-format rewrites when input and output
@@ -103,7 +105,10 @@ Git revision: \`$git_rev\`
   identify/decode/transcode; output remains deterministic baseline quality-90
   JPEG. $version adds bounded nearest-neighbor resize to exact dimensions for
   the same supported formats, plus aspect-preserving nearest-neighbor resize-fit
-  to fit within a requested box. The v0.12 intake reliability claim remains
+  to fit within a requested box, and safe batch conversion with deterministic
+  output names, existing-directory output, collision preflight, no overwrite,
+  no recursive directory walking, no glob parsing, and no partial commit after
+  transform or encode failure. The v0.12 intake reliability claim remains
   limited to generated and in-test corpus cases covering comments, high maxval
   Netpbm input, grayscale-alpha/16-bit PNG input, progressive JPEG input, QOI
   RGB linear input, malformed diagnostics, and resource-boundary rejection.
@@ -153,7 +158,9 @@ $glibc_symbols_report
   \`-filter Point -resize <width>x<height>!\`, plain and prefixed resize-fit
   against ImageMagick \`-filter Point -resize <width>x<height>\`,
   deterministic same-format
-  rewrite paths, high-depth
+  rewrite paths, batch-convert runs across all supported destination formats,
+  batch safety cases for collisions/existing outputs/same-path/malformed input,
+  high-depth
   PPM/PNG identify/decode/transcode cases, JPEG RGB8 lossy metric cases, and
   JPEG EXIF Orientation cases compared with ImageMagick \`-auto-orient\`, and
   progressive JPEG RGB/gray/orientation input cases.
@@ -166,7 +173,8 @@ $glibc_symbols_report
 
 - No full ImageMagick CLI parser or \`magick\` alias.
 - No stdin/stdout streaming, delegates, profiles, color management, transforms
-  beyond the explicit nearest-neighbor resize command, MagickCore, or
+  beyond the explicit nearest-neighbor resize, resize-fit, and safe batch
+  composition commands, MagickCore, or
   MagickWand.
 - No prefixes beyond exact \`FARBFELD:\`, \`JPEG:\`, \`QOI:\`, \`PBM:\`, \`PGM:\`,
   \`PNG:\`, and \`PPM:\`.
@@ -188,6 +196,7 @@ cat >"$out_dir/conformance-summary.json" <<EOF
   "jpeg_orientation": "EXIF Orientation values 1 through 8 are normalized on JPEG input",
   "resize": "exact nearest-neighbor resize is supported for FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM",
   "resize_fit": "aspect-preserving nearest-neighbor resize-fit is supported for FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM",
+  "batch_convert": "safe batch-convert supports existing FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM inputs, exact uppercase target formats, deterministic output names, collision preflight, and optional resize/resize-fit composition",
   "intake_reliability": "generated and in-test corpus cases cover representative supported-format intake, malformed diagnostics, and resource-boundary rejection",
   "git_rev": "$git_rev",
   "generated_at": "$generated_at",

@@ -124,6 +124,12 @@ git clone "$repo_url" "$checkout" >/dev/null
   "$install_root/bin/imx" identify "PGM:$work_dir/fit.pgm" | grep -F 'format=PGM width=5 height=3'
   "$install_root/bin/imx" identify "PNG:$work_dir/fit.png" | grep -F 'format=PNG width=5 height=3'
   "$install_root/bin/imx" identify "PPM:$work_dir/fit.ppm" | grep -F 'format=PPM width=5 height=3'
+  cp "$work_dir/fit-input.ppm" "$work_dir/batch-ppm.ppm"
+  cp "$work_dir/fit-input.pgm" "$work_dir/batch-pgm.pgm"
+  mkdir -p "$work_dir/batch"
+  "$install_root/bin/imx" batch-convert --to PPM --output-dir "$work_dir/batch" --resize-fit 5x5 "PPM:$work_dir/batch-ppm.ppm" "PGM:$work_dir/batch-pgm.pgm"
+  "$install_root/bin/imx" identify "PPM:$work_dir/batch/batch-ppm.ppm" | grep -F 'format=PPM width=5 height=3'
+  "$install_root/bin/imx" identify "PPM:$work_dir/batch/batch-pgm.ppm" | grep -F 'format=PPM width=5 height=3'
   "$install_root/bin/imx" "$fixture_dir/gradient-64.ff" "$work_dir/rewrite.ff"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.jpg" "$work_dir/rewrite.jpg"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.qoi" "$work_dir/rewrite.qoi"

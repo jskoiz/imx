@@ -2,7 +2,7 @@
 set -eu
 
 repo="${IMX_REPO:-jskoiz/imx}"
-version="${IMX_VERSION:-v0.14.0}"
+version="${IMX_VERSION:-v0.15.0}"
 install_dir="${IMX_INSTALL_DIR:-$HOME/.local/bin}"
 run_smoke="${IMX_INSTALL_SMOKE:-1}"
 min_glibc="2.34"
@@ -172,6 +172,12 @@ if [ "$run_smoke" != "0" ] && [ "$run_smoke" != "false" ]; then
   "$install_dir/imx" identify "PGM:$smoke_dir/fit.pgm" | grep -F "format=PGM width=5 height=3" >/dev/null
   "$install_dir/imx" identify "PNG:$smoke_dir/fit.png" | grep -F "format=PNG width=5 height=3" >/dev/null
   "$install_dir/imx" identify "PPM:$smoke_dir/fit.ppm" | grep -F "format=PPM width=5 height=3" >/dev/null
+  cp "$smoke_dir/fit-input.ppm" "$smoke_dir/batch-ppm.ppm"
+  cp "$smoke_dir/fit-input.pgm" "$smoke_dir/batch-pgm.pgm"
+  mkdir -p "$smoke_dir/batch"
+  "$install_dir/imx" batch-convert --to PPM --output-dir "$smoke_dir/batch" --resize-fit 5x5 "PPM:$smoke_dir/batch-ppm.ppm" "PGM:$smoke_dir/batch-pgm.pgm"
+  "$install_dir/imx" identify "PPM:$smoke_dir/batch/batch-ppm.ppm" | grep -F "format=PPM width=5 height=3" >/dev/null
+  "$install_dir/imx" identify "PPM:$smoke_dir/batch/batch-pgm.ppm" | grep -F "format=PPM width=5 height=3" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/output.pbm" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/output.pgm" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/output.png" >/dev/null

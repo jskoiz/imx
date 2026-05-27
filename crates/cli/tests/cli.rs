@@ -1048,6 +1048,516 @@ fn resize_fit_prefix_errors_match_identify_and_transcode_contract() {
 }
 
 #[test]
+fn batch_convert_writes_multiple_prefixed_inputs_to_requested_format() {
+    let dir = temp_dir("batch_convert_many");
+    let source_dir = dir.join("source");
+    let output_dir = dir.join("out");
+    fs::create_dir_all(&source_dir).unwrap();
+    fs::create_dir_all(&output_dir).unwrap();
+
+    let mut args = vec![
+        "batch-convert".to_string(),
+        "--to".to_string(),
+        "PPM".to_string(),
+        "--output-dir".to_string(),
+        output_dir.to_string_lossy().into_owned(),
+    ];
+    let fixtures = write_supported_fixtures(&source_dir);
+    let mut stems = Vec::new();
+    for (prefix, input, _) in fixtures {
+        let stem = prefix.to_ascii_lowercase();
+        let renamed = source_dir.join(format!(
+            "{stem}.{}",
+            input.extension().unwrap().to_str().unwrap()
+        ));
+        fs::rename(&input, &renamed).unwrap();
+        args.push(prefixed(prefix, &renamed));
+        stems.push(stem);
+    }
+
+    let output = Command::new(imx()).args(&args).output().unwrap();
+    assert!(
+        output.status.success(),
+        "batch-convert failed with stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    for stem in stems {
+        let output_path = output_dir.join(format!("{stem}.ppm"));
+        assert!(output_path.exists(), "missing {}", output_path.display());
+        let identify = Command::new(imx())
+            .args(["identify", output_path.to_str().unwrap()])
+            .output()
+            .unwrap();
+        assert!(
+            identify.status.success(),
+            "identify failed for {} with stderr={}",
+            output_path.display(),
+            String::from_utf8_lossy(&identify.stderr)
+        );
+        let stdout = String::from_utf8(identify.stdout).unwrap();
+        assert!(
+            stdout.starts_with("format=PPM width=2 height=1 channels=RGB depth="),
+            "unexpected identify output for {}: {stdout}",
+            output_path.display()
+        );
+    }
+}
+
+#[test]
+fn batch_convert_supports_each_output_format_from_ppm() {
+    let dir = temp_dir("batch_convert_targets");
+    let input = dir.join("input.ppm");
+    let image = Image::new(2, 1, PixelFormat::Rgb8, vec![255, 0, 0, 0, 0, 255]).unwrap();
+    fs::write(&input, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
+
+    for (format, extension, expected_identify) in [
+        (
+            "FARBFELD",
+            "ff",
+            "format=FARBFELD width=2 height=1 channels=RGBA depth=16",
+        ),
+        (
+            "JPEG",
+            "jpg",
+            "format=JPEG width=2 height=1 channels=RGB depth=8",
+        ),
+        (
+            "QOI",
+            "qoi",
+            "format=QOI width=2 height=1 channels=RGBA depth=8",
+        ),
+        (
+            "PBM",
+            "pbm",
+            "format=PBM width=2 height=1 channels=GRAY depth=1",
+        ),
+        (
+            "PGM",
+            "pgm",
+            "format=PGM width=2 height=1 channels=GRAY depth=8",
+        ),
+        (
+            "PNG",
+            "png",
+            "format=PNG width=2 height=1 channels=RGB depth=8",
+        ),
+        (
+            "PPM",
+            "ppm",
+            "format=PPM width=2 height=1 channels=RGB depth=8",
+        ),
+    ] {
+        let output_dir = dir.join(format!("out-{}", format.to_ascii_lowercase()));
+        fs::create_dir_all(&output_dir).unwrap();
+        let output = Command::new(imx())
+            .args([
+                "batch-convert",
+                "--to",
+                format,
+                "--output-dir",
+                output_dir.to_str().unwrap(),
+                prefixed("PPM", &input).as_str(),
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "batch-convert to {format} failed with stderr={}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let output_path = output_dir.join(format!("input.{extension}"));
+        let identify = Command::new(imx())
+            .args(["identify", output_path.to_str().unwrap()])
+            .output()
+            .unwrap();
+        assert!(identify.status.success());
+        assert_eq!(
+            String::from_utf8(identify.stdout).unwrap().trim(),
+            expected_identify
+        );
+    }
+}
+
+#[test]
+fn batch_convert_composes_resize_modes() {
+    let dir = temp_dir("batch_convert_resize");
+    let input = dir.join("input.ppm");
+    let exact_dir = dir.join("exact");
+    let fit_dir = dir.join("fit");
+    fs::create_dir_all(&exact_dir).unwrap();
+    fs::create_dir_all(&fit_dir).unwrap();
+    let image = Image::new(2, 1, PixelFormat::Rgb8, vec![255, 0, 0, 0, 0, 255]).unwrap();
+    fs::write(&input, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
+
+    let exact = Command::new(imx())
+        .args([
+            "batch-convert",
+            "--to",
+            "PPM",
+            "--output-dir",
+            exact_dir.to_str().unwrap(),
+            "--resize",
+            "1x1",
+            prefixed("PPM", &input).as_str(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        exact.status.success(),
+        "batch exact resize failed with stderr={}",
+        String::from_utf8_lossy(&exact.stderr)
+    );
+    let exact_identify = Command::new(imx())
+        .args(["identify", exact_dir.join("input.ppm").to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8(exact_identify.stdout).unwrap().trim(),
+        "format=PPM width=1 height=1 channels=RGB depth=8"
+    );
+
+    let fit = Command::new(imx())
+        .args([
+            "batch-convert",
+            "--to",
+            "PPM",
+            "--output-dir",
+            fit_dir.to_str().unwrap(),
+            "--resize-fit",
+            "5x5",
+            prefixed("PPM", &input).as_str(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        fit.status.success(),
+        "batch resize-fit failed with stderr={}",
+        String::from_utf8_lossy(&fit.stderr)
+    );
+    let fit_identify = Command::new(imx())
+        .args(["identify", fit_dir.join("input.ppm").to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8(fit_identify.stdout).unwrap().trim(),
+        "format=PPM width=5 height=3 channels=RGB depth=8"
+    );
+}
+
+#[test]
+fn malformed_batch_convert_arguments_are_rejected_without_outputs() {
+    let dir = temp_dir("batch_convert_malformed");
+    let input = dir.join("input.ppm");
+    let output_dir = dir.join("out");
+    fs::create_dir_all(&output_dir).unwrap();
+    let image = Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap();
+    fs::write(&input, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
+    let input = input.to_string_lossy().into_owned();
+    let output_dir = output_dir.to_string_lossy().into_owned();
+    let missing = dir.join("missing.ppm").to_string_lossy().into_owned();
+    let file_output_dir = dir.join("not-a-dir");
+    fs::write(&file_output_dir, b"not a dir").unwrap();
+    let file_output_dir = file_output_dir.to_string_lossy().into_owned();
+
+    let cases = vec![
+        (
+            vec!["batch-convert", "--output-dir", &output_dir, &input],
+            "batch-convert requires --to <FORMAT>",
+        ),
+        (
+            vec!["batch-convert", "--to", "PPM", &input],
+            "batch-convert requires --output-dir <dir>",
+        ),
+        (
+            vec!["batch-convert", "--to", "PPM", "--output-dir", &output_dir],
+            "batch-convert requires at least one input",
+        ),
+        (
+            vec!["batch-convert", "--to"],
+            "batch-convert --to requires a format",
+        ),
+        (
+            vec!["batch-convert", "--output-dir"],
+            "batch-convert --output-dir requires a directory",
+        ),
+        (
+            vec![
+                "batch-convert",
+                "--to",
+                "PPM",
+                "--to",
+                "PNG",
+                "--output-dir",
+                &output_dir,
+                &input,
+            ],
+            "batch-convert --to may only be supplied once",
+        ),
+        (
+            vec![
+                "batch-convert",
+                "--to",
+                "PPM",
+                "--output-dir",
+                &output_dir,
+                "--output-dir",
+                &output_dir,
+                &input,
+            ],
+            "batch-convert --output-dir may only be supplied once",
+        ),
+        (
+            vec![
+                "batch-convert",
+                "--to",
+                "JPG",
+                "--output-dir",
+                &output_dir,
+                &input,
+            ],
+            "unsupported output format: JPG",
+        ),
+        (
+            vec![
+                "batch-convert",
+                "--to",
+                "PPM",
+                "--output-dir",
+                &output_dir,
+                "--resize",
+                "1x1",
+                "--resize-fit",
+                "1x1",
+                &input,
+            ],
+            "batch-convert accepts only one of --resize or --resize-fit",
+        ),
+        (
+            vec![
+                "batch-convert",
+                "--to",
+                "PPM",
+                "--output-dir",
+                &output_dir,
+                "--resize",
+                "x1",
+                &input,
+            ],
+            "invalid resize dimensions",
+        ),
+        (
+            vec![
+                "batch-convert",
+                "--to",
+                "PPM",
+                "--output-dir",
+                &output_dir,
+                "--unknown",
+                &input,
+            ],
+            "unsupported batch-convert option: --unknown",
+        ),
+        (
+            vec![
+                "batch-convert",
+                "--to",
+                "PPM",
+                "--output-dir",
+                &output_dir,
+                &missing,
+            ],
+            "missing input:",
+        ),
+        (
+            vec![
+                "batch-convert",
+                "--to",
+                "PPM",
+                "--output-dir",
+                &file_output_dir,
+                &input,
+            ],
+            "output directory is not a directory",
+        ),
+        (
+            vec![
+                "batch-convert",
+                "--to",
+                "PPM",
+                "--output-dir",
+                &output_dir,
+                "-",
+            ],
+            "stdin/stdout is not supported",
+        ),
+        (
+            vec![
+                "batch-convert",
+                "--to",
+                "PPM",
+                "--output-dir",
+                &output_dir,
+                "*.ppm",
+            ],
+            "missing input:",
+        ),
+    ];
+
+    for (args, expected_error) in cases {
+        let output = Command::new(imx()).args(args).output().unwrap();
+        assert!(
+            !output.status.success(),
+            "malformed batch-convert unexpectedly succeeded"
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(expected_error),
+            "expected stderr to contain {expected_error:?}, got {:?}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(fs::read_dir(&output_dir).unwrap().count(), 0);
+    }
+}
+
+#[test]
+fn batch_convert_rejects_collisions_existing_outputs_and_same_paths() {
+    let dir = temp_dir("batch_convert_collisions");
+    let a_dir = dir.join("a");
+    let b_dir = dir.join("b");
+    let output_dir = dir.join("out");
+    fs::create_dir_all(&a_dir).unwrap();
+    fs::create_dir_all(&b_dir).unwrap();
+    fs::create_dir_all(&output_dir).unwrap();
+    let image = Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap();
+    let a = a_dir.join("same.ppm");
+    let b = b_dir.join("same.ppm");
+    fs::write(&a, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
+    fs::write(&b, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
+
+    let output = Command::new(imx())
+        .args([
+            "batch-convert",
+            "--to",
+            "PPM",
+            "--output-dir",
+            output_dir.to_str().unwrap(),
+            a.to_str().unwrap(),
+            b.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("batch output collision"));
+    assert_eq!(fs::read_dir(&output_dir).unwrap().count(), 0);
+
+    let existing = output_dir.join("same.ppm");
+    fs::write(&existing, b"existing").unwrap();
+    let output = Command::new(imx())
+        .args([
+            "batch-convert",
+            "--to",
+            "PPM",
+            "--output-dir",
+            output_dir.to_str().unwrap(),
+            a.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("output path already exists"));
+    assert_eq!(fs::read(&existing).unwrap(), b"existing");
+
+    let output = Command::new(imx())
+        .args([
+            "batch-convert",
+            "--to",
+            "PPM",
+            "--output-dir",
+            a_dir.to_str().unwrap(),
+            a.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("must be different"));
+}
+
+#[test]
+fn batch_convert_prefix_errors_match_existing_contract() {
+    let dir = temp_dir("batch_convert_prefix_errors");
+    let output_dir = dir.join("out");
+    fs::create_dir_all(&output_dir).unwrap();
+    let ppm = dir.join("input.ppm");
+    let png = dir.join("input.png");
+    let image = Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap();
+    fs::write(&ppm, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
+    fs::write(&png, imx_codec_png::encode(&image).unwrap()).unwrap();
+
+    let cases = vec![
+        (prefixed("GIF", &ppm), "unsupported format prefix: GIF"),
+        ("PNG:".to_string(), "missing path after format prefix PNG:"),
+        (
+            prefixed("PNG", &ppm),
+            "format prefix PNG does not match detected format PPM",
+        ),
+        (
+            prefixed("PPM", &png),
+            "format prefix PPM does not match detected format PNG",
+        ),
+    ];
+
+    for (input_arg, expected_error) in cases {
+        let output = Command::new(imx())
+            .args([
+                "batch-convert",
+                "--to",
+                "PPM",
+                "--output-dir",
+                output_dir.to_str().unwrap(),
+                input_arg.as_str(),
+            ])
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(expected_error),
+            "expected stderr to contain {expected_error:?}, got {:?}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+#[test]
+fn batch_convert_encode_failure_leaves_no_target_file() {
+    let dir = temp_dir("batch_convert_encode_failure");
+    let output_dir = dir.join("out");
+    fs::create_dir_all(&output_dir).unwrap();
+    let input = dir.join("transparent.png");
+    let image = Image::new(1, 1, PixelFormat::Rgba8, vec![255, 0, 0, 0]).unwrap();
+    fs::write(&input, imx_codec_png::encode(&image).unwrap()).unwrap();
+
+    let output = Command::new(imx())
+        .args([
+            "batch-convert",
+            "--to",
+            "JPEG",
+            "--output-dir",
+            output_dir.to_str().unwrap(),
+            prefixed("PNG", &input).as_str(),
+        ])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("alpha"),
+        "expected JPEG alpha error, got {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!output_dir.join("transparent.jpg").exists());
+}
+
+#[test]
 fn transcodes_ppm_to_farbfeld_and_farbfeld_to_ppm() {
     let dir = temp_dir("ppm_transcode");
     let input_ppm = dir.join("input.ppm");
@@ -1563,7 +2073,9 @@ fn help_and_version_are_available() {
             let stdout = String::from_utf8(output.stdout).unwrap();
             assert!(stdout.contains("imx resize <width>x<height>"));
             assert!(stdout.contains("imx resize-fit <width>x<height>"));
+            assert!(stdout.contains("imx batch-convert --to <FORMAT> --output-dir <dir>"));
             assert!(stdout.contains("nearest-neighbor exact dimensions and aspect-preserving fit"));
+            assert!(stdout.contains("no overwrite or collision renaming"));
             assert!(stdout.contains(".jpg"));
             assert!(stdout.contains(".jpeg"));
             assert!(stdout.contains("JPEG:"));

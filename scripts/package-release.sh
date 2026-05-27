@@ -264,6 +264,12 @@ run_packaged_binary identify "PBM:$verify_dir/fit.pbm" | grep -F 'format=PBM wid
 run_packaged_binary identify "PGM:$verify_dir/fit.pgm" | grep -F 'format=PGM width=5 height=3' >/dev/null
 run_packaged_binary identify "PNG:$verify_dir/fit.png" | grep -F 'format=PNG width=5 height=3' >/dev/null
 run_packaged_binary identify "PPM:$verify_dir/fit.ppm" | grep -F 'format=PPM width=5 height=3' >/dev/null
+cp "$verify_dir/input.ppm" "$verify_dir/batch-ppm.ppm"
+cp "$verify_dir/input.pgm" "$verify_dir/batch-pgm.pgm"
+mkdir -p "$verify_dir/batch"
+run_packaged_binary batch-convert --to PPM --output-dir "$verify_dir/batch" --resize-fit 5x5 "PPM:$verify_dir/batch-ppm.ppm" "PGM:$verify_dir/batch-pgm.pgm"
+run_packaged_binary identify "PPM:$verify_dir/batch/batch-ppm.ppm" | grep -F 'format=PPM width=5 height=3' >/dev/null
+run_packaged_binary identify "PPM:$verify_dir/batch/batch-pgm.ppm" | grep -F 'format=PPM width=5 height=3' >/dev/null
 run_packaged_binary "$verify_dir/output.ff" "$verify_dir/rewrite.ff"
 run_packaged_binary "$verify_dir/output.jpg" "$verify_dir/rewrite.jpg"
 run_packaged_binary "$verify_dir/output.qoi" "$verify_dir/rewrite.qoi"

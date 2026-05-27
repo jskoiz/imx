@@ -1,15 +1,16 @@
 # IMX Compatibility Readiness
 
-Status: v0.14.0 is the current published developer-preview release surface. It carries
+Status: v0.15.0 is the current published developer-preview release surface. It carries
 forward the v0.6.0 exact format-prefix surface, the v0.7.0 high-depth PPM
 surface, the v0.8.0 bounded PNG raster slice, and the v0.9.0 bounded JPEG
 slice, plus v0.10.0 bounded JPEG EXIF Orientation normalization and v0.11.0
 bounded progressive JPEG input support, plus v0.12.0 real-world intake
 reliability coverage for already-supported formats. The v0.13.0 release adds
 bounded nearest-neighbor exact resize for the same supported formats, and
-v0.14.0 adds aspect-preserving resize-fit. Release and tap
+v0.14.0 adds aspect-preserving resize-fit. v0.15.0 adds safe batch conversion
+on top of the existing transcode/resize/resize-fit surface. Release and tap
 support are claimed only for the Linux archive targets present in the published
-v0.14.0 GitHub `SHA256SUMS` and verified by Linux-only release/archive and tap
+v0.15.0 GitHub `SHA256SUMS` and verified by Linux-only release/archive and tap
 smoke. Published Linux archives require glibc 2.34 or newer, with
 release/archive smoke checking that published Linux binaries do not reference
 `GLIBC_*` symbols newer than `GLIBC_2.34`. Hosted release proof is Linux-only.
@@ -61,13 +62,22 @@ local/manual only unless explicitly approved in the current turn.
   aspect-preserving nearest-neighbor resize into a requested box across the same
   supported formats. It does not change exact `imx resize` behavior or add
   ImageMagick geometry shorthand.
+- v0.15.0 adds
+  `imx batch-convert --to <FORMAT> --output-dir <dir>
+  [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...`
+  for safe batch conversion across the same supported formats. It requires an
+  existing output directory, exact uppercase target formats, deterministic
+  stem-based output names, and fail-fast preflight for collisions, existing
+  outputs, same-path writes, missing inputs, and invalid prefixes. It does not
+  add recursion, glob expansion, overwrite mode, rename suffixes, stdin/stdout,
+  or parallel execution.
 - Published v0.4.0 release targets are Linux x86_64, macOS arm64, and macOS
-  x86_64. The current v0.14.0 hosted release targets are Linux x86_64 and Linux
+  x86_64. The current v0.15.0 hosted release targets are Linux x86_64 and Linux
   arm64 only, without hosted macOS/iOS Actions.
 - ImageMagick remains an oracle for tests and benchmarks only; shipped binaries
   must not link to ImageMagick, MagickCore, MagickWand, delegates, modules,
   `policy.xml`, or ImageMagick's build system.
-- v0.14.0 distribution artifacts are the Linux x86_64 and Linux arm64 release
+- v0.15.0 distribution artifacts are the Linux x86_64 and Linux arm64 release
   tarballs, aggregate `SHA256SUMS`, generated `imx.rb`,
   `CONFORMANCE_REPORT.md`, and `conformance-summary.json`. Hosted tag
   automation is Linux-only unless a macOS run is explicitly approved in the
@@ -78,16 +88,16 @@ local/manual only unless explicitly approved in the current turn.
 | Gate | Producer | Artifact Path | Coverage | Result |
 | --- | --- | --- | --- | --- |
 | Release gates | `scripts/ci.sh` | terminal plus CI logs | fmt, clippy, tests, fixture generation, fuzz smoke, benchmark smoke, differential tests | required before tag |
-| Differential corpus | `scripts/differential-corpus.sh` | `target/differential-corpus-*/summary.json` | identify for 7 formats, prefixed identify for 7 formats, high-depth PPM/PNG identify, 49 directed transcodes, a prefixed transcode ring covering every supported prefix as input/output, plain and prefixed resize plus resize-fit for 7 formats, 16-bit PPM/PNG preserving transcodes, JPEG RGB8 lossy metric evidence, EXIF Orientation cases against ImageMagick `-auto-orient`, and progressive JPEG RGB/gray/orientation cases | required before tag |
+| Differential corpus | `scripts/differential-corpus.sh` | `target/differential-corpus-*/summary.json` | identify for 7 formats, prefixed identify for 7 formats, high-depth PPM/PNG identify, 49 directed transcodes, a prefixed transcode ring covering every supported prefix as input/output, plain and prefixed resize plus resize-fit for 7 formats, batch-convert runs across all destination formats plus safety cases, 16-bit PPM/PNG preserving transcodes, JPEG RGB8 lossy metric evidence, EXIF Orientation cases against ImageMagick `-auto-orient`, and progressive JPEG RGB/gray/orientation cases | required before tag |
 | Curated intake corpus | `scripts/curated-corpus.sh` and `cargo test --test curated_corpus` | `target/curated-corpus/summary.json` | generated/in-test representative intake cases, malformed diagnostic assertions, and resource-boundary checks for supported formats only | required before tag |
 | Fuzz smoke | `scripts/run-fuzz.sh` | `target/fuzz-runs/*/summary.json` | FARBFELD, JPEG, QOI, PNG, and PNM identify/decode with retained crash artifacts | required before tag |
 | Scheduled fuzz | `.github/workflows/rust-fuzz-scheduled.yml` | `scheduled-fuzz-evidence` artifact | longer cargo-fuzz run with artifact retention | required CI lane |
 | Bench/RSS thresholds | `scripts/bench-release.sh` | `target/release-bench-*/threshold-summary.json` | throughput and process/library RSS sanity budgets | required before tag |
-| Bench regression | `scripts/bench-regression.sh` | `target/bench-regression-*/regression-report.json` | v0.14.x vs v0.5.0 throughput/RSS baseline; newer PNG/JPEG/resize/resize-fit metrics without a baseline are warnings, RSS growth is enforced where a baseline exists | required before tag |
-| Source install verify | `scripts/verify-install.sh` | `target/install-verify/install-summary.json` | fresh checkout install plus supported identify/transcode/resize/resize-fit/prefix/PPM16/PNG/JPEG/orientation/progressive smoke | required before tag |
-| Package/SHA/no-link | `scripts/package-release.sh` plus hosted Linux workflow; local macOS or explicitly approved manual evidence for macOS targets | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive smoke, exact-prefix, resize, and resize-fit smoke, PPM16/PNG/JPEG/orientation/progressive/intake smoke, no ImageMagick linkage, and max `GLIBC_* <= GLIBC_2.34` for each claimed Linux platform; v0.14.x hosted automation prepares Linux x86_64 and Linux arm64 release artifacts | required before publishing that platform archive |
-| Published archive smoke | `scripts/verify-release-archive.sh` | `target/release-archive-smoke/<target>/summary.json` | downloads the selected GitHub release archive, verifies that archive against aggregate SHA256SUMS, no-link, max `GLIBC_* <= GLIBC_2.34`, and identify/transcode/resize/resize-fit/same-format/prefix smoke; hosted CI covers Linux only | required after release publish |
-| Homebrew tap smoke | `brew tap jskoiz/imx <checkout>`, `brew install jskoiz/imx/imx`, and `brew test jskoiz/imx/imx` from the checked-out tap | `jskoiz/homebrew-imx` Linux formula/archive workflow plus local macOS or explicitly approved manual terminal output | formula URL/SHA fetch, binary version check, PPM identify, PPM-to-QOI smoke, PNG/JPEG/orientation/progressive smoke, exact-prefix smoke, resize and resize-fit smoke, and FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM same-format rewrite smoke; local/manual Homebrew install proof for tap claims | required for tap claim; no hosted macOS tap smoke is claimed |
+| Bench regression | `scripts/bench-regression.sh` | `target/bench-regression-*/regression-report.json` | v0.15.x vs v0.5.0 throughput/RSS baseline; newer PNG/JPEG/resize/resize-fit/batch metrics without a baseline are warnings, RSS growth is enforced where a baseline exists | required before tag |
+| Source install verify | `scripts/verify-install.sh` | `target/install-verify/install-summary.json` | fresh checkout install plus supported identify/transcode/resize/resize-fit/batch-convert/prefix/PPM16/PNG/JPEG/orientation/progressive smoke | required before tag |
+| Package/SHA/no-link | `scripts/package-release.sh` plus hosted Linux workflow; local macOS or explicitly approved manual evidence for macOS targets | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive smoke, exact-prefix, resize, resize-fit, and batch-convert smoke, PPM16/PNG/JPEG/orientation/progressive/intake smoke, no ImageMagick linkage, and max `GLIBC_* <= GLIBC_2.34` for each claimed Linux platform; v0.15.x hosted automation prepares Linux x86_64 and Linux arm64 release artifacts | required before publishing that platform archive |
+| Published archive smoke | `scripts/verify-release-archive.sh` | `target/release-archive-smoke/<target>/summary.json` | downloads the selected GitHub release archive, verifies that archive against aggregate SHA256SUMS, no-link, max `GLIBC_* <= GLIBC_2.34`, and identify/transcode/resize/resize-fit/batch-convert/same-format/prefix smoke; hosted CI covers Linux only | required after release publish |
+| Homebrew tap smoke | `brew tap jskoiz/imx <checkout>`, `brew install jskoiz/imx/imx`, and `brew test jskoiz/imx/imx` from the checked-out tap | `jskoiz/homebrew-imx` Linux formula/archive workflow plus local macOS or explicitly approved manual terminal output | formula URL/SHA fetch, binary version check, PPM identify, PPM-to-QOI smoke, PNG/JPEG/orientation/progressive smoke, exact-prefix smoke, resize/resize-fit/batch-convert smoke, and FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM same-format rewrite smoke; local/manual Homebrew install proof for tap claims | required for tap claim; no hosted macOS tap smoke is claimed |
 | Conformance report | `scripts/generate-conformance-report.sh` | `CONFORMANCE_REPORT.md`, `conformance-summary.json` | generated from CI evidence and attached to the release | required release asset |
 
 ## Local Verification
@@ -123,7 +133,7 @@ imx --version
 After a release is published, each claimed platform must run:
 
 ```sh
-IMX_VERSION=v0.14.0 IMX_RELEASE_TARGET=<target> \
+IMX_VERSION=v0.15.0 IMX_RELEASE_TARGET=<target> \
   bash scripts/verify-release-archive.sh
 ```
 
@@ -172,7 +182,8 @@ published binary references a `GLIBC_*` symbol newer than `GLIBC_2.34`.
 - No prefixes beyond exact `FARBFELD:`, `JPEG:`, `QOI:`, `PBM:`, `PGM:`,
   `PNG:`, and `PPM:`.
 - No delegates, profiles, color management, transform operations beyond the
-  explicit nearest-neighbor resize commands, MagickCore API, or MagickWand API.
+  explicit nearest-neighbor resize commands and safe batch composition,
+  MagickCore API, or MagickWand API.
 - PNG support is limited to static non-interlaced grayscale/RGB/RGBA and
   grayscale-alpha 8/16-bit rasters. APNG, indexed/palette PNG, low-bit PNG,
   `tRNS`, PNG metadata/profile preservation, and PNG color management are out
@@ -195,8 +206,8 @@ published binary references a `GLIBC_*` symbol newer than `GLIBC_2.34`.
 - FARBFELD/PPM16/PGM16 to QOI is lossy for non-8-bit-representable 16-bit
   samples.
 - Color to PGM/PBM is lossy and ignores alpha.
-- No Windows, crates.io, Homebrew/core, or unverified macOS v0.14.x package is
-  claimed. Linux arm64 is claimed only for published v0.14.0 archives and tap
+- No Windows, crates.io, Homebrew/core, or unverified macOS v0.15.x package is
+  claimed. Linux arm64 is claimed only for published v0.15.0 archives and tap
   blocks verified from release `SHA256SUMS`; Homebrew support is tap-only
   through `jskoiz/imx`.
 
@@ -221,8 +232,8 @@ published binary references a `GLIBC_*` symbol newer than `GLIBC_2.34`.
 
 ## Next Smallest Milestone
 
-After the v0.14.0 release/tap closure, the next milestone should make IMX more
-usable with one bounded everyday operation or format gap, prove it against
+After the v0.15.0 release/tap closure, the next milestone should improve
+everyday usefulness with one bounded operation or format gap, prove it against
 ImageMagick where applicable, and keep package/tap proof current. TIFF, GIF,
 WebP, APNG, delegates, MagickCore, MagickWand, color management, metadata
 preservation beyond declared read-only fields, and full ImageMagick CLI

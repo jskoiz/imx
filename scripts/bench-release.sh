@@ -59,6 +59,11 @@ run_timed standalone-png-to-ff "$root/target/release/imx" "$fixture_dir/gradient
 run_timed standalone-png16-to-ff "$root/target/release/imx" "$fixture_dir/gradient-64-png16.png" "$out_dir/standalone-png16.ff"
 run_timed standalone-ppm-resize "$root/target/release/imx" resize 17x11 "PPM:$fixture_dir/gradient-64.ppm" "PPM:$out_dir/standalone-resized.ppm"
 run_timed standalone-ppm-resize-fit "$root/target/release/imx" resize-fit 17x11 "PPM:$fixture_dir/intake-comments-2x1.ppm" "PPM:$out_dir/standalone-resized-fit.ppm"
+mkdir -p "$out_dir/standalone-batch" "$out_dir/oracle-batch"
+cp "$fixture_dir/gradient-64.ppm" "$out_dir/batch-ppm.ppm"
+cp "$fixture_dir/gradient-64.pgm" "$out_dir/batch-pgm.pgm"
+cp "$fixture_dir/gradient-64.png" "$out_dir/batch-png.png"
+run_timed standalone-batch-convert-mixed-to-ppm "$root/target/release/imx" batch-convert --to PPM --output-dir "$out_dir/standalone-batch" --resize-fit 17x11 "PPM:$out_dir/batch-ppm.ppm" "PGM:$out_dir/batch-pgm.pgm" "PNG:$out_dir/batch-png.png"
 
 run_timed oracle-farbfeld-decode "$oracle" "FARBFELD:$fixture_dir/gradient-64.ff" NULL:
 run_timed oracle-qoi-decode "$oracle" "QOI:$fixture_dir/gradient-64.qoi" NULL:
@@ -94,6 +99,7 @@ run_timed oracle-png-to-ff "$oracle" "PNG:$fixture_dir/gradient-64.png" "FARBFEL
 run_timed oracle-png16-to-ff "$oracle" "PNG:$fixture_dir/gradient-64-png16.png" "FARBFELD:$out_dir/oracle-png16.ff"
 run_timed oracle-ppm-resize "$oracle" "PPM:$fixture_dir/gradient-64.ppm" -filter Point -resize 17x11! "PPM:$out_dir/oracle-resized.ppm"
 run_timed oracle-ppm-resize-fit "$oracle" "PPM:$fixture_dir/intake-comments-2x1.ppm" -filter Point -resize 17x11 "PPM:$out_dir/oracle-resized-fit.ppm"
+run_timed oracle-batch-convert-mixed-to-ppm bash -c '"$0" "PPM:$1" -filter Point -resize 17x11 "PPM:$4/batch-ppm.ppm" && "$0" "PGM:$2" -filter Point -resize 17x11 "PPM:$4/batch-pgm.ppm" && "$0" "PNG:$3" -filter Point -resize 17x11 "PPM:$4/batch-png.ppm"' "$oracle" "$out_dir/batch-ppm.ppm" "$out_dir/batch-pgm.pgm" "$out_dir/batch-png.png" "$out_dir/oracle-batch"
 
 if command -v shasum >/dev/null 2>&1; then
   shasum -a 256 "$out_dir"/*.{ff,jpg,qoi,pbm,ppm,pgm,png} >"$out_dir/output-sha256.txt" 2>/dev/null || true

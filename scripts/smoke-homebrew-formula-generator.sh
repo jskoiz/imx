@@ -105,6 +105,19 @@ assert_contains "$resize_fit_formula" '"resize", "1x1", "PPM:input.ppm", "PPM:re
 assert_contains "$resize_fit_formula" "format=PPM width=1 height=1 channels=RGB depth=8"
 assert_contains "$resize_fit_formula" '"resize-fit", "5x5", "PPM:input.ppm", "PPM:fit.ppm"'
 assert_contains "$resize_fit_formula" "format=PPM width=5 height=3 channels=RGB depth=8"
+assert_not_contains "$resize_fit_formula" '"batch-convert", "--to", "PPM"'
+
+batch_release="$work_dir/batch-release.SHA256SUMS"
+write_checksums "$batch_release" \
+  imx-preview-0.15.0-x86_64-unknown-linux-gnu.tar.gz \
+  imx-preview-0.15.0-aarch64-unknown-linux-gnu.tar.gz
+batch_formula="$work_dir/batch-release.rb"
+bash scripts/generate-homebrew-formula.sh v0.15.0 "$batch_release" "$batch_formula"
+assert_formula_syntax "$batch_formula"
+assert_contains "$batch_formula" '"resize", "1x1", "PPM:input.ppm", "PPM:resized.ppm"'
+assert_contains "$batch_formula" '"resize-fit", "5x5", "PPM:input.ppm", "PPM:fit.ppm"'
+assert_contains "$batch_formula" '"batch-convert", "--to", "PPM", "--output-dir", "batch", "--resize-fit", "5x5", "PPM:batch-ppm.ppm", "PGM:batch-pgm.pgm"'
+assert_contains "$batch_formula" "format=PPM width=5 height=3 channels=RGB depth=8"
 
 all_targets="$work_dir/all-targets.SHA256SUMS"
 write_checksums "$all_targets" \
