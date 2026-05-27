@@ -93,16 +93,18 @@ Git revision: \`$git_rev\`
 - Binary: \`imx\`
 - Formats: FARBFELD, JPEG, QOI, PBM, PGM, PNG, PPM
 - Commands: \`imx --help\`, \`imx --version\`, \`imx identify [FORMAT:]<input>\`,
-  and two-argument transcodes between supported formats, including exact
+  \`imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\`, and
+  two-argument transcodes between supported formats, including exact
   \`FARBFELD:\`, \`JPEG:\`, \`QOI:\`, \`PBM:\`, \`PGM:\`, \`PNG:\`, and \`PPM:\`
   operand prefixes and deterministic same-format rewrites when input and output
   paths differ. JPEG rewrites are deterministic lossy decode/re-encode
   operations. Progressive 8-bit grayscale/RGB JPEG input is supported for
   identify/decode/transcode; output remains deterministic baseline quality-90
-  JPEG. $version adds a real-world intake reliability claim for generated and
-  in-test corpus cases covering comments, high maxval Netpbm input,
-  grayscale-alpha/16-bit PNG input, progressive JPEG input, QOI RGB linear
-  input, malformed diagnostics, and resource-boundary rejection.
+  JPEG. $version adds bounded nearest-neighbor resize to exact dimensions for
+  the same supported formats. The v0.12 intake reliability claim remains
+  limited to generated and in-test corpus cases covering comments, high maxval
+  Netpbm input, grayscale-alpha/16-bit PNG input, progressive JPEG input, QOI
+  RGB linear input, malformed diagnostics, and resource-boundary rejection.
 - Runtime dependency policy: no ImageMagick, MagickCore, MagickWand, delegates,
   modules, \`policy.xml\`, or ImageMagick build system linkage.
 - Linux release archive policy: published glibc archives must not reference a
@@ -145,7 +147,9 @@ $glibc_symbols_report
   output behavior.
 - ImageMagick differential tests cover decoded-pixel compatibility for
   FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM identify, prefixed identify, transcode,
-  prefixed transcode, deterministic same-format rewrite paths, high-depth
+  prefixed transcode, plain and prefixed resize against ImageMagick
+  \`-filter Point -resize <width>x<height>!\`, deterministic same-format
+  rewrite paths, high-depth
   PPM/PNG identify/decode/transcode cases, JPEG RGB8 lossy metric cases, and
   JPEG EXIF Orientation cases compared with ImageMagick \`-auto-orient\`, and
   progressive JPEG RGB/gray/orientation input cases.
@@ -157,8 +161,9 @@ $glibc_symbols_report
 ## Confirmed Non-Goals
 
 - No full ImageMagick CLI parser or \`magick\` alias.
-- No stdin/stdout streaming, delegates, profiles, color management, transforms,
-  MagickCore, or MagickWand.
+- No stdin/stdout streaming, delegates, profiles, color management, transforms
+  beyond the explicit nearest-neighbor resize command, MagickCore, or
+  MagickWand.
 - No prefixes beyond exact \`FARBFELD:\`, \`JPEG:\`, \`QOI:\`, \`PBM:\`, \`PGM:\`,
   \`PNG:\`, and \`PPM:\`.
 - No APNG, indexed/palette PNG, low-bit PNG, PNG color management/profile
@@ -177,6 +182,7 @@ cat >"$out_dir/conformance-summary.json" <<EOF
   "prefixes": ["FARBFELD:", "JPEG:", "QOI:", "PBM:", "PGM:", "PNG:", "PPM:"],
   "jpeg_progressive": "8-bit grayscale/RGB progressive JPEG input is supported",
   "jpeg_orientation": "EXIF Orientation values 1 through 8 are normalized on JPEG input",
+  "resize": "exact nearest-neighbor resize is supported for FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM",
   "intake_reliability": "generated and in-test corpus cases cover representative supported-format intake, malformed diagnostics, and resource-boundary rejection",
   "git_rev": "$git_rev",
   "generated_at": "$generated_at",

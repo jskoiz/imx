@@ -485,6 +485,81 @@ run_transcode_case() {
   fi
 }
 
+run_resize_case() {
+  local fmt="$1"
+  local mode="${2:-plain}"
+  local label input imx_input imx_output imx_output_arg oracle_output imx_raw oracle_raw case_id raw_format
+  local -a oracle_args
+  label="$(format_label "$fmt")"
+  input="$(fixture_path "$fmt")"
+  case_id="resize.$fmt"
+  imx_input="$input"
+  if [[ "$mode" == "prefixed" ]]; then
+    case_id="resize-prefixed.$fmt"
+    imx_input="$label:$input"
+  fi
+  imx_output="$out_dir/$case_id.imx.$(format_ext "$fmt")"
+  imx_output_arg="$imx_output"
+  if [[ "$mode" == "prefixed" ]]; then
+    imx_output_arg="$label:$imx_output"
+  fi
+  oracle_output="$out_dir/$case_id.oracle.$(format_ext "$fmt")"
+  imx_raw="$out_dir/$case_id.imx.rgba"
+  oracle_raw="$out_dir/$case_id.oracle.rgba"
+  raw_format="RGBA"
+  if [[ "$fmt" == "jpeg" ]]; then
+    imx_raw="$out_dir/$case_id.imx.rgb"
+    oracle_raw="$out_dir/$case_id.oracle.rgb"
+    raw_format="RGB"
+  fi
+
+  if ! "$imx" resize 17x11 "$imx_input" "$imx_output_arg" >"$out_dir/$case_id.imx.stdout" 2>"$out_dir/$case_id.imx.stderr"; then
+    record "$case_id" failed "IMX resize failed"
+    failures=$((failures + 1))
+    return
+  fi
+
+  oracle_args=("$label:$input" "-filter" "Point" "-resize" "17x11!")
+  if [[ "$fmt" == "jpeg" ]]; then
+    oracle_args+=("-quality" "90" "-sampling-factor" "4:4:4" "-interlace" "none" "-strip")
+  fi
+  oracle_args+=("$label:$oracle_output")
+  if ! "$oracle" "${oracle_args[@]}" >"$out_dir/$case_id.oracle.stdout" 2>"$out_dir/$case_id.oracle.stderr"; then
+    record "$case_id" failed "ImageMagick oracle resize failed"
+    failures=$((failures + 1))
+    return
+  fi
+
+  if ! "$oracle" "$label:$imx_output" -depth 8 "$raw_format:$imx_raw" >"$out_dir/$case_id.imx-decode.stdout" 2>"$out_dir/$case_id.imx-decode.stderr"; then
+    record "$case_id" failed "ImageMagick could not decode IMX resized output"
+    failures=$((failures + 1))
+    return
+  fi
+
+  if ! "$oracle" "$label:$oracle_output" -depth 8 "$raw_format:$oracle_raw" >"$out_dir/$case_id.oracle-decode.stdout" 2>"$out_dir/$case_id.oracle-decode.stderr"; then
+    record "$case_id" failed "ImageMagick could not decode oracle resized output"
+    failures=$((failures + 1))
+    return
+  fi
+
+  if [[ "$fmt" == "jpeg" ]]; then
+    if record_jpeg_metrics "$case_id" "$imx_raw" "$oracle_raw" >"$out_dir/$case_id.metrics.stdout" 2>"$out_dir/$case_id.metrics.stderr"; then
+      record "$case_id" passed "$label resized decoded RGB pixels are within JPEG tolerance"
+      passes=$((passes + 1))
+      jpeg_metric_cases=$((jpeg_metric_cases + 1))
+    else
+      record "$case_id" failed "$label resized decoded RGB pixels exceed JPEG tolerance"
+      failures=$((failures + 1))
+    fi
+  elif cmp -s "$imx_raw" "$oracle_raw"; then
+    record "$case_id" passed "$label resized decoded pixels match oracle output"
+    passes=$((passes + 1))
+  else
+    record "$case_id" failed "$label resized decoded pixels differ from oracle output"
+    failures=$((failures + 1))
+  fi
+}
+
 run_ppm16_transcode_case() {
   local dst="$1"
   local dst_label input imx_output oracle_output imx_raw oracle_raw case_id raw_format
@@ -602,6 +677,9 @@ for src in "${formats[@]}"; do
     run_transcode_case "$src" "$dst"
   done
 done
+for fmt in "${formats[@]}"; do
+  run_resize_case "$fmt"
+done
 run_ppm16_transcode_case farbfeld
 run_ppm16_transcode_case ppm
 run_png16_transcode_case farbfeld
@@ -609,6 +687,9 @@ run_png16_transcode_case ppm
 
 for prefixed_pair in farbfeld:jpeg jpeg:qoi qoi:png png:ppm ppm:pgm pgm:pbm pbm:farbfeld; do
   run_transcode_case "${prefixed_pair%%:*}" "${prefixed_pair##*:}" prefixed
+done
+for prefixed_fmt in farbfeld jpeg qoi pbm pgm png ppm; do
+  run_resize_case "$prefixed_fmt" prefixed
 done
 
 status="passed"
@@ -627,6 +708,7 @@ cat >"$summary" <<EOF
   "jpeg_metrics": "jpeg-metrics.jsonl",
   "identify_cases": 21,
   "transcode_cases": 63,
+  "resize_cases": 14,
   "jpeg_metric_cases": $jpeg_metric_cases,
   "jpeg_orientation_cases": $jpeg_orientation_cases,
   "jpeg_progressive_cases": $jpeg_progressive_cases,

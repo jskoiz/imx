@@ -133,6 +133,33 @@ impl Image {
         }
     }
 
+    pub fn resize_nearest(&self, width: u32, height: u32) -> Result<Self, ImageError> {
+        let bytes_per_pixel = self.pixel_format.bytes_per_pixel();
+        let output_len = pixel_len(width, height, bytes_per_pixel)?;
+        if width == self.width && height == self.height {
+            return Ok(self.clone());
+        }
+
+        let mut out = try_vec_with_capacity(output_len)?;
+        let source_width = u128::from(self.width);
+        let source_height = u128::from(self.height);
+        let target_width = u128::from(width);
+        let target_height = u128::from(height);
+
+        for y in 0..height {
+            let source_y = (((u128::from(y) * 2 + 1) * source_height) / (target_height * 2))
+                .min(source_height - 1) as usize;
+            for x in 0..width {
+                let source_x = (((u128::from(x) * 2 + 1) * source_width) / (target_width * 2))
+                    .min(source_width - 1) as usize;
+                let source_offset = (source_y * self.width as usize + source_x) * bytes_per_pixel;
+                out.extend_from_slice(&self.pixels[source_offset..source_offset + bytes_per_pixel]);
+            }
+        }
+
+        Self::new(width, height, self.pixel_format, out)
+    }
+
     pub fn to_rgba16be(&self) -> Result<Self, ImageError> {
         match self.pixel_format {
             PixelFormat::Rgba16Be => Ok(self.clone()),
@@ -837,5 +864,44 @@ mod tests {
         )
         .unwrap();
         assert_eq!(rgb16.to_bilevel().unwrap().pixels(), &[0, 255]);
+    }
+
+    #[test]
+    fn resize_nearest_preserves_format_and_samples() {
+        let image = Image::new(
+            2,
+            2,
+            PixelFormat::Rgb8,
+            vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        )
+        .unwrap();
+        let resized = image.resize_nearest(4, 2).unwrap();
+        assert_eq!(resized.width(), 4);
+        assert_eq!(resized.height(), 2);
+        assert_eq!(resized.pixel_format(), PixelFormat::Rgb8);
+        assert_eq!(
+            resized.pixels(),
+            &[1, 2, 3, 1, 2, 3, 4, 5, 6, 4, 5, 6, 7, 8, 9, 7, 8, 9, 10, 11, 12, 10, 11, 12]
+        );
+    }
+
+    #[test]
+    fn resize_nearest_rejects_invalid_and_oversized_dimensions() {
+        let image = Image::new(1, 1, PixelFormat::Rgba16Be, vec![0; 8]).unwrap();
+        assert_eq!(
+            image.resize_nearest(0, 1),
+            Err(ImageError::InvalidDimensions)
+        );
+        assert!(matches!(
+            image.resize_nearest(u32::MAX, u32::MAX),
+            Err(ImageError::LengthOverflow | ImageError::ImageTooLarge { .. })
+        ));
+    }
+
+    #[test]
+    fn resize_nearest_uses_center_sampled_coordinates() {
+        let image = Image::new(3, 1, PixelFormat::Gray8, vec![0x10, 0x80, 0xf0]).unwrap();
+        let resized = image.resize_nearest(2, 1).unwrap();
+        assert_eq!(resized.pixels(), &[0x10, 0xf0]);
     }
 }

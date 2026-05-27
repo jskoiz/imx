@@ -236,6 +236,20 @@ run_packaged_binary "FARBFELD:$verify_dir/prefix-output.ff" "PBM:$verify_dir/pre
 run_packaged_binary "FARBFELD:$verify_dir/prefix-output.ff" "PGM:$verify_dir/prefix-output.pgm"
 run_packaged_binary "FARBFELD:$verify_dir/prefix-output.ff" "PNG:$verify_dir/prefix-output.png"
 run_packaged_binary "FARBFELD:$verify_dir/prefix-output.ff" "PPM:$verify_dir/prefix-output.ppm"
+run_packaged_binary resize 17x11 "FARBFELD:$fixture_dir/gradient-64.ff" "FARBFELD:$verify_dir/resized.ff"
+run_packaged_binary resize 17x11 "JPEG:$fixture_dir/gradient-64.jpg" "JPEG:$verify_dir/resized.jpg"
+run_packaged_binary resize 17x11 "QOI:$fixture_dir/gradient-64.qoi" "QOI:$verify_dir/resized.qoi"
+run_packaged_binary resize 17x11 "PBM:$fixture_dir/gradient-64.pbm" "PBM:$verify_dir/resized.pbm"
+run_packaged_binary resize 17x11 "PGM:$fixture_dir/gradient-64.pgm" "PGM:$verify_dir/resized.pgm"
+run_packaged_binary resize 17x11 "PNG:$fixture_dir/gradient-64.png" "PNG:$verify_dir/resized.png"
+run_packaged_binary resize 17x11 "PPM:$fixture_dir/gradient-64.ppm" "PPM:$verify_dir/resized.ppm"
+run_packaged_binary identify "FARBFELD:$verify_dir/resized.ff" | grep -F 'format=FARBFELD width=17 height=11' >/dev/null
+run_packaged_binary identify "JPEG:$verify_dir/resized.jpg" | grep -F 'format=JPEG width=17 height=11' >/dev/null
+run_packaged_binary identify "QOI:$verify_dir/resized.qoi" | grep -F 'format=QOI width=17 height=11' >/dev/null
+run_packaged_binary identify "PBM:$verify_dir/resized.pbm" | grep -F 'format=PBM width=17 height=11' >/dev/null
+run_packaged_binary identify "PGM:$verify_dir/resized.pgm" | grep -F 'format=PGM width=17 height=11' >/dev/null
+run_packaged_binary identify "PNG:$verify_dir/resized.png" | grep -F 'format=PNG width=17 height=11' >/dev/null
+run_packaged_binary identify "PPM:$verify_dir/resized.ppm" | grep -F 'format=PPM width=17 height=11' >/dev/null
 run_packaged_binary "$verify_dir/output.ff" "$verify_dir/rewrite.ff"
 run_packaged_binary "$verify_dir/output.jpg" "$verify_dir/rewrite.jpg"
 run_packaged_binary "$verify_dir/output.qoi" "$verify_dir/rewrite.qoi"

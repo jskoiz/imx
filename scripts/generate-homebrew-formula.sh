@@ -25,6 +25,7 @@ jpeg_smoke=0
 jpeg_orientation_smoke=0
 jpeg_progressive_smoke=0
 intake_smoke=0
+resize_smoke=0
 if [[ "$formula_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
   major="${BASH_REMATCH[1]}"
   minor="${BASH_REMATCH[2]}"
@@ -45,6 +46,9 @@ if [[ "$formula_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
   fi
   if ((major > 0 || minor >= 12)); then
     intake_smoke=1
+  fi
+  if ((major > 0 || minor >= 13)); then
+    resize_smoke=1
   fi
 fi
 
@@ -229,6 +233,13 @@ if [[ "$intake_smoke" == 1 ]]; then
     system bin/"imx", "PPM:intake-comments.ppm", "PGM:intake-comments.pgm"
     system bin/"imx", "PGM:intake-pgm16.pgm", "FARBFELD:intake-pgm16.ff"
     assert_match "format=FARBFELD width=2 height=1 channels=RGBA depth=16", shell_output("#{bin/"imx"} identify FARBFELD:intake-pgm16.ff")
+EOF
+fi
+
+if [[ "$resize_smoke" == 1 ]]; then
+  cat <<'EOF'
+    system bin/"imx", "resize", "1x1", "PPM:input.ppm", "PPM:resized.ppm"
+    assert_match "format=PPM width=1 height=1 channels=RGB depth=8", shell_output("#{bin/"imx"} identify PPM:resized.ppm")
 EOF
 fi
 

@@ -22,6 +22,8 @@ This contract covers only the standalone developer-preview slice.
 imx --help
 imx --version
 imx identify [FORMAT:]<input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>
+imx resize <width>x<height> [FORMAT:]<input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
+  [FORMAT:]<output.ff|output.farbfeld|output.jpg|output.jpeg|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
 imx [FORMAT:]<input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
   [FORMAT:]<output.ff|output.farbfeld|output.jpg|output.jpeg|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
 ```
@@ -45,7 +47,7 @@ supported formats only:
 - `PNG:input.png`
 - `PPM:input.ppm`
 
-Prefixes are a CLI path adapter for `identify` and two-path transcodes only.
+Prefixes are a CLI path adapter for `identify`, `resize`, and two-path transcodes.
 They are stripped before file IO, then checked against the detected input format
 or output path extension. Unknown uppercase prefixes, empty prefixed paths, and
 prefix/format mismatches fail with an `error: ...` message. Output paths still
@@ -193,6 +195,25 @@ JPEG to FARBFELD/QOI/PBM/PGM/PNG/PPM:
 - JPEG to PBM/PGM uses the same Rec.709 luma and thresholding rules as other
   color inputs.
 
+## Resize Rules
+
+- `imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>` resizes the
+  decoded image to exact dimensions before running the existing destination
+  encoder.
+- Dimensions must be lowercase `<width>x<height>` with non-zero unsigned
+  32-bit decimal values. `2X2`, `x2`, `2x`, percentages, aspect-ratio
+  shorthand, geometry flags, and ImageMagick-style `-resize` forms are
+  unsupported command shapes.
+- Resize uses center-sampled nearest neighbor. For each destination coordinate,
+  IMX samples `floor(((2 * dst + 1) * src_size) / (2 * dst_size))`, clamped to
+  the last source coordinate.
+- Resize copies the complete decoded pixel value. It does not interpolate,
+  composite alpha, convert color, preserve metadata, or choose a new bit depth.
+  Existing encoder rules still handle destination quantization, alpha
+  rejection, luma thresholding, JPEG loss, and metadata loss.
+- Supported resize inputs and outputs are only FARBFELD, JPEG, QOI, PBM, PGM,
+  PNG, and PPM through the existing extension and exact-prefix contract.
+
 FARBFELD to QOI:
 
 - RGBA16BE samples are quantized to RGBA8.
@@ -305,7 +326,8 @@ corpus, runs `imx identify` for FARBFELD, JPEG, QOI, PBM, PGM, PNG, and PPM
 fixtures, runs prefixed identify cases for the same seven formats, runs
 additional high-depth PPM and PNG identify cases, then checks all 49 directed
 transcodes between the seven supported formats plus a prefixed transcode ring
-that exercises every supported prefix as input and output. It also runs
+that exercises every supported prefix as input and output. It also checks
+plain and prefixed nearest-neighbor resize for every supported format. It runs
 high-depth PPM and PNG transcode cases for 16-bit preserving destinations.
 
 Most transcode results are decoded through ImageMagick to canonical 8-bit RGBA
@@ -317,7 +339,7 @@ metrics instead of byte equality. Orientation JPEG cases are compared against
 ImageMagick `-auto-orient` with the same metric recorder. The report emits:
 
 - `manifest.json` from the generated fixture corpus.
-- `results.jsonl` with one row per identify/transcode case.
+- `results.jsonl` with one row per identify, transcode, and resize case.
 - `jpeg-metrics.jsonl` with max absolute difference, MAE, RMSE, PSNR, p99, and
   threshold counts for JPEG-involved cases.
 - `summary.json` with pass/fail counts and evidence paths.
@@ -337,8 +359,8 @@ accept or clamp.
 - No prefixes beyond exact `FARBFELD:`, `JPEG:`, `QOI:`, `PBM:`, `PGM:`,
   `PNG:`, and `PPM:`.
 - No PAM/PFM support.
-- No delegates, profiles, color management, resize/transform operations,
-  MagickCore API, or MagickWand API.
+- No delegates, profiles, color management, transform operations beyond the
+  explicit nearest-neighbor resize command, MagickCore API, or MagickWand API.
 - No APNG, indexed/palette PNG, low-bit PNG, PNG metadata/profile preservation,
   or PNG color-management/profile semantics.
 - No CMYK/YCCK JPEG, 12-bit JPEG, arithmetic-coded JPEG, lossless

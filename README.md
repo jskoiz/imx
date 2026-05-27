@@ -1,11 +1,12 @@
 # IMX Developer Preview
 
 IMX is a standalone Rust image tool built one ImageMagick-compatible slice at a
-time. The current developer-preview release is `v0.12.0`: it supports
+time. The current source-tree developer-preview version is `v0.13.0`: it supports
 deterministic identify, cross-format transcode, same-format rewrite, exact
-uppercase format-prefix workflows, high-depth PPM, and a bounded PNG raster
-surface, plus bounded 8-bit baseline/progressive JPEG grayscale/RGB support,
-for FARBFELD, JPEG, QOI, PNG, and Netpbm PBM/PGM/PPM through the `imx` binary.
+uppercase format-prefix workflows, bounded nearest-neighbor resize, high-depth
+PPM, and a bounded PNG raster surface, plus bounded 8-bit baseline/progressive
+JPEG grayscale/RGB support, for FARBFELD, JPEG, QOI, PNG, and Netpbm
+PBM/PGM/PPM through the `imx` binary.
 
 IMX is not an ImageMagick fork and does not link to MagickCore, MagickWand,
 delegates, modules, `policy.xml`, or ImageMagick's build system. ImageMagick is
@@ -38,6 +39,15 @@ bounded real-world intake reliability slice for already-supported input
 families. The claim covers only the tested generated/in-test intake fixtures,
 diagnostics, and resource-boundary cases; it does not add formats, transforms,
 streaming, metadata preservation, or broader ImageMagick CLI behavior.
+
+The v0.13.0 source-tree slice adds one explicit resize command:
+`imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>`. Resize uses
+center-sampled nearest-neighbor scaling to exact dimensions, preserves the
+decoded pixel format until the existing output encoder runs, and supports only
+the already-supported FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM formats. It does not
+add crop, rotate, aspect-ratio shorthand, filters beyond nearest neighbor,
+metadata preservation, color management, stdin/stdout, or full `magick` CLI
+parsing.
 
 ## Install
 
@@ -88,7 +98,7 @@ The release-attached `imx.rb` is the formula source used to update the
 x86_64 and Linux arm64 tap blocks are generated from the release checksums and
 verified by Linux-only tap smoke.
 
-Or install the current v0.12.0 source tree directly:
+Or install the current v0.13.0 source tree directly:
 
 ```sh
 git clone https://github.com/jskoiz/imx.git
@@ -106,6 +116,8 @@ checkout in CI.
 imx --help
 imx --version
 imx identify [FORMAT:]<input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>
+imx resize <width>x<height> [FORMAT:]<input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
+  [FORMAT:]<output.ff|output.farbfeld|output.jpg|output.jpeg|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
 imx [FORMAT:]<input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
   [FORMAT:]<output.ff|output.farbfeld|output.jpg|output.jpeg|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
 ```
@@ -126,6 +138,13 @@ format=<FORMAT> width=<WIDTH> height=<HEIGHT> channels=<GRAY|RGB|RGBA> depth=<1|
 
 Successful transcodes are silent and write the output file. Data and IO
 failures exit `1`; unsupported command shapes exit `2`.
+
+Successful resize writes the output file silently. Dimensions must be lowercase
+`<width>x<height>` with non-zero unsigned 32-bit decimal values. Resize samples
+the source pixel at `floor(((2 * dst + 1) * src) / (2 * dst_size))` on each
+axis, clamps to the last source row/column, and copies the full decoded pixel
+without interpolation. Existing encoder rules still decide any destination
+quantization, alpha rejection, thresholding, or metadata loss.
 
 Same-format rewrites are deterministic decode/re-encode operations for
 different input and output paths. They do not preserve source bytes, comments,
@@ -179,7 +198,8 @@ Known lossy paths:
 
 Unsupported by design: full ImageMagick CLI parsing, stdin/stdout streaming,
 prefixes outside the exact seven listed above, delegates, profiles, color
-management, resizing/transforms, MagickCore, MagickWand, APNG, indexed/palette
+management, transforms beyond the explicit nearest-neighbor resize command,
+MagickCore, MagickWand, APNG, indexed/palette
 PNG, low-bit PNG, PNG metadata/profile preservation, CMYK/YCCK JPEG, 12-bit
 JPEG, arithmetic-coded JPEG, lossless JPEG/JPEG-LS,
 JPEG 2000, JPEG XL, JPEG metadata preservation beyond read-only Orientation,
@@ -320,7 +340,9 @@ known gaps, and the next adoption milestone.
 The v0.12.0 real-world intake reliability contract is tracked in
 [docs/v0.12.0-real-world-intake.md](docs/v0.12.0-real-world-intake.md), with
 the generated/in-test corpus plan in
-[docs/v0.12.0-curated-corpus.md](docs/v0.12.0-curated-corpus.md). The
+[docs/v0.12.0-curated-corpus.md](docs/v0.12.0-curated-corpus.md). The v0.13.0
+bounded resize contract is tracked in
+[docs/v0.13.0-resize.md](docs/v0.13.0-resize.md). The
 v0.11.0 progressive JPEG contract is tracked in
 [docs/v0.11.0-progressive-jpeg.md](docs/v0.11.0-progressive-jpeg.md). The
 v0.10.0 real-photo reliability contract is tracked in

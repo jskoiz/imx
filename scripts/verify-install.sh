@@ -89,6 +89,20 @@ git clone "$repo_url" "$checkout" >/dev/null
   "$install_root/bin/imx" "PPM:$fixture_dir/gradient-64-ppm16.ppm" "PPM:$work_dir/prefix-ppm16-rewrite.ppm"
   "$install_root/bin/imx" "PNG:$fixture_dir/gradient-64-png16.png" "PNG:$work_dir/prefix-png16-rewrite.png"
   "$install_root/bin/imx" "FARBFELD:$work_dir/prefix-gradient.ff" "PBM:$work_dir/prefix-gradient.pbm"
+  "$install_root/bin/imx" resize 17x11 "FARBFELD:$fixture_dir/gradient-64.ff" "FARBFELD:$work_dir/resized.ff"
+  "$install_root/bin/imx" resize 17x11 "JPEG:$fixture_dir/gradient-64.jpg" "JPEG:$work_dir/resized.jpg"
+  "$install_root/bin/imx" resize 17x11 "QOI:$fixture_dir/gradient-64.qoi" "QOI:$work_dir/resized.qoi"
+  "$install_root/bin/imx" resize 17x11 "PBM:$fixture_dir/gradient-64.pbm" "PBM:$work_dir/resized.pbm"
+  "$install_root/bin/imx" resize 17x11 "PGM:$fixture_dir/gradient-64.pgm" "PGM:$work_dir/resized.pgm"
+  "$install_root/bin/imx" resize 17x11 "PNG:$fixture_dir/gradient-64.png" "PNG:$work_dir/resized.png"
+  "$install_root/bin/imx" resize 17x11 "PPM:$fixture_dir/gradient-64.ppm" "PPM:$work_dir/resized.ppm"
+  "$install_root/bin/imx" identify "FARBFELD:$work_dir/resized.ff" | grep -F 'format=FARBFELD width=17 height=11'
+  "$install_root/bin/imx" identify "JPEG:$work_dir/resized.jpg" | grep -F 'format=JPEG width=17 height=11'
+  "$install_root/bin/imx" identify "QOI:$work_dir/resized.qoi" | grep -F 'format=QOI width=17 height=11'
+  "$install_root/bin/imx" identify "PBM:$work_dir/resized.pbm" | grep -F 'format=PBM width=17 height=11'
+  "$install_root/bin/imx" identify "PGM:$work_dir/resized.pgm" | grep -F 'format=PGM width=17 height=11'
+  "$install_root/bin/imx" identify "PNG:$work_dir/resized.png" | grep -F 'format=PNG width=17 height=11'
+  "$install_root/bin/imx" identify "PPM:$work_dir/resized.ppm" | grep -F 'format=PPM width=17 height=11'
   "$install_root/bin/imx" "$fixture_dir/gradient-64.ff" "$work_dir/rewrite.ff"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.jpg" "$work_dir/rewrite.jpg"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.qoi" "$work_dir/rewrite.qoi"

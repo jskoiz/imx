@@ -1,5 +1,21 @@
 # IMX Release Notes
 
+## IMX v0.13.0 Bounded Resize Slice
+
+- Adds one explicit resize command:
+  `imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>`.
+- Supports resize for the existing FARBFELD, JPEG, QOI, PBM, PGM, PNG, and PPM
+  input/output surface only, including exact uppercase prefixes.
+- Uses center-sampled nearest-neighbor scaling to exact dimensions and leaves
+  channel/depth conversion to the existing destination encoders.
+- Extends CLI tests, core image tests, ImageMagick differential proof,
+  install verification, package/archive smoke, conformance wording, and
+  Homebrew formula smoke generation with resize evidence.
+- Keeps resize bounded: no crop, rotate, percentages, aspect-ratio shorthand,
+  filters beyond nearest neighbor, metadata preservation, color management,
+  stdin/stdout, `magick` alias, full ImageMagick CLI parsing, new formats,
+  Homebrew/core, crates.io, Windows, or hosted macOS/iOS Actions.
+
 ## IMX v0.12.0 Real-World Intake Reliability Slice
 
 - Keeps the v0.11.0 supported format and command surface unchanged:

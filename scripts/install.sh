@@ -2,7 +2,7 @@
 set -eu
 
 repo="${IMX_REPO:-jskoiz/imx}"
-version="${IMX_VERSION:-v0.12.0}"
+version="${IMX_VERSION:-v0.13.0}"
 install_dir="${IMX_INSTALL_DIR:-$HOME/.local/bin}"
 run_smoke="${IMX_INSTALL_SMOKE:-1}"
 min_glibc="2.34"
@@ -149,6 +149,8 @@ if [ "$run_smoke" != "0" ] && [ "$run_smoke" != "false" ]; then
   "$install_dir/imx" "FARBFELD:$smoke_dir/prefix-output.ff" "PGM:$smoke_dir/prefix-output.pgm"
   "$install_dir/imx" "FARBFELD:$smoke_dir/prefix-output.ff" "PNG:$smoke_dir/prefix-output.png"
   "$install_dir/imx" "FARBFELD:$smoke_dir/prefix-output.ff" "PPM:$smoke_dir/prefix-output.ppm"
+  "$install_dir/imx" resize 1x1 "PPM:$smoke_dir/input.ppm" "PPM:$smoke_dir/resized.ppm"
+  "$install_dir/imx" identify "PPM:$smoke_dir/resized.ppm" | grep -F "format=PPM width=1 height=1" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/output.pbm" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/output.pgm" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/output.png" >/dev/null

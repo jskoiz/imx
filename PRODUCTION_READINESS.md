@@ -1,14 +1,15 @@
 # IMX Compatibility Readiness
 
-Status: v0.12.0 is the current developer-preview surface. It carries
+Status: v0.13.0 is the current source-tree developer-preview surface. It carries
 forward the v0.6.0 exact format-prefix surface, the v0.7.0 high-depth PPM
 surface, the v0.8.0 bounded PNG raster slice, and the v0.9.0 bounded JPEG
 slice, plus v0.10.0 bounded JPEG EXIF Orientation normalization and v0.11.0
 bounded progressive JPEG input support, plus v0.12.0 real-world intake
-reliability coverage for already-supported formats. Release and
-tap support are claimed only for the Linux archive targets present in the
-published v0.12.0
-GitHub `SHA256SUMS` and verified by release/tap smoke. Published Linux archives
+reliability coverage for already-supported formats. The v0.13.0 source tree
+adds bounded nearest-neighbor resize for the same supported formats. Release and
+tap support remain claimed only for the Linux archive targets present in the
+published v0.12.0 GitHub `SHA256SUMS` until v0.13.0 is tagged, published, and
+verified from release assets. Published Linux archives
 require glibc 2.34 or newer, with release/archive smoke checking that published
 Linux binaries do not reference `GLIBC_*` symbols newer than `GLIBC_2.34`.
 The v0.12.0 proof is recorded in
@@ -53,6 +54,10 @@ only unless explicitly approved in the current turn.
   format breadth. It proves generated/in-test corpus cases for comments,
   high-max Netpbm input, grayscale-alpha/16-bit PNG, progressive JPEG, QOI RGB
   linear input, clearer malformed diagnostics, and resource-boundary rejection.
+- v0.13.0 adds `imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>`
+  for exact nearest-neighbor resize across FARBFELD, JPEG, QOI, PBM, PGM, PNG,
+  and PPM only. It does not add crop/rotate, new filters, metadata
+  preservation, color management, stdin/stdout, or full `magick` CLI parsing.
 - Published v0.4.0 release targets are Linux x86_64, macOS arm64, and macOS
   x86_64. The current v0.12.x hosted release targets are Linux x86_64 and Linux
   arm64 only, without hosted macOS/iOS Actions.
@@ -70,16 +75,16 @@ only unless explicitly approved in the current turn.
 | Gate | Producer | Artifact Path | Coverage | Result |
 | --- | --- | --- | --- | --- |
 | Release gates | `scripts/ci.sh` | terminal plus CI logs | fmt, clippy, tests, fixture generation, fuzz smoke, benchmark smoke, differential tests | required before tag |
-| Differential corpus | `scripts/differential-corpus.sh` | `target/differential-corpus-*/summary.json` | identify for 7 formats, prefixed identify for 7 formats, high-depth PPM/PNG identify, 49 directed transcodes, a prefixed transcode ring covering every supported prefix as input/output, 16-bit PPM/PNG preserving transcodes, JPEG RGB8 lossy metric evidence, EXIF Orientation cases against ImageMagick `-auto-orient`, and progressive JPEG RGB/gray/orientation cases | required before tag |
+| Differential corpus | `scripts/differential-corpus.sh` | `target/differential-corpus-*/summary.json` | identify for 7 formats, prefixed identify for 7 formats, high-depth PPM/PNG identify, 49 directed transcodes, a prefixed transcode ring covering every supported prefix as input/output, plain and prefixed resize for 7 formats, 16-bit PPM/PNG preserving transcodes, JPEG RGB8 lossy metric evidence, EXIF Orientation cases against ImageMagick `-auto-orient`, and progressive JPEG RGB/gray/orientation cases | required before tag |
 | Curated intake corpus | `scripts/curated-corpus.sh` and `cargo test --test curated_corpus` | `target/curated-corpus/summary.json` | generated/in-test representative intake cases, malformed diagnostic assertions, and resource-boundary checks for supported formats only | required before tag |
 | Fuzz smoke | `scripts/run-fuzz.sh` | `target/fuzz-runs/*/summary.json` | FARBFELD, JPEG, QOI, PNG, and PNM identify/decode with retained crash artifacts | required before tag |
 | Scheduled fuzz | `.github/workflows/rust-fuzz-scheduled.yml` | `scheduled-fuzz-evidence` artifact | longer cargo-fuzz run with artifact retention | required CI lane |
 | Bench/RSS thresholds | `scripts/bench-release.sh` | `target/release-bench-*/threshold-summary.json` | throughput and process/library RSS sanity budgets | required before tag |
-| Bench regression | `scripts/bench-regression.sh` | `target/bench-regression-*/regression-report.json` | v0.12.x vs v0.5.0 throughput/RSS baseline; newer PNG/JPEG metrics without a baseline are warnings, RSS growth is enforced where a baseline exists | required before tag |
-| Source install verify | `scripts/verify-install.sh` | `target/install-verify/install-summary.json` | fresh checkout install plus supported identify/transcode/prefix/PPM16/PNG/JPEG/orientation/progressive smoke | required before tag |
-| Package/SHA/no-link | `scripts/package-release.sh` plus hosted Linux workflow; local macOS or explicitly approved manual evidence for macOS targets | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive smoke, exact-prefix smoke, PPM16/PNG/JPEG/orientation/progressive/intake smoke, no ImageMagick linkage, and max `GLIBC_* <= GLIBC_2.34` for each claimed Linux platform; v0.12.x hosted automation prepares Linux x86_64 and Linux arm64 release artifacts | required before publishing that platform archive |
-| Published archive smoke | `scripts/verify-release-archive.sh` | `target/release-archive-smoke/<target>/summary.json` | downloads the selected GitHub release archive, verifies that archive against aggregate SHA256SUMS, no-link, max `GLIBC_* <= GLIBC_2.34`, and identify/transcode/same-format/prefix smoke; hosted CI covers Linux only | required after release publish |
-| Homebrew tap smoke | `brew tap jskoiz/imx <checkout>`, `brew install jskoiz/imx/imx`, and `brew test jskoiz/imx/imx` from the checked-out tap | `jskoiz/homebrew-imx` Linux formula/archive workflow plus local macOS or explicitly approved manual terminal output | formula URL/SHA fetch, binary version check, PPM identify, PPM-to-QOI smoke, PNG/JPEG/orientation/progressive smoke, exact-prefix smoke, and FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM same-format rewrite smoke; local/manual Homebrew install proof for tap claims | required for tap claim; no hosted macOS tap smoke is claimed |
+| Bench regression | `scripts/bench-regression.sh` | `target/bench-regression-*/regression-report.json` | v0.13.x vs v0.5.0 throughput/RSS baseline; newer PNG/JPEG/resize metrics without a baseline are warnings, RSS growth is enforced where a baseline exists | required before tag |
+| Source install verify | `scripts/verify-install.sh` | `target/install-verify/install-summary.json` | fresh checkout install plus supported identify/transcode/resize/prefix/PPM16/PNG/JPEG/orientation/progressive smoke | required before tag |
+| Package/SHA/no-link | `scripts/package-release.sh` plus hosted Linux workflow; local macOS or explicitly approved manual evidence for macOS targets | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive smoke, exact-prefix and resize smoke, PPM16/PNG/JPEG/orientation/progressive/intake smoke, no ImageMagick linkage, and max `GLIBC_* <= GLIBC_2.34` for each claimed Linux platform; v0.13.x hosted automation prepares Linux x86_64 and Linux arm64 release artifacts | required before publishing that platform archive |
+| Published archive smoke | `scripts/verify-release-archive.sh` | `target/release-archive-smoke/<target>/summary.json` | downloads the selected GitHub release archive, verifies that archive against aggregate SHA256SUMS, no-link, max `GLIBC_* <= GLIBC_2.34`, and identify/transcode/resize/same-format/prefix smoke; hosted CI covers Linux only | required after release publish |
+| Homebrew tap smoke | `brew tap jskoiz/imx <checkout>`, `brew install jskoiz/imx/imx`, and `brew test jskoiz/imx/imx` from the checked-out tap | `jskoiz/homebrew-imx` Linux formula/archive workflow plus local macOS or explicitly approved manual terminal output | formula URL/SHA fetch, binary version check, PPM identify, PPM-to-QOI smoke, PNG/JPEG/orientation/progressive smoke, exact-prefix smoke, resize smoke, and FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM same-format rewrite smoke; local/manual Homebrew install proof for tap claims | required for tap claim; no hosted macOS tap smoke is claimed |
 | Conformance report | `scripts/generate-conformance-report.sh` | `CONFORMANCE_REPORT.md`, `conformance-summary.json` | generated from CI evidence and attached to the release | required release asset |
 
 ## Local Verification
@@ -163,8 +168,8 @@ published binary references a `GLIBC_*` symbol newer than `GLIBC_2.34`.
 - No stdin/stdout streaming.
 - No prefixes beyond exact `FARBFELD:`, `JPEG:`, `QOI:`, `PBM:`, `PGM:`,
   `PNG:`, and `PPM:`.
-- No delegates, profiles, color management, resize/transform operations,
-  MagickCore API, or MagickWand API.
+- No delegates, profiles, color management, transform operations beyond the
+  explicit nearest-neighbor resize command, MagickCore API, or MagickWand API.
 - PNG support is limited to static non-interlaced grayscale/RGB/RGBA and
   grayscale-alpha 8/16-bit rasters. APNG, indexed/palette PNG, low-bit PNG,
   `tRNS`, PNG metadata/profile preservation, and PNG color management are out
@@ -213,10 +218,10 @@ published binary references a `GLIBC_*` symbol newer than `GLIBC_2.34`.
 
 ## Next Smallest Milestone
 
-After the v0.12.0 intake reliability slice, the next compatibility slice should
-stay bounded to one user-visible gap with oracle evidence. Good candidates are
-more production diagnostics/reporting, a narrow metadata-read surface, or one
-additional common format only if its malformed/resource behavior can be proven
-locally first. TIFF, GIF, WebP, APNG, delegates, MagickCore, MagickWand, color
-management, metadata preservation beyond declared read-only fields, and full
-ImageMagick CLI compatibility remain too broad for a single next milestone.
+After the v0.13.0 resize slice, the next milestone should publish and verify
+the Linux release/tap path from actual v0.13.0 assets before broadening the
+image surface again. Future compatibility slices should stay bounded to one
+user-visible gap with oracle evidence. TIFF, GIF, WebP, APNG, delegates,
+MagickCore, MagickWand, color management, metadata preservation beyond declared
+read-only fields, and full ImageMagick CLI compatibility remain too broad for a
+single next milestone.

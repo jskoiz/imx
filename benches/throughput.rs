@@ -170,6 +170,9 @@ fn main() {
         let decoded = imx_codec_farbfeld::decode(black_box(&ff)).unwrap();
         black_box(imx_codec_pnm::encode_pgm(&decoded).unwrap());
     });
+    time("resize_nearest", image.pixels().len(), iterations, || {
+        black_box(black_box(&image).resize_nearest(128, 96).unwrap());
+    });
 
     println!("max_rss_bytes={}", max_rss_bytes().unwrap_or(0));
 }
