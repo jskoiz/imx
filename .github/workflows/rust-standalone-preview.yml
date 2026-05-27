@@ -35,7 +35,7 @@ concurrency:
 jobs:
   preview:
     name: Developer preview gates
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 120
 
     steps:
@@ -190,12 +190,12 @@ jobs:
       matrix:
         include:
           - name: linux-x86_64
-            runner: ubuntu-24.04
+            runner: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             package_runner: ""
             linkage_command: ""
           - name: linux-arm64
-            runner: ubuntu-24.04
+            runner: ubuntu-22.04
             target: aarch64-unknown-linux-gnu
             package_runner: qemu-aarch64 -L /usr/aarch64-linux-gnu
             linkage_command: aarch64-linux-gnu-readelf -d
@@ -245,7 +245,7 @@ jobs:
     name: Publish release artifacts
     needs: package
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 30
     permissions:
       contents: write
@@ -341,12 +341,12 @@ jobs:
       matrix:
         include:
           - name: linux-x86_64
-            runner: ubuntu-24.04
+            runner: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             release_runner: ""
             linkage_command: ""
           - name: linux-arm64
-            runner: ubuntu-24.04
+            runner: ubuntu-22.04
             target: aarch64-unknown-linux-gnu
             release_runner: qemu-aarch64 -L /usr/aarch64-linux-gnu
             linkage_command: aarch64-linux-gnu-readelf -d
