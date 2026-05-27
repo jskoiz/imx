@@ -10,7 +10,7 @@ const MAX_INPUT_BYTES: u64 = MAX_PIXEL_BYTES as u64 + 1024 * 1024;
 
 fn usage() -> ! {
     eprintln!(
-        "usage:\n  imx --help\n  imx --version\n  imx identify [FORMAT:]<input.ff|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported formats: farbfeld (.ff, .farbfeld), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm)\nsupported prefixes: FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:"
+        "usage:\n  imx --help\n  imx --version\n  imx identify [FORMAT:]<input.ff|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported formats: farbfeld (.ff, .farbfeld), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm)\nsupported prefixes: FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:"
     );
     process::exit(2);
 }
@@ -39,7 +39,7 @@ fn main() {
     match args.as_slice() {
         [_, flag] if flag == "--help" || flag == "-h" || flag == "help" => {
             println!(
-                "IMX Developer Preview\n\nusage:\n  imx identify [FORMAT:]<input.ff|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported transcodes: FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM, including deterministic same-format rewrites except lossy JPEG re-encoding\nsupported resize: nearest-neighbor exact dimensions for existing supported formats\nsupported prefixes: FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:\nunsupported: stdin/stdout, crop/rotate, delegates, color management, and formats beyond FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM"
+                "IMX Developer Preview\n\nusage:\n  imx identify [FORMAT:]<input.ff|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported transcodes: FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM, including deterministic same-format rewrites except lossy JPEG re-encoding\nsupported resize: nearest-neighbor exact dimensions and aspect-preserving fit for existing supported formats\nsupported prefixes: FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:\nunsupported: stdin/stdout, crop/rotate, delegates, color management, and formats beyond FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM"
             );
             process::exit(0);
         }
@@ -50,6 +50,9 @@ fn main() {
         [_, command, input] if command == "identify" => identify(input),
         [_, command, dimensions, input, output] if command == "resize" => {
             resize(dimensions, input, output)
+        }
+        [_, command, dimensions, input, output] if command == "resize-fit" => {
+            resize_fit(dimensions, input, output)
         }
         [_, input, output] => transcode(input, output),
         _ => usage(),
@@ -109,6 +112,31 @@ fn resize(dimensions: &str, input_path: &str, output_path: &str) -> ! {
         .resize_nearest(dimensions.width, dimensions.height)
         .unwrap_or_else(|err| {
             fail_image_operation(input_format, "resize", "input", &input_path, err)
+        });
+    let output = encode_image(output_format, &image).unwrap_or_else(|err| {
+        fail_image_operation(output_format, "encode", "output", &output_path, err)
+    });
+
+    write_atomic(output_path.path, &output);
+    process::exit(0);
+}
+
+fn resize_fit(dimensions: &str, input_path: &str, output_path: &str) -> ! {
+    let dimensions = parse_resize_dimensions(dimensions).unwrap_or_else(|err| fail(err));
+    let input_path = parse_cli_path(input_path).unwrap_or_else(|err| fail(err));
+    let output_path = parse_cli_path(output_path).unwrap_or_else(|err| fail(err));
+    reject_same_path(input_path.path, output_path.path);
+    let input = read(input_path.path);
+    let input_format = detect_input_format(&input_path, &input).unwrap_or_else(|err| fail(err));
+    let output_format = detect_output_format(&output_path).unwrap_or_else(|err| fail(err));
+
+    let image = decode_image(input_format, &input).unwrap_or_else(|err| {
+        fail_image_operation(input_format, "decode", "input", &input_path, err)
+    });
+    let image = image
+        .resize_nearest_fit(dimensions.width, dimensions.height)
+        .unwrap_or_else(|err| {
+            fail_image_operation(input_format, "resize-fit", "input", &input_path, err)
         });
     let output = encode_image(output_format, &image).unwrap_or_else(|err| {
         fail_image_operation(output_format, "encode", "output", &output_path, err)

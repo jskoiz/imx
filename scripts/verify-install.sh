@@ -20,6 +20,9 @@ git clone "$repo_url" "$checkout" >/dev/null
 
   fixture_dir="$work_dir/fixtures"
   cargo run -p imx-cli --bin imx-generate-fixtures -- "$fixture_dir" >/dev/null
+  printf 'P3\n2 1\n255\n255 0 0 0 0 255\n' >"$work_dir/fit-input.ppm"
+  printf 'P2\n2 1\n255\n0 255\n' >"$work_dir/fit-input.pgm"
+  printf 'P1\n2 1\n0 1\n' >"$work_dir/fit-input.pbm"
   "$install_root/bin/imx" identify "$fixture_dir/gradient-64.ff"
   "$install_root/bin/imx" identify "$fixture_dir/gradient-64.jpg"
   "$install_root/bin/imx" identify "$fixture_dir/gray-4x1.jpg"
@@ -103,6 +106,24 @@ git clone "$repo_url" "$checkout" >/dev/null
   "$install_root/bin/imx" identify "PGM:$work_dir/resized.pgm" | grep -F 'format=PGM width=17 height=11'
   "$install_root/bin/imx" identify "PNG:$work_dir/resized.png" | grep -F 'format=PNG width=17 height=11'
   "$install_root/bin/imx" identify "PPM:$work_dir/resized.ppm" | grep -F 'format=PPM width=17 height=11'
+  "$install_root/bin/imx" "PPM:$work_dir/fit-input.ppm" "FARBFELD:$work_dir/fit-source.ff"
+  "$install_root/bin/imx" "PPM:$work_dir/fit-input.ppm" "JPEG:$work_dir/fit-source.jpg"
+  "$install_root/bin/imx" "PPM:$work_dir/fit-input.ppm" "QOI:$work_dir/fit-source.qoi"
+  "$install_root/bin/imx" "PPM:$work_dir/fit-input.ppm" "PNG:$work_dir/fit-source.png"
+  "$install_root/bin/imx" resize-fit 5x5 "FARBFELD:$work_dir/fit-source.ff" "FARBFELD:$work_dir/fit.ff"
+  "$install_root/bin/imx" resize-fit 5x5 "JPEG:$work_dir/fit-source.jpg" "JPEG:$work_dir/fit.jpg"
+  "$install_root/bin/imx" resize-fit 5x5 "QOI:$work_dir/fit-source.qoi" "QOI:$work_dir/fit.qoi"
+  "$install_root/bin/imx" resize-fit 5x5 "PBM:$work_dir/fit-input.pbm" "PBM:$work_dir/fit.pbm"
+  "$install_root/bin/imx" resize-fit 5x5 "PGM:$work_dir/fit-input.pgm" "PGM:$work_dir/fit.pgm"
+  "$install_root/bin/imx" resize-fit 5x5 "PNG:$work_dir/fit-source.png" "PNG:$work_dir/fit.png"
+  "$install_root/bin/imx" resize-fit 5x5 "PPM:$work_dir/fit-input.ppm" "PPM:$work_dir/fit.ppm"
+  "$install_root/bin/imx" identify "FARBFELD:$work_dir/fit.ff" | grep -F 'format=FARBFELD width=5 height=3'
+  "$install_root/bin/imx" identify "JPEG:$work_dir/fit.jpg" | grep -F 'format=JPEG width=5 height=3'
+  "$install_root/bin/imx" identify "QOI:$work_dir/fit.qoi" | grep -F 'format=QOI width=5 height=3'
+  "$install_root/bin/imx" identify "PBM:$work_dir/fit.pbm" | grep -F 'format=PBM width=5 height=3'
+  "$install_root/bin/imx" identify "PGM:$work_dir/fit.pgm" | grep -F 'format=PGM width=5 height=3'
+  "$install_root/bin/imx" identify "PNG:$work_dir/fit.png" | grep -F 'format=PNG width=5 height=3'
+  "$install_root/bin/imx" identify "PPM:$work_dir/fit.ppm" | grep -F 'format=PPM width=5 height=3'
   "$install_root/bin/imx" "$fixture_dir/gradient-64.ff" "$work_dir/rewrite.ff"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.jpg" "$work_dir/rewrite.jpg"
   "$install_root/bin/imx" "$fixture_dir/gradient-64.qoi" "$work_dir/rewrite.qoi"

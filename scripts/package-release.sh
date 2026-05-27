@@ -250,6 +250,20 @@ run_packaged_binary identify "PBM:$verify_dir/resized.pbm" | grep -F 'format=PBM
 run_packaged_binary identify "PGM:$verify_dir/resized.pgm" | grep -F 'format=PGM width=17 height=11' >/dev/null
 run_packaged_binary identify "PNG:$verify_dir/resized.png" | grep -F 'format=PNG width=17 height=11' >/dev/null
 run_packaged_binary identify "PPM:$verify_dir/resized.ppm" | grep -F 'format=PPM width=17 height=11' >/dev/null
+run_packaged_binary resize-fit 5x5 "FARBFELD:$verify_dir/output.ff" "FARBFELD:$verify_dir/fit.ff"
+run_packaged_binary resize-fit 5x5 "JPEG:$verify_dir/output.jpg" "JPEG:$verify_dir/fit.jpg"
+run_packaged_binary resize-fit 5x5 "QOI:$verify_dir/output.qoi" "QOI:$verify_dir/fit.qoi"
+run_packaged_binary resize-fit 5x5 "PBM:$verify_dir/input.pbm" "PBM:$verify_dir/fit.pbm"
+run_packaged_binary resize-fit 5x5 "PGM:$verify_dir/input.pgm" "PGM:$verify_dir/fit.pgm"
+run_packaged_binary resize-fit 5x5 "PNG:$verify_dir/output.png" "PNG:$verify_dir/fit.png"
+run_packaged_binary resize-fit 5x5 "PPM:$verify_dir/input.ppm" "PPM:$verify_dir/fit.ppm"
+run_packaged_binary identify "FARBFELD:$verify_dir/fit.ff" | grep -F 'format=FARBFELD width=5 height=3' >/dev/null
+run_packaged_binary identify "JPEG:$verify_dir/fit.jpg" | grep -F 'format=JPEG width=5 height=3' >/dev/null
+run_packaged_binary identify "QOI:$verify_dir/fit.qoi" | grep -F 'format=QOI width=5 height=3' >/dev/null
+run_packaged_binary identify "PBM:$verify_dir/fit.pbm" | grep -F 'format=PBM width=5 height=3' >/dev/null
+run_packaged_binary identify "PGM:$verify_dir/fit.pgm" | grep -F 'format=PGM width=5 height=3' >/dev/null
+run_packaged_binary identify "PNG:$verify_dir/fit.png" | grep -F 'format=PNG width=5 height=3' >/dev/null
+run_packaged_binary identify "PPM:$verify_dir/fit.ppm" | grep -F 'format=PPM width=5 height=3' >/dev/null
 run_packaged_binary "$verify_dir/output.ff" "$verify_dir/rewrite.ff"
 run_packaged_binary "$verify_dir/output.jpg" "$verify_dir/rewrite.jpg"
 run_packaged_binary "$verify_dir/output.qoi" "$verify_dir/rewrite.qoi"

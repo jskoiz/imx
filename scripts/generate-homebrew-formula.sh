@@ -26,6 +26,7 @@ jpeg_orientation_smoke=0
 jpeg_progressive_smoke=0
 intake_smoke=0
 resize_smoke=0
+resize_fit_smoke=0
 if [[ "$formula_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
   major="${BASH_REMATCH[1]}"
   minor="${BASH_REMATCH[2]}"
@@ -49,6 +50,9 @@ if [[ "$formula_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
   fi
   if ((major > 0 || minor >= 13)); then
     resize_smoke=1
+  fi
+  if ((major > 0 || minor >= 14)); then
+    resize_fit_smoke=1
   fi
 fi
 
@@ -240,6 +244,13 @@ if [[ "$resize_smoke" == 1 ]]; then
   cat <<'EOF'
     system bin/"imx", "resize", "1x1", "PPM:input.ppm", "PPM:resized.ppm"
     assert_match "format=PPM width=1 height=1 channels=RGB depth=8", shell_output("#{bin/"imx"} identify PPM:resized.ppm")
+EOF
+fi
+
+if [[ "$resize_fit_smoke" == 1 ]]; then
+  cat <<'EOF'
+    system bin/"imx", "resize-fit", "5x5", "PPM:input.ppm", "PPM:fit.ppm"
+    assert_match "format=PPM width=5 height=3 channels=RGB depth=8", shell_output("#{bin/"imx"} identify PPM:fit.ppm")
 EOF
 fi
 

@@ -173,6 +173,14 @@ fn main() {
     time("resize_nearest", image.pixels().len(), iterations, || {
         black_box(black_box(&image).resize_nearest(128, 96).unwrap());
     });
+    time(
+        "resize_nearest_fit",
+        image.pixels().len(),
+        iterations,
+        || {
+            black_box(black_box(&image).resize_nearest_fit(128, 96).unwrap());
+        },
+    );
 
     println!("max_rss_bytes={}", max_rss_bytes().unwrap_or(0));
 }

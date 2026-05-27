@@ -58,6 +58,7 @@ run_timed standalone-pgm-to-ff "$root/target/release/imx" "$fixture_dir/gradient
 run_timed standalone-png-to-ff "$root/target/release/imx" "$fixture_dir/gradient-64.png" "$out_dir/standalone-png.ff"
 run_timed standalone-png16-to-ff "$root/target/release/imx" "$fixture_dir/gradient-64-png16.png" "$out_dir/standalone-png16.ff"
 run_timed standalone-ppm-resize "$root/target/release/imx" resize 17x11 "PPM:$fixture_dir/gradient-64.ppm" "PPM:$out_dir/standalone-resized.ppm"
+run_timed standalone-ppm-resize-fit "$root/target/release/imx" resize-fit 17x11 "PPM:$fixture_dir/intake-comments-2x1.ppm" "PPM:$out_dir/standalone-resized-fit.ppm"
 
 run_timed oracle-farbfeld-decode "$oracle" "FARBFELD:$fixture_dir/gradient-64.ff" NULL:
 run_timed oracle-qoi-decode "$oracle" "QOI:$fixture_dir/gradient-64.qoi" NULL:
@@ -92,6 +93,7 @@ run_timed oracle-pgm-to-ff "$oracle" "PGM:$fixture_dir/gradient-64.pgm" "FARBFEL
 run_timed oracle-png-to-ff "$oracle" "PNG:$fixture_dir/gradient-64.png" "FARBFELD:$out_dir/oracle-png.ff"
 run_timed oracle-png16-to-ff "$oracle" "PNG:$fixture_dir/gradient-64-png16.png" "FARBFELD:$out_dir/oracle-png16.ff"
 run_timed oracle-ppm-resize "$oracle" "PPM:$fixture_dir/gradient-64.ppm" -filter Point -resize 17x11! "PPM:$out_dir/oracle-resized.ppm"
+run_timed oracle-ppm-resize-fit "$oracle" "PPM:$fixture_dir/intake-comments-2x1.ppm" -filter Point -resize 17x11 "PPM:$out_dir/oracle-resized-fit.ppm"
 
 if command -v shasum >/dev/null 2>&1; then
   shasum -a 256 "$out_dir"/*.{ff,jpg,qoi,pbm,ppm,pgm,png} >"$out_dir/output-sha256.txt" 2>/dev/null || true

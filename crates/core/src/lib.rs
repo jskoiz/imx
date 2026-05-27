@@ -160,6 +160,11 @@ impl Image {
         Self::new(width, height, self.pixel_format, out)
     }
 
+    pub fn resize_nearest_fit(&self, width: u32, height: u32) -> Result<Self, ImageError> {
+        let (width, height) = fit_dimensions(self.width, self.height, width, height)?;
+        self.resize_nearest(width, height)
+    }
+
     pub fn to_rgba16be(&self) -> Result<Self, ImageError> {
         match self.pixel_format {
             PixelFormat::Rgba16Be => Ok(self.clone()),
@@ -666,6 +671,38 @@ pub fn pixel_len(width: u32, height: u32, bytes_per_pixel: usize) -> Result<usiz
     Ok(bytes)
 }
 
+pub fn fit_dimensions(
+    source_width: u32,
+    source_height: u32,
+    max_width: u32,
+    max_height: u32,
+) -> Result<(u32, u32), ImageError> {
+    if source_width == 0 || source_height == 0 || max_width == 0 || max_height == 0 {
+        return Err(ImageError::InvalidDimensions);
+    }
+
+    let source_width = u128::from(source_width);
+    let source_height = u128::from(source_height);
+    let max_width = u128::from(max_width);
+    let max_height = u128::from(max_height);
+
+    if max_width * source_height <= max_height * source_width {
+        let height = round_scaled_dimension(source_height * max_width, source_width)
+            .max(1)
+            .min(max_height as u32);
+        Ok((max_width as u32, height))
+    } else {
+        let width = round_scaled_dimension(source_width * max_height, source_height)
+            .max(1)
+            .min(max_width as u32);
+        Ok((width, max_height as u32))
+    }
+}
+
+fn round_scaled_dimension(numerator: u128, denominator: u128) -> u32 {
+    ((numerator * 2 + denominator) / (denominator * 2)) as u32
+}
+
 pub fn try_vec_with_capacity(capacity: usize) -> Result<Vec<u8>, ImageError> {
     let mut out = Vec::new();
     out.try_reserve_exact(capacity)
@@ -903,5 +940,55 @@ mod tests {
         let image = Image::new(3, 1, PixelFormat::Gray8, vec![0x10, 0x80, 0xf0]).unwrap();
         let resized = image.resize_nearest(2, 1).unwrap();
         assert_eq!(resized.pixels(), &[0x10, 0xf0]);
+    }
+
+    #[test]
+    fn fit_dimensions_match_imagemagick_resize_box_rounding() {
+        assert_eq!(fit_dimensions(64, 64, 17, 11).unwrap(), (11, 11));
+        assert_eq!(fit_dimensions(64, 32, 17, 11).unwrap(), (17, 9));
+        assert_eq!(fit_dimensions(32, 64, 17, 11).unwrap(), (6, 11));
+        assert_eq!(fit_dimensions(3, 2, 17, 11).unwrap(), (17, 11));
+        assert_eq!(fit_dimensions(2, 3, 17, 11).unwrap(), (7, 11));
+        assert_eq!(fit_dimensions(5, 1, 17, 11).unwrap(), (17, 3));
+        assert_eq!(fit_dimensions(1, 5, 17, 11).unwrap(), (2, 11));
+        assert_eq!(fit_dimensions(64, 32, 1, 100).unwrap(), (1, 1));
+        assert_eq!(fit_dimensions(32, 64, 100, 1).unwrap(), (1, 1));
+    }
+
+    #[test]
+    fn resize_nearest_fit_preserves_format_and_uses_fitted_dimensions() {
+        let image = Image::new(
+            3,
+            2,
+            PixelFormat::Rgb8,
+            vec![
+                255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 0, 0, 255, 255, 255, 0, 255,
+            ],
+        )
+        .unwrap();
+        let resized = image.resize_nearest_fit(4, 4).unwrap();
+        assert_eq!(resized.width(), 4);
+        assert_eq!(resized.height(), 3);
+        assert_eq!(resized.pixel_format(), PixelFormat::Rgb8);
+        assert_eq!(
+            resized.pixels(),
+            &[
+                255, 0, 0, 0, 255, 0, 0, 255, 0, 0, 0, 255, 255, 255, 0, 0, 255, 255, 0, 255, 255,
+                255, 0, 255, 255, 255, 0, 0, 255, 255, 0, 255, 255, 255, 0, 255
+            ]
+        );
+    }
+
+    #[test]
+    fn resize_nearest_fit_rejects_invalid_and_oversized_dimensions() {
+        let image = Image::new(1, 1, PixelFormat::Rgba16Be, vec![0; 8]).unwrap();
+        assert_eq!(
+            image.resize_nearest_fit(0, 1),
+            Err(ImageError::InvalidDimensions)
+        );
+        assert!(matches!(
+            image.resize_nearest_fit(u32::MAX, u32::MAX),
+            Err(ImageError::LengthOverflow | ImageError::ImageTooLarge { .. })
+        ));
     }
 }

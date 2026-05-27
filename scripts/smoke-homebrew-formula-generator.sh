@@ -92,6 +92,19 @@ bash scripts/generate-homebrew-formula.sh v0.13.0 "$resize_release" "$resize_for
 assert_formula_syntax "$resize_formula"
 assert_contains "$resize_formula" '"resize", "1x1", "PPM:input.ppm", "PPM:resized.ppm"'
 assert_contains "$resize_formula" "format=PPM width=1 height=1 channels=RGB depth=8"
+assert_not_contains "$resize_formula" '"resize-fit", "5x5", "PPM:input.ppm", "PPM:fit.ppm"'
+
+resize_fit_release="$work_dir/resize-fit-release.SHA256SUMS"
+write_checksums "$resize_fit_release" \
+  imx-preview-0.14.0-x86_64-unknown-linux-gnu.tar.gz \
+  imx-preview-0.14.0-aarch64-unknown-linux-gnu.tar.gz
+resize_fit_formula="$work_dir/resize-fit-release.rb"
+bash scripts/generate-homebrew-formula.sh v0.14.0 "$resize_fit_release" "$resize_fit_formula"
+assert_formula_syntax "$resize_fit_formula"
+assert_contains "$resize_fit_formula" '"resize", "1x1", "PPM:input.ppm", "PPM:resized.ppm"'
+assert_contains "$resize_fit_formula" "format=PPM width=1 height=1 channels=RGB depth=8"
+assert_contains "$resize_fit_formula" '"resize-fit", "5x5", "PPM:input.ppm", "PPM:fit.ppm"'
+assert_contains "$resize_fit_formula" "format=PPM width=5 height=3 channels=RGB depth=8"
 
 all_targets="$work_dir/all-targets.SHA256SUMS"
 write_checksums "$all_targets" \

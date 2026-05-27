@@ -1,5 +1,23 @@
 # IMX Release Notes
 
+## IMX v0.14.0 Resize-Fit Slice
+
+- Adds one explicit aspect-preserving resize command:
+  `imx resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>`.
+- Supports resize-fit for the existing FARBFELD, JPEG, QOI, PBM, PGM, PNG, and
+  PPM input/output surface only, including exact uppercase prefixes.
+- Computes the largest integer output dimensions that fit within the requested
+  box while preserving source aspect ratio, then uses the same center-sampled
+  nearest-neighbor scaling and existing destination encoders as `imx resize`.
+- Extends CLI tests, core image tests, ImageMagick differential proof,
+  differential corpus, install verification, package/archive smoke, conformance
+  wording, and Homebrew formula/archive smoke with resize-fit evidence.
+- Keeps the slice bounded: no change to exact `imx resize`, no crop, rotate,
+  fill, percentages, `WIDTHx`, `xHEIGHT`, geometry flags, metadata
+  preservation, color management, stdin/stdout, `magick` alias, full
+  ImageMagick CLI parsing, new formats, Homebrew/core, crates.io, Windows, or
+  hosted macOS/iOS Actions.
+
 ## IMX v0.13.0 Bounded Resize Slice
 
 - Adds one explicit resize command:

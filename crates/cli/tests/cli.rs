@@ -833,6 +833,221 @@ fn resize_prefix_errors_match_identify_and_transcode_contract() {
 }
 
 #[test]
+fn resize_fit_preserves_aspect_for_supported_formats() {
+    let dir = temp_dir("resize_fit_supported");
+    for (prefix, input, expected_identify) in write_supported_fixtures(&dir) {
+        let output_path = dir.join(format!(
+            "fit.{}",
+            input.extension().unwrap().to_str().unwrap()
+        ));
+        let input_arg = prefixed(prefix, &input);
+        let output_arg = prefixed(prefix, &output_path);
+
+        let output = Command::new(imx())
+            .args(["resize-fit", "5x5", input_arg.as_str(), output_arg.as_str()])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{prefix} prefixed resize-fit failed with stderr={}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let expected_identify = expected_identify
+            .replace("width=2", "width=5")
+            .replace("height=1", "height=3");
+        let identify = Command::new(imx())
+            .args(["identify", prefixed(prefix, &output_path).as_str()])
+            .output()
+            .unwrap();
+        assert!(
+            identify.status.success(),
+            "{prefix} resize-fit identify failed with stderr={}",
+            String::from_utf8_lossy(&identify.stderr)
+        );
+        assert_eq!(
+            String::from_utf8(identify.stdout).unwrap().trim(),
+            expected_identify
+        );
+    }
+}
+
+#[test]
+fn resize_fit_uses_fitted_dimensions_then_center_sampled_pixels() {
+    let dir = temp_dir("resize_fit_pixels");
+    let input = dir.join("input.ppm");
+    let output_path = dir.join("output.ppm");
+    let image = Image::new(
+        3,
+        1,
+        PixelFormat::Rgb8,
+        vec![255, 0, 0, 0, 255, 0, 0, 0, 255],
+    )
+    .unwrap();
+    fs::write(&input, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
+
+    let output = Command::new(imx())
+        .args([
+            "resize-fit",
+            "2x2",
+            prefixed("PPM", &input).as_str(),
+            prefixed("PPM", &output_path).as_str(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "resize-fit failed with stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let resized = imx_codec_pnm::decode_ppm(&fs::read(output_path).unwrap()).unwrap();
+    assert_eq!(resized.width(), 2);
+    assert_eq!(resized.height(), 1);
+    assert_eq!(resized.pixel_format(), PixelFormat::Rgb8);
+    assert_eq!(resized.pixels(), &[255, 0, 0, 0, 0, 255]);
+}
+
+#[test]
+fn malformed_resize_fit_arguments_are_rejected() {
+    let dir = temp_dir("resize_fit_malformed_args");
+    let input = dir.join("input.ppm");
+    let output_path = dir.join("output.ppm");
+    let image = Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap();
+    fs::write(&input, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
+
+    for (dimensions, expected_error) in [
+        ("", "invalid resize dimensions"),
+        ("2", "invalid resize dimensions"),
+        ("x2", "invalid resize dimensions"),
+        ("2x", "invalid resize dimensions"),
+        ("2X2", "invalid resize dimensions"),
+        ("0x2", "resize dimensions must be non-zero"),
+        ("2x0", "resize dimensions must be non-zero"),
+        ("4294967296x2", "invalid resize width"),
+        ("2x4294967296", "invalid resize height"),
+    ] {
+        let output = Command::new(imx())
+            .args([
+                "resize-fit",
+                dimensions,
+                input.to_str().unwrap(),
+                output_path.to_str().unwrap(),
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            !output.status.success(),
+            "malformed resize-fit dimensions unexpectedly succeeded: {dimensions:?}"
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(expected_error),
+            "expected stderr to contain {expected_error:?}, got {:?}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(!output_path.exists());
+    }
+}
+
+#[test]
+fn resize_fit_rejects_same_input_and_output_path() {
+    let dir = temp_dir("resize_fit_same_path");
+    let input = dir.join("input.ppm");
+    let image = Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap();
+    fs::write(&input, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
+    let arg = prefixed("PPM", &input);
+
+    let output = Command::new(imx())
+        .args(["resize-fit", "2x2", arg.as_str(), arg.as_str()])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("must be different"));
+}
+
+#[test]
+fn resize_fit_prefix_errors_match_identify_and_transcode_contract() {
+    let dir = temp_dir("resize_fit_prefix_errors");
+    let ppm = dir.join("input.ppm");
+    let png = dir.join("input.png");
+    let image = Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap();
+    fs::write(&ppm, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
+    fs::write(&png, imx_codec_png::encode(&image).unwrap()).unwrap();
+
+    let output_ppm = dir.join("out.ppm");
+    let output_png = dir.join("out.png");
+    let extensionless_output = dir.join("out");
+    let cases = vec![
+        (
+            vec![
+                "resize-fit".to_string(),
+                "2x2".to_string(),
+                prefixed("GIF", &ppm),
+                prefixed("PPM", &output_ppm),
+            ],
+            "unsupported format prefix: GIF",
+        ),
+        (
+            vec![
+                "resize-fit".to_string(),
+                "2x2".to_string(),
+                "PNG:".to_string(),
+                prefixed("PNG", &output_png),
+            ],
+            "missing path after format prefix PNG:",
+        ),
+        (
+            vec![
+                "resize-fit".to_string(),
+                "2x2".to_string(),
+                prefixed("PNG", &ppm),
+                prefixed("PPM", &output_ppm),
+            ],
+            "format prefix PNG does not match detected format PPM",
+        ),
+        (
+            vec![
+                "resize-fit".to_string(),
+                "2x2".to_string(),
+                prefixed("PNG", &png),
+                prefixed("PPM", &output_png),
+            ],
+            "format prefix PPM does not match path format PNG",
+        ),
+        (
+            vec![
+                "resize-fit".to_string(),
+                "2x2".to_string(),
+                prefixed("PNG", &png),
+                prefixed("PNG", &extensionless_output),
+            ],
+            "unsupported format:",
+        ),
+        (
+            vec![
+                "resize-fit".to_string(),
+                "2x2".to_string(),
+                prefixed("PPM", &ppm),
+                prefixed("PPM", &ppm),
+            ],
+            "input and output paths must be different",
+        ),
+    ];
+
+    for (args, expected_error) in cases {
+        let output = Command::new(imx()).args(&args).output().unwrap();
+        assert!(
+            !output.status.success(),
+            "malformed resize-fit prefix case unexpectedly succeeded: {args:?}"
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(expected_error),
+            "expected stderr to contain {expected_error:?}, got {:?}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+#[test]
 fn transcodes_ppm_to_farbfeld_and_farbfeld_to_ppm() {
     let dir = temp_dir("ppm_transcode");
     let input_ppm = dir.join("input.ppm");
@@ -1347,7 +1562,8 @@ fn help_and_version_are_available() {
         if flag == "--help" {
             let stdout = String::from_utf8(output.stdout).unwrap();
             assert!(stdout.contains("imx resize <width>x<height>"));
-            assert!(stdout.contains("nearest-neighbor exact dimensions"));
+            assert!(stdout.contains("imx resize-fit <width>x<height>"));
+            assert!(stdout.contains("nearest-neighbor exact dimensions and aspect-preserving fit"));
             assert!(stdout.contains(".jpg"));
             assert!(stdout.contains(".jpeg"));
             assert!(stdout.contains("JPEG:"));

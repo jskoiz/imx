@@ -2,7 +2,7 @@
 set -eu
 
 repo="${IMX_REPO:-jskoiz/imx}"
-version="${IMX_VERSION:-v0.13.0}"
+version="${IMX_VERSION:-v0.14.0}"
 install_dir="${IMX_INSTALL_DIR:-$HOME/.local/bin}"
 run_smoke="${IMX_INSTALL_SMOKE:-1}"
 min_glibc="2.34"
@@ -121,6 +121,9 @@ if [ "$run_smoke" != "0" ] && [ "$run_smoke" != "false" ]; then
   printf 'P6\n2 1\n65535\n\x12\x34\x56\x78\x9a\xbc\x00\x00\x80\x00\xff\xff' >"$smoke_dir/input16.ppm"
   printf 'P2\n2 2\n255\n0 85 170 255\n' >"$smoke_dir/input.pgm"
   printf 'P1\n2 2\n0 1\n1 0\n' >"$smoke_dir/input.pbm"
+  printf 'P3\n2 1\n255\n255 0 0 0 0 255\n' >"$smoke_dir/fit-input.ppm"
+  printf 'P2\n2 1\n255\n0 255\n' >"$smoke_dir/fit-input.pgm"
+  printf 'P1\n2 1\n0 1\n' >"$smoke_dir/fit-input.pbm"
   "$install_dir/imx" identify "$smoke_dir/input.ppm" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/input16.ppm" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/input.pgm" >/dev/null
@@ -151,6 +154,24 @@ if [ "$run_smoke" != "0" ] && [ "$run_smoke" != "false" ]; then
   "$install_dir/imx" "FARBFELD:$smoke_dir/prefix-output.ff" "PPM:$smoke_dir/prefix-output.ppm"
   "$install_dir/imx" resize 1x1 "PPM:$smoke_dir/input.ppm" "PPM:$smoke_dir/resized.ppm"
   "$install_dir/imx" identify "PPM:$smoke_dir/resized.ppm" | grep -F "format=PPM width=1 height=1" >/dev/null
+  "$install_dir/imx" "PPM:$smoke_dir/fit-input.ppm" "FARBFELD:$smoke_dir/fit-source.ff"
+  "$install_dir/imx" "PPM:$smoke_dir/fit-input.ppm" "JPEG:$smoke_dir/fit-source.jpg"
+  "$install_dir/imx" "PPM:$smoke_dir/fit-input.ppm" "QOI:$smoke_dir/fit-source.qoi"
+  "$install_dir/imx" "PPM:$smoke_dir/fit-input.ppm" "PNG:$smoke_dir/fit-source.png"
+  "$install_dir/imx" resize-fit 5x5 "FARBFELD:$smoke_dir/fit-source.ff" "FARBFELD:$smoke_dir/fit.ff"
+  "$install_dir/imx" resize-fit 5x5 "JPEG:$smoke_dir/fit-source.jpg" "JPEG:$smoke_dir/fit.jpg"
+  "$install_dir/imx" resize-fit 5x5 "QOI:$smoke_dir/fit-source.qoi" "QOI:$smoke_dir/fit.qoi"
+  "$install_dir/imx" resize-fit 5x5 "PBM:$smoke_dir/fit-input.pbm" "PBM:$smoke_dir/fit.pbm"
+  "$install_dir/imx" resize-fit 5x5 "PGM:$smoke_dir/fit-input.pgm" "PGM:$smoke_dir/fit.pgm"
+  "$install_dir/imx" resize-fit 5x5 "PNG:$smoke_dir/fit-source.png" "PNG:$smoke_dir/fit.png"
+  "$install_dir/imx" resize-fit 5x5 "PPM:$smoke_dir/fit-input.ppm" "PPM:$smoke_dir/fit.ppm"
+  "$install_dir/imx" identify "FARBFELD:$smoke_dir/fit.ff" | grep -F "format=FARBFELD width=5 height=3" >/dev/null
+  "$install_dir/imx" identify "JPEG:$smoke_dir/fit.jpg" | grep -F "format=JPEG width=5 height=3" >/dev/null
+  "$install_dir/imx" identify "QOI:$smoke_dir/fit.qoi" | grep -F "format=QOI width=5 height=3" >/dev/null
+  "$install_dir/imx" identify "PBM:$smoke_dir/fit.pbm" | grep -F "format=PBM width=5 height=3" >/dev/null
+  "$install_dir/imx" identify "PGM:$smoke_dir/fit.pgm" | grep -F "format=PGM width=5 height=3" >/dev/null
+  "$install_dir/imx" identify "PNG:$smoke_dir/fit.png" | grep -F "format=PNG width=5 height=3" >/dev/null
+  "$install_dir/imx" identify "PPM:$smoke_dir/fit.ppm" | grep -F "format=PPM width=5 height=3" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/output.pbm" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/output.pgm" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/output.png" >/dev/null

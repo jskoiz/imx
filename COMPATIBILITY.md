@@ -24,6 +24,8 @@ imx --version
 imx identify [FORMAT:]<input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>
 imx resize <width>x<height> [FORMAT:]<input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
   [FORMAT:]<output.ff|output.farbfeld|output.jpg|output.jpeg|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
+imx resize-fit <width>x<height> [FORMAT:]<input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
+  [FORMAT:]<output.ff|output.farbfeld|output.jpg|output.jpeg|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
 imx [FORMAT:]<input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
   [FORMAT:]<output.ff|output.farbfeld|output.jpg|output.jpeg|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
 ```
@@ -47,13 +49,13 @@ supported formats only:
 - `PNG:input.png`
 - `PPM:input.ppm`
 
-Prefixes are a CLI path adapter for `identify`, `resize`, and two-path transcodes.
-They are stripped before file IO, then checked against the detected input format
-or output path extension. Unknown uppercase prefixes, empty prefixed paths, and
-prefix/format mismatches fail with an `error: ...` message. Output paths still
-need a supported extension, so `QOI:output` is not a supported way to select an
-extensionless output format. Same-path rejection compares stripped paths. `JPG:`
-is not a supported prefix.
+Prefixes are a CLI path adapter for `identify`, `resize`, `resize-fit`, and
+two-path transcodes. They are stripped before file IO, then checked against the
+detected input format or output path extension. Unknown uppercase prefixes,
+empty prefixed paths, and prefix/format mismatches fail with an `error: ...`
+message. Output paths still need a supported extension, so `QOI:output` is not
+a supported way to select an extensionless output format. Same-path rejection
+compares stripped paths. `JPG:` is not a supported prefix.
 
 ## Format Behavior
 
@@ -200,6 +202,10 @@ JPEG to FARBFELD/QOI/PBM/PGM/PNG/PPM:
 - `imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>` resizes the
   decoded image to exact dimensions before running the existing destination
   encoder.
+- `imx resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>` resizes
+  the decoded image to the largest integer dimensions that fit inside the
+  requested box while preserving source aspect ratio, then runs the existing
+  destination encoder.
 - Dimensions must be lowercase `<width>x<height>` with non-zero unsigned
   32-bit decimal values. `2X2`, `x2`, `2x`, percentages, aspect-ratio
   shorthand, geometry flags, and ImageMagick-style `-resize` forms are
@@ -213,6 +219,10 @@ JPEG to FARBFELD/QOI/PBM/PGM/PNG/PPM:
   rejection, luma thresholding, JPEG loss, and metadata loss.
 - Supported resize inputs and outputs are only FARBFELD, JPEG, QOI, PBM, PGM,
   PNG, and PPM through the existing extension and exact-prefix contract.
+- Resize-fit follows ImageMagick point-resize box rounding for this slice:
+  choose the width-bound result when `box_width * source_height <= box_height *
+  source_width`; otherwise choose the height-bound result. The other dimension
+  is rounded half up and clamped to at least one pixel.
 
 FARBFELD to QOI:
 
@@ -328,7 +338,8 @@ additional high-depth PPM and PNG identify cases, then checks all 49 directed
 transcodes between the seven supported formats plus a prefixed transcode ring
 that exercises every supported prefix as input and output. It also checks
 plain and prefixed nearest-neighbor resize for every supported format. It runs
-high-depth PPM and PNG transcode cases for 16-bit preserving destinations.
+plain and prefixed nearest-neighbor resize-fit for every supported format. It
+runs high-depth PPM and PNG transcode cases for 16-bit preserving destinations.
 
 Most transcode results are decoded through ImageMagick to canonical 8-bit RGBA
 raw pixels and compared with the ImageMagick oracle output for the same source
@@ -339,7 +350,8 @@ metrics instead of byte equality. Orientation JPEG cases are compared against
 ImageMagick `-auto-orient` with the same metric recorder. The report emits:
 
 - `manifest.json` from the generated fixture corpus.
-- `results.jsonl` with one row per identify, transcode, and resize case.
+- `results.jsonl` with one row per identify, transcode, resize, and resize-fit
+  case.
 - `jpeg-metrics.jsonl` with max absolute difference, MAE, RMSE, PSNR, p99, and
   threshold counts for JPEG-involved cases.
 - `summary.json` with pass/fail counts and evidence paths.
@@ -360,7 +372,7 @@ accept or clamp.
   `PNG:`, and `PPM:`.
 - No PAM/PFM support.
 - No delegates, profiles, color management, transform operations beyond the
-  explicit nearest-neighbor resize command, MagickCore API, or MagickWand API.
+  explicit nearest-neighbor resize commands, MagickCore API, or MagickWand API.
 - No APNG, indexed/palette PNG, low-bit PNG, PNG metadata/profile preservation,
   or PNG color-management/profile semantics.
 - No CMYK/YCCK JPEG, 12-bit JPEG, arithmetic-coded JPEG, lossless
@@ -369,7 +381,7 @@ accept or clamp.
   color-management semantics.
 - No format beyond FARBFELD, JPEG, QOI, PBM, PGM, PNG, and PPM.
 - No Windows, crates.io, Homebrew/core, or package-manager distribution beyond
-  the `jskoiz/imx` Homebrew tap is claimed for this slice. v0.13.0 Linux x86_64
+  the `jskoiz/imx` Homebrew tap is claimed for this slice. v0.14.0 Linux x86_64
   and Linux arm64 archives require glibc 2.34 or newer; Linux arm64 support is
   claimed only for the published archive and tap block verified from release
   `SHA256SUMS` by Linux-only tap smoke. Release/archive smoke checks that

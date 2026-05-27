@@ -488,14 +488,26 @@ run_transcode_case() {
 run_resize_case() {
   local fmt="$1"
   local mode="${2:-plain}"
+  local resize_kind="${3:-exact}"
   local label input imx_input imx_output imx_output_arg oracle_output imx_raw oracle_raw case_id raw_format
+  local case_prefix command oracle_geometry description
   local -a oracle_args
   label="$(format_label "$fmt")"
   input="$(fixture_path "$fmt")"
-  case_id="resize.$fmt"
+  case_prefix="resize"
+  command="resize"
+  oracle_geometry="17x11!"
+  description="resized"
+  if [[ "$resize_kind" == "fit" ]]; then
+    case_prefix="resize-fit"
+    command="resize-fit"
+    oracle_geometry="17x11"
+    description="resize-fit"
+  fi
+  case_id="$case_prefix.$fmt"
   imx_input="$input"
   if [[ "$mode" == "prefixed" ]]; then
-    case_id="resize-prefixed.$fmt"
+    case_id="$case_prefix-prefixed.$fmt"
     imx_input="$label:$input"
   fi
   imx_output="$out_dir/$case_id.imx.$(format_ext "$fmt")"
@@ -513,49 +525,49 @@ run_resize_case() {
     raw_format="RGB"
   fi
 
-  if ! "$imx" resize 17x11 "$imx_input" "$imx_output_arg" >"$out_dir/$case_id.imx.stdout" 2>"$out_dir/$case_id.imx.stderr"; then
-    record "$case_id" failed "IMX resize failed"
+  if ! "$imx" "$command" 17x11 "$imx_input" "$imx_output_arg" >"$out_dir/$case_id.imx.stdout" 2>"$out_dir/$case_id.imx.stderr"; then
+    record "$case_id" failed "IMX $command failed"
     failures=$((failures + 1))
     return
   fi
 
-  oracle_args=("$label:$input" "-filter" "Point" "-resize" "17x11!")
+  oracle_args=("$label:$input" "-filter" "Point" "-resize" "$oracle_geometry")
   if [[ "$fmt" == "jpeg" ]]; then
     oracle_args+=("-quality" "90" "-sampling-factor" "4:4:4" "-interlace" "none" "-strip")
   fi
   oracle_args+=("$label:$oracle_output")
   if ! "$oracle" "${oracle_args[@]}" >"$out_dir/$case_id.oracle.stdout" 2>"$out_dir/$case_id.oracle.stderr"; then
-    record "$case_id" failed "ImageMagick oracle resize failed"
+    record "$case_id" failed "ImageMagick oracle $description failed"
     failures=$((failures + 1))
     return
   fi
 
   if ! "$oracle" "$label:$imx_output" -depth 8 "$raw_format:$imx_raw" >"$out_dir/$case_id.imx-decode.stdout" 2>"$out_dir/$case_id.imx-decode.stderr"; then
-    record "$case_id" failed "ImageMagick could not decode IMX resized output"
+    record "$case_id" failed "ImageMagick could not decode IMX $description output"
     failures=$((failures + 1))
     return
   fi
 
   if ! "$oracle" "$label:$oracle_output" -depth 8 "$raw_format:$oracle_raw" >"$out_dir/$case_id.oracle-decode.stdout" 2>"$out_dir/$case_id.oracle-decode.stderr"; then
-    record "$case_id" failed "ImageMagick could not decode oracle resized output"
+    record "$case_id" failed "ImageMagick could not decode oracle $description output"
     failures=$((failures + 1))
     return
   fi
 
   if [[ "$fmt" == "jpeg" ]]; then
     if record_jpeg_metrics "$case_id" "$imx_raw" "$oracle_raw" >"$out_dir/$case_id.metrics.stdout" 2>"$out_dir/$case_id.metrics.stderr"; then
-      record "$case_id" passed "$label resized decoded RGB pixels are within JPEG tolerance"
+      record "$case_id" passed "$label $description decoded RGB pixels are within JPEG tolerance"
       passes=$((passes + 1))
       jpeg_metric_cases=$((jpeg_metric_cases + 1))
     else
-      record "$case_id" failed "$label resized decoded RGB pixels exceed JPEG tolerance"
+      record "$case_id" failed "$label $description decoded RGB pixels exceed JPEG tolerance"
       failures=$((failures + 1))
     fi
   elif cmp -s "$imx_raw" "$oracle_raw"; then
-    record "$case_id" passed "$label resized decoded pixels match oracle output"
+    record "$case_id" passed "$label $description decoded pixels match oracle output"
     passes=$((passes + 1))
   else
-    record "$case_id" failed "$label resized decoded pixels differ from oracle output"
+    record "$case_id" failed "$label $description decoded pixels differ from oracle output"
     failures=$((failures + 1))
   fi
 }
@@ -679,6 +691,7 @@ for src in "${formats[@]}"; do
 done
 for fmt in "${formats[@]}"; do
   run_resize_case "$fmt"
+  run_resize_case "$fmt" plain fit
 done
 run_ppm16_transcode_case farbfeld
 run_ppm16_transcode_case ppm
@@ -690,6 +703,7 @@ for prefixed_pair in farbfeld:jpeg jpeg:qoi qoi:png png:ppm ppm:pgm pgm:pbm pbm:
 done
 for prefixed_fmt in farbfeld jpeg qoi pbm pgm png ppm; do
   run_resize_case "$prefixed_fmt" prefixed
+  run_resize_case "$prefixed_fmt" prefixed fit
 done
 
 status="passed"
@@ -709,6 +723,7 @@ cat >"$summary" <<EOF
   "identify_cases": 21,
   "transcode_cases": 63,
   "resize_cases": 14,
+  "resize_fit_cases": 14,
   "jpeg_metric_cases": $jpeg_metric_cases,
   "jpeg_orientation_cases": $jpeg_orientation_cases,
   "jpeg_progressive_cases": $jpeg_progressive_cases,
