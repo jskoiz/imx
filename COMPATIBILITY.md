@@ -369,10 +369,9 @@ accept or clamp.
   color-management semantics.
 - No format beyond FARBFELD, JPEG, QOI, PBM, PGM, PNG, and PPM.
 - No Windows, crates.io, Homebrew/core, or package-manager distribution beyond
-  the `jskoiz/imx` Homebrew tap is claimed for this slice. v0.12.0 Linux x86_64
+  the `jskoiz/imx` Homebrew tap is claimed for this slice. v0.13.0 Linux x86_64
   and Linux arm64 archives require glibc 2.34 or newer; Linux arm64 support is
   claimed only for the published archive and tap block verified from release
   `SHA256SUMS` by Linux-only tap smoke. Release/archive smoke checks that
   published Linux binaries do not reference `GLIBC_*` symbols newer than
-  `GLIBC_2.34`; v0.12.0 proof is recorded in
-  [docs/v0.12.0-glibc-baseline.md](docs/v0.12.0-glibc-baseline.md).
+  `GLIBC_2.34`.

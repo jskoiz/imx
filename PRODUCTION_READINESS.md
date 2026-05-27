@@ -1,22 +1,19 @@
 # IMX Compatibility Readiness
 
-Status: v0.13.0 is the current source-tree developer-preview surface. It carries
+Status: v0.13.0 is the current published developer-preview release surface. It carries
 forward the v0.6.0 exact format-prefix surface, the v0.7.0 high-depth PPM
 surface, the v0.8.0 bounded PNG raster slice, and the v0.9.0 bounded JPEG
 slice, plus v0.10.0 bounded JPEG EXIF Orientation normalization and v0.11.0
 bounded progressive JPEG input support, plus v0.12.0 real-world intake
-reliability coverage for already-supported formats. The v0.13.0 source tree
-adds bounded nearest-neighbor resize for the same supported formats. Release and
-tap support remain claimed only for the Linux archive targets present in the
-published v0.12.0 GitHub `SHA256SUMS` until v0.13.0 is tagged, published, and
-verified from release assets. Published Linux archives
-require glibc 2.34 or newer, with release/archive smoke checking that published
-Linux binaries do not reference `GLIBC_*` symbols newer than `GLIBC_2.34`.
-The v0.12.0 proof is recorded in
-[`docs/v0.12.0-glibc-baseline.md`](docs/v0.12.0-glibc-baseline.md). Hosted
-release proof is Linux-only. Automatic
-hosted macOS/iOS GitHub Actions remain disabled; macOS proof is local/manual
-only unless explicitly approved in the current turn.
+reliability coverage for already-supported formats. The v0.13.0 release adds
+bounded nearest-neighbor resize for the same supported formats. Release and tap
+support are claimed only for the Linux archive targets present in the published
+v0.13.0 GitHub `SHA256SUMS` and verified by Linux-only release/archive and tap
+smoke. Published Linux archives require glibc 2.34 or newer, with
+release/archive smoke checking that published Linux binaries do not reference
+`GLIBC_*` symbols newer than `GLIBC_2.34`. Hosted release proof is Linux-only.
+Automatic hosted macOS/iOS GitHub Actions remain disabled; macOS proof is
+local/manual only unless explicitly approved in the current turn.
 
 ## Implemented Behavior
 
@@ -59,12 +56,12 @@ only unless explicitly approved in the current turn.
   and PPM only. It does not add crop/rotate, new filters, metadata
   preservation, color management, stdin/stdout, or full `magick` CLI parsing.
 - Published v0.4.0 release targets are Linux x86_64, macOS arm64, and macOS
-  x86_64. The current v0.12.x hosted release targets are Linux x86_64 and Linux
+  x86_64. The current v0.13.0 hosted release targets are Linux x86_64 and Linux
   arm64 only, without hosted macOS/iOS Actions.
 - ImageMagick remains an oracle for tests and benchmarks only; shipped binaries
   must not link to ImageMagick, MagickCore, MagickWand, delegates, modules,
   `policy.xml`, or ImageMagick's build system.
-- v0.12.0 distribution artifacts are the Linux x86_64 and Linux arm64 release
+- v0.13.0 distribution artifacts are the Linux x86_64 and Linux arm64 release
   tarballs, aggregate `SHA256SUMS`, generated `imx.rb`,
   `CONFORMANCE_REPORT.md`, and `conformance-summary.json`. Hosted tag
   automation is Linux-only unless a macOS run is explicitly approved in the
@@ -120,7 +117,7 @@ imx --version
 After a release is published, each claimed platform must run:
 
 ```sh
-IMX_VERSION=v0.12.0 IMX_RELEASE_TARGET=<target> \
+IMX_VERSION=v0.13.0 IMX_RELEASE_TARGET=<target> \
   bash scripts/verify-release-archive.sh
 ```
 
@@ -192,8 +189,8 @@ published binary references a `GLIBC_*` symbol newer than `GLIBC_2.34`.
 - FARBFELD/PPM16/PGM16 to QOI is lossy for non-8-bit-representable 16-bit
   samples.
 - Color to PGM/PBM is lossy and ignores alpha.
-- No Windows, crates.io, Homebrew/core, or unverified macOS v0.12.x package is
-  claimed. Linux arm64 is claimed only for published v0.12.0 archives and tap
+- No Windows, crates.io, Homebrew/core, or unverified macOS v0.13.x package is
+  claimed. Linux arm64 is claimed only for published v0.13.0 archives and tap
   blocks verified from release `SHA256SUMS`; Homebrew support is tap-only
   through `jskoiz/imx`.
 
@@ -218,10 +215,10 @@ published binary references a `GLIBC_*` symbol newer than `GLIBC_2.34`.
 
 ## Next Smallest Milestone
 
-After the v0.13.0 resize slice, the next milestone should publish and verify
-the Linux release/tap path from actual v0.13.0 assets before broadening the
-image surface again. Future compatibility slices should stay bounded to one
-user-visible gap with oracle evidence. TIFF, GIF, WebP, APNG, delegates,
+After the v0.13.0 release/tap closure, the next milestone should make the tool
+more usable without broadening into full ImageMagick compatibility: select one
+high-value command or format gap, prove it against ImageMagick where applicable,
+and keep package/tap proof current. TIFF, GIF, WebP, APNG, delegates,
 MagickCore, MagickWand, color management, metadata preservation beyond declared
 read-only fields, and full ImageMagick CLI compatibility remain too broad for a
 single next milestone.
