@@ -96,7 +96,7 @@
   for rejected PNG non-goals: interlacing, APNG, `tRNS`, and oversized rasters.
 - Updates generated conformance wording to include high-depth PNG evidence and
   to distinguish pre-publish package smoke from post-publish archive smoke.
-- Documents and enforces the current Linux archive baseline: published v0.8.x
+- Documents and enforces the current Linux archive baseline: published Linux
   binary archives require glibc 2.34 or newer.
 - Hardens Ubuntu-only CI and tap proof with broader workflow path coverage,
   explicit timeouts/concurrency, release tag/version validation, checked-out
@@ -251,9 +251,9 @@ imx <input.ff|input.farbfeld|input.qoi|input.pbm|input.pgm|input.ppm> \
 - CLI input files larger than 513 MiB are rejected before reading.
 - Decoded pixel buffers larger than 512 MiB are rejected.
 - Homebrew support is tap-only; no Homebrew/core, crates.io, Windows, or
-  unverified macOS v0.8.x package is claimed. Published Linux v0.8.x archives
-  require glibc 2.34 or newer; Linux arm64 is claimed only for published
-  archives and tap blocks verified from release `SHA256SUMS`.
+  unverified macOS package is claimed. Published Linux archives require glibc
+  2.34 or newer; Linux arm64 is claimed only for published archives and tap
+  blocks verified from release `SHA256SUMS`.
 - This is not a full ImageMagick CLI, MagickCore, or MagickWand replacement.
 
 ## Release Evidence

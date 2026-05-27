@@ -53,6 +53,9 @@ This uses the `jskoiz/homebrew-imx` tap formula generated from each published
 release's `SHA256SUMS`. For v0.12.0, tap support is limited to archive targets
 present in the current v0.12.0 release and verified by tap smoke. It is not a
 Homebrew/core formula. Published Linux archives require glibc 2.34 or newer.
+Release/archive smoke checks this by asserting that published Linux binaries do
+not reference `GLIBC_*` symbols newer than `GLIBC_2.34`; the v0.12.0 proof is
+recorded in [docs/v0.12.0-glibc-baseline.md](docs/v0.12.0-glibc-baseline.md).
 
 Hosted GitHub Actions for the tap are Linux-only; macOS install proof must be
 run locally or manually after explicit approval.
@@ -287,6 +290,8 @@ assets back for archive smoke after a tag publish. macOS archive and tap proof
 must be recorded locally or through an explicitly approved manual run before new
 macOS claims are made. Hosted GitHub Actions must not run macOS or iOS jobs
 without explicit approval in the current turn.
+Linux archive smoke also records the maximum referenced `GLIBC_*` symbol version
+for each published binary and fails if it exceeds `GLIBC_2.34`.
 
 Benchmark runs emit:
 

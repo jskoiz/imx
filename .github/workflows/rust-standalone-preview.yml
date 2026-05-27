@@ -14,6 +14,7 @@ on:
       - 'scripts/**'
       - 'packaging/**'
       - 'tests/**'
+      - 'docs/**'
       - 'README.md'
       - 'COMPATIBILITY.md'
       - 'RELEASE_NOTES.md'

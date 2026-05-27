@@ -155,6 +155,11 @@ else
   ldd "$packaged_binary" >"$artifact_dir/linkage-$target.txt"
 fi
 ! grep -E 'Magick(Core|Wand)|ImageMagick' "$artifact_dir/linkage-$target.txt"
+case "$target" in
+  *-unknown-linux-gnu)
+    bash scripts/check-glibc-symbols.sh "$packaged_binary" >"$artifact_dir/glibc-symbols-$target.txt"
+    ;;
+esac
 printf 'P3\n2 1\n255\n255 0 0 0 0 255\n' >"$verify_dir/input.ppm"
 printf 'P6\n2 1\n65535\n\x12\x34\x56\x78\x9a\xbc\x00\x00\x80\x00\xff\xff' >"$verify_dir/input16.ppm"
 printf 'P2\n2 1\n255\n0 255\n' >"$verify_dir/input.pgm"

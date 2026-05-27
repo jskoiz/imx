@@ -9,7 +9,11 @@ reliability coverage for already-supported formats. Release and
 tap support are claimed only for the Linux archive targets present in the
 published v0.12.0
 GitHub `SHA256SUMS` and verified by release/tap smoke. Published Linux archives
-require glibc 2.34 or newer. Hosted release proof is Linux-only. Automatic
+require glibc 2.34 or newer, with release/archive smoke checking that published
+Linux binaries do not reference `GLIBC_*` symbols newer than `GLIBC_2.34`.
+The v0.12.0 proof is recorded in
+[`docs/v0.12.0-glibc-baseline.md`](docs/v0.12.0-glibc-baseline.md). Hosted
+release proof is Linux-only. Automatic
 hosted macOS/iOS GitHub Actions remain disabled; macOS proof is local/manual
 only unless explicitly approved in the current turn.
 
@@ -17,7 +21,7 @@ only unless explicitly approved in the current turn.
 
 - Source of truth: `https://github.com/jskoiz/imx`.
 - Product binary: `imx`.
-- v0.10.0 carries forward deterministic same-format rewrites for the
+- The current surface carries forward deterministic same-format rewrites for the
   FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM slice when input and output paths are
   different. JPEG rewrites are deterministic lossy decode/re-encode operations.
 - v0.6.0 added exact uppercase `FARBFELD:`, `QOI:`, `PBM:`, `PGM:`, and `PPM:`
@@ -73,8 +77,8 @@ only unless explicitly approved in the current turn.
 | Bench/RSS thresholds | `scripts/bench-release.sh` | `target/release-bench-*/threshold-summary.json` | throughput and process/library RSS sanity budgets | required before tag |
 | Bench regression | `scripts/bench-regression.sh` | `target/bench-regression-*/regression-report.json` | v0.12.x vs v0.5.0 throughput/RSS baseline; newer PNG/JPEG metrics without a baseline are warnings, RSS growth is enforced where a baseline exists | required before tag |
 | Source install verify | `scripts/verify-install.sh` | `target/install-verify/install-summary.json` | fresh checkout install plus supported identify/transcode/prefix/PPM16/PNG/JPEG/orientation/progressive smoke | required before tag |
-| Package/SHA/no-link | `scripts/package-release.sh` plus hosted Linux workflow; local macOS or explicitly approved manual evidence for macOS targets | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive smoke, exact-prefix smoke, PPM16/PNG/JPEG/orientation/progressive/intake smoke, no ImageMagick linkage for each claimed platform; v0.12.x hosted automation prepares Linux x86_64 and Linux arm64 release artifacts | required before publishing that platform archive |
-| Published archive smoke | `scripts/verify-release-archive.sh` | `target/release-archive-smoke/<target>/summary.json` | downloads the selected GitHub release archive, verifies that archive against aggregate SHA256SUMS, no-link, identify/transcode/same-format/prefix smoke; hosted CI covers Linux only | required after release publish |
+| Package/SHA/no-link | `scripts/package-release.sh` plus hosted Linux workflow; local macOS or explicitly approved manual evidence for macOS targets | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive smoke, exact-prefix smoke, PPM16/PNG/JPEG/orientation/progressive/intake smoke, no ImageMagick linkage, and max `GLIBC_* <= GLIBC_2.34` for each claimed Linux platform; v0.12.x hosted automation prepares Linux x86_64 and Linux arm64 release artifacts | required before publishing that platform archive |
+| Published archive smoke | `scripts/verify-release-archive.sh` | `target/release-archive-smoke/<target>/summary.json` | downloads the selected GitHub release archive, verifies that archive against aggregate SHA256SUMS, no-link, max `GLIBC_* <= GLIBC_2.34`, and identify/transcode/same-format/prefix smoke; hosted CI covers Linux only | required after release publish |
 | Homebrew tap smoke | `brew tap jskoiz/imx <checkout>`, `brew install jskoiz/imx/imx`, and `brew test jskoiz/imx/imx` from the checked-out tap | `jskoiz/homebrew-imx` Linux formula/archive workflow plus local macOS or explicitly approved manual terminal output | formula URL/SHA fetch, binary version check, PPM identify, PPM-to-QOI smoke, PNG/JPEG/orientation/progressive smoke, exact-prefix smoke, and FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM same-format rewrite smoke; local/manual Homebrew install proof for tap claims | required for tap claim; no hosted macOS tap smoke is claimed |
 | Conformance report | `scripts/generate-conformance-report.sh` | `CONFORMANCE_REPORT.md`, `conformance-summary.json` | generated from CI evidence and attached to the release | required release asset |
 
@@ -115,6 +119,9 @@ IMX_VERSION=v0.12.0 IMX_RELEASE_TARGET=<target> \
   bash scripts/verify-release-archive.sh
 ```
 
+The archive smoke writes `glibc-symbols.txt` for Linux targets and fails when a
+published binary references a `GLIBC_*` symbol newer than `GLIBC_2.34`.
+
 ## Release Automation
 
 - Release package script: `scripts/package-release.sh`.
@@ -132,7 +139,8 @@ IMX_VERSION=v0.12.0 IMX_RELEASE_TARGET=<target> \
   IMX release gates, generate differential corpus evidence, generate structured
   benchmark evidence, record v0.5.0 throughput ratios and enforce RSS budgets,
   package Linux x86_64 and Linux arm64 artifacts, verify fresh-checkout
-  installation, generate conformance reports, and upload evidence artifacts.
+  installation, verify the Linux glibc symbol baseline, generate conformance
+  reports, and upload evidence artifacts.
 - Tag pushes matching `v*` run the preview gates, build native Linux x86_64 and
   cross-built Linux arm64 release archives, generate aggregate checksums, attach
   the generated tap formula and conformance report, publish the GitHub Release,

@@ -116,11 +116,6 @@ run_archive_binary() {
   fi
 }
 
-archive_version="$(run_archive_binary --version)"
-if [[ "$archive_version" != "imx ${version#v}" ]]; then
-  echo "error: archive binary version mismatch: expected imx ${version#v}, got $archive_version" >&2
-  exit 1
-fi
 file "$binary" >"$work_dir/file.txt"
 case "$target" in
   aarch64-unknown-linux-gnu)
@@ -137,6 +132,17 @@ else
   ldd "$binary" >"$work_dir/linkage.txt"
 fi
 ! grep -E 'Magick(Core|Wand)|ImageMagick' "$work_dir/linkage.txt"
+case "$target" in
+  *-unknown-linux-gnu)
+    bash scripts/check-glibc-symbols.sh "$binary" >"$work_dir/glibc-symbols.txt"
+    ;;
+esac
+
+archive_version="$(run_archive_binary --version)"
+if [[ "$archive_version" != "imx ${version#v}" ]]; then
+  echo "error: archive binary version mismatch: expected imx ${version#v}, got $archive_version" >&2
+  exit 1
+fi
 
 smoke_dir="$work_dir/smoke"
 mkdir -p "$smoke_dir"
@@ -290,6 +296,7 @@ cat >"$summary" <<EOF
   "archive": "$archive",
   "checksum_file": "downloads/SHA256SUMS",
   "linkage": "linkage.txt",
+  "glibc_symbols": "glibc-symbols.txt",
   "smoke_dir": "smoke",
   "status": "passed"
 }

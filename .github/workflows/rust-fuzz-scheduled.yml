@@ -24,6 +24,11 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Check hosted Apple Actions guard
+        run: |
+          set -euo pipefail
+          bash scripts/check-no-hosted-apple-actions.sh
+
       - name: Prepare Rust fuzz toolchain
         run: |
           set -euo pipefail

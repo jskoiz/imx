@@ -34,6 +34,47 @@ bench_summary="$(latest_match '*/release-bench-*/summary.json')"
 bench_thresholds="$(latest_match '*/release-bench-*/threshold-summary.json')"
 bench_regression="$(latest_match '*/bench-regression-*/regression-report.json')"
 install_summary="$(latest_match '*/install-verify/install-summary.json')"
+glibc_symbol_files="$(find "$evidence_root" -path '*/glibc-symbols*.txt' -type f 2>/dev/null | sort || true)"
+
+glibc_symbols_report="No GLIBC symbol baseline evidence was found."
+glibc_symbols_json="[]"
+if [[ -n "$glibc_symbol_files" ]]; then
+  glibc_symbols_report="$(
+    GLIBC_SYMBOL_FILES="$glibc_symbol_files" python3 <<'PY'
+import os
+from pathlib import Path
+
+for raw_path in os.environ["GLIBC_SYMBOL_FILES"].splitlines():
+    path = Path(raw_path)
+    print(f"- `{path}`")
+    for line in path.read_text().splitlines():
+        print(f"  - {line}")
+PY
+  )"
+  glibc_symbols_json="$(
+    GLIBC_SYMBOL_FILES="$glibc_symbol_files" python3 <<'PY'
+import json
+import os
+import re
+from pathlib import Path
+
+records = []
+for raw_path in os.environ["GLIBC_SYMBOL_FILES"].splitlines():
+    path = Path(raw_path)
+    text = path.read_text()
+    max_versions = re.findall(r"max GLIBC_([0-9]+(?:\.[0-9]+)+); allowed GLIBC_([0-9]+(?:\.[0-9]+)+)", text)
+    records.append({
+        "path": str(path),
+        "checks": [
+            {"max": f"GLIBC_{observed}", "allowed": f"GLIBC_{allowed}"}
+            for observed, allowed in max_versions
+        ],
+        "status": "passed" if "GLIBC symbol baseline passed" in text else "unknown",
+    })
+print(json.dumps(records, indent=2))
+PY
+  )"
+fi
 
 archive_table="No release archive directory was supplied."
 if [[ -n "$release_dir" && -f "$release_dir/SHA256SUMS" ]]; then
@@ -64,10 +105,16 @@ Git revision: \`$git_rev\`
   input, malformed diagnostics, and resource-boundary rejection.
 - Runtime dependency policy: no ImageMagick, MagickCore, MagickWand, delegates,
   modules, \`policy.xml\`, or ImageMagick build system linkage.
+- Linux release archive policy: published glibc archives must not reference a
+  \`GLIBC_*\` symbol version newer than \`GLIBC_2.34\`.
 
 ## Release Archives
 
 $archive_table
+
+## Linux GLIBC Baseline
+
+$glibc_symbols_report
 
 ## Evidence Inputs
 
@@ -80,6 +127,7 @@ $archive_table
 | Benchmark thresholds | ${bench_thresholds:-missing} |
 | Benchmark regression | ${bench_regression:-missing} |
 | Fresh source install | ${install_summary:-missing} |
+| GLIBC symbol baseline | see Linux GLIBC Baseline section |
 | Package archive SHA/no-link/smoke | package-release artifacts and linkage evidence before publication |
 | Published archive smoke | post-publish \`scripts/verify-release-archive.sh\` evidence from release jobs |
 
@@ -139,6 +187,7 @@ cat >"$out_dir/conformance-summary.json" <<EOF
   "benchmark_thresholds": "${bench_thresholds:-}",
   "benchmark_regression": "${bench_regression:-}",
   "install_summary": "${install_summary:-}",
+  "glibc_symbols": $glibc_symbols_json,
   "release_dir": "$release_dir",
   "report": "CONFORMANCE_REPORT.md"
 }
