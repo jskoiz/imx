@@ -36,6 +36,7 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let gradient_jpeg = imx_codec_jpeg::encode(&gradient.to_rgb8()?)?;
     let gradient_png = imx_codec_png::encode(&gradient.to_rgba8()?)?;
     let gradient_png16 = imx_codec_png::encode(&gradient)?;
+    let gradient_bmp = imx_codec_bmp::encode(&gradient.to_rgb8()?)?;
     let gradient_pbm = imx_codec_pnm::encode_pbm(&gradient)?;
     let gradient_ppm = imx_codec_pnm::encode_ppm(&gradient.to_rgb8()?)?;
     let gradient_ppm16 = imx_codec_pnm::encode_ppm(&gradient)?;
@@ -140,6 +141,20 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         PixelFormat::Rgba16Be,
         vec![0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0],
     )?)?;
+    let intake_bmp_rgb24 = imx_codec_bmp::encode(&Image::new(
+        3,
+        2,
+        PixelFormat::Rgb8,
+        vec![
+            255, 0, 0, 0, 255, 0, 0, 0, 255, 12, 34, 56, 78, 90, 123, 222, 111, 3,
+        ],
+    )?)?;
+    let intake_bmp_rgba32 = imx_codec_bmp::encode(&Image::new(
+        2,
+        2,
+        PixelFormat::Rgba8,
+        vec![255, 0, 0, 255, 0, 255, 0, 128, 0, 0, 255, 64, 12, 34, 56, 0],
+    )?)?;
 
     let files = [
         ("gradient-64.ff", gradient_ff),
@@ -147,6 +162,7 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         ("gradient-64.qoi", gradient_qoi),
         ("gradient-64.png", gradient_png),
         ("gradient-64-png16.png", gradient_png16),
+        ("gradient-64.bmp", gradient_bmp),
         ("gradient-64.pbm", gradient_pbm),
         ("gradient-64.ppm", gradient_ppm),
         ("gradient-64-ppm16.ppm", gradient_ppm16),
@@ -182,6 +198,8 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         ("intake-comments-2x1.ppm", intake_ppm_comments),
         ("intake-pgm16-2x1.pgm", intake_pgm16),
         ("intake-rgba16-1x1.png", intake_png_rgba16),
+        ("intake-rgb24-3x2.bmp", intake_bmp_rgb24),
+        ("intake-rgba32-2x2.bmp", intake_bmp_rgba32),
     ];
 
     let mut manifest = String::from("# IMX generated fixtures\n");

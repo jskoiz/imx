@@ -1,4 +1,4 @@
-# IMX FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM Compatibility Contract
+# IMX BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM Compatibility Contract
 
 This contract covers only the standalone developer-preview slice.
 
@@ -21,16 +21,16 @@ This contract covers only the standalone developer-preview slice.
 ```sh
 imx --help
 imx --version
-imx identify [FORMAT:]<input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>
-imx resize <width>x<height> [FORMAT:]<input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
-  [FORMAT:]<output.ff|output.farbfeld|output.jpg|output.jpeg|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
-imx resize-fit <width>x<height> [FORMAT:]<input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
-  [FORMAT:]<output.ff|output.farbfeld|output.jpg|output.jpeg|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
-imx batch-convert --to <FARBFELD|JPEG|QOI|PBM|PGM|PNG|PPM> --output-dir <dir> \
+imx identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>
+imx resize <width>x<height> [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
+  [FORMAT:]<output.bmp|output.ff|output.farbfeld|output.jpg|output.jpeg|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
+imx resize-fit <width>x<height> [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
+  [FORMAT:]<output.bmp|output.ff|output.farbfeld|output.jpg|output.jpeg|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
+imx batch-convert --to <BMP|FARBFELD|JPEG|QOI|PBM|PGM|PNG|PPM> --output-dir <dir> \
   [--resize <width>x<height>|--resize-fit <width>x<height>] \
-  [FORMAT:]<input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>...
-imx [FORMAT:]<input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
-  [FORMAT:]<output.ff|output.farbfeld|output.jpg|output.jpeg|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
+  [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>...
+imx [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
+  [FORMAT:]<output.bmp|output.ff|output.farbfeld|output.jpg|output.jpeg|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
 ```
 
 `identify` outputs:
@@ -45,6 +45,7 @@ IMX accepts exact uppercase ImageMagick-style prefixes for the existing
 supported formats only:
 
 - `FARBFELD:input.ff`
+- `BMP:input.bmp`
 - `JPEG:input.jpg`
 - `QOI:input.qoi`
 - `PBM:input.pbm`
@@ -62,6 +63,20 @@ a supported way to select an extensionless output format. Same-path rejection
 compares stripped paths. `JPG:` is not a supported prefix.
 
 ## Format Behavior
+
+BMP:
+
+- Magic must be exactly `BM`.
+- Only Windows `BITMAPINFOHEADER` (`biSize == 40`) BMP files are supported.
+- Compression must be `BI_RGB` (`0`), planes must be `1`, and color-table
+  entries are rejected.
+- Decode supports 24-bit BGR rows as RGB8 and 32-bit BGRA rows as RGBA8.
+- Positive-height bottom-up and negative-height top-down input are accepted.
+- Rows are padded to 4-byte boundaries.
+- Encode writes deterministic bottom-up Windows BMP with no color table.
+- RGB-like input writes 24-bit BGR BMP. RGBA input writes 32-bit BGRA BMP.
+- Indexed, RLE-compressed, bitfields, OS/2 headers, color tables, masks,
+  high-depth, and profile/metadata BMP semantics are outside this slice.
 
 FARBFELD:
 
@@ -179,12 +194,27 @@ PPM:
 Same-format rewrites:
 
 - `imx input output` accepts same-format input and output extensions for
-  FARBFELD, JPEG, QOI, PBM, PGM, PNG, and PPM when the paths are different.
+  BMP, FARBFELD, JPEG, QOI, PBM, PGM, PNG, and PPM when the paths are different.
 - Same-format rewrites are deterministic decode/re-encode operations, not
   source preservation. They may normalize Netpbm source form to deterministic
-  binary output, regenerate QOI opcode streams, re-encode JPEG lossily, and
-  drop comments, whitespace, padding-bit values, metadata, or other incidental
-  representation details.
+  binary output, regenerate QOI opcode streams, re-encode BMP row order/padding,
+  re-encode JPEG lossily, and drop comments, whitespace, padding-bit values,
+  metadata, or other incidental representation details.
+
+BMP to FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM:
+
+- BMP RGB input follows the same RGB conversion rules as other RGB8 sources.
+- BMP RGBA input preserves alpha only through alpha-capable destinations.
+- BMP to JPEG rejects non-opaque alpha; BMP to PBM/PGM/PPM drops alpha through
+  the existing threshold, luma, or RGB output rules.
+
+FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM to BMP:
+
+- Output BMP writes 24-bit BGR for grayscale/RGB-like inputs and 32-bit BGRA
+  when the normalized source carries alpha.
+- High-depth samples are quantized to 8-bit for BMP output.
+- Output BMP does not preserve source metadata, comments, profiles, Netpbm
+  source form, JPEG tables, PNG ancillary chunks, or QOI opcode choices.
 
 FARBFELD/QOI/PBM/PGM/PNG/PPM to JPEG:
 
@@ -221,8 +251,8 @@ JPEG to FARBFELD/QOI/PBM/PGM/PNG/PPM:
   composite alpha, convert color, preserve metadata, or choose a new bit depth.
   Existing encoder rules still handle destination quantization, alpha
   rejection, luma thresholding, JPEG loss, and metadata loss.
-- Supported resize inputs and outputs are only FARBFELD, JPEG, QOI, PBM, PGM,
-  PNG, and PPM through the existing extension and exact-prefix contract.
+- Supported resize inputs and outputs are only BMP, FARBFELD, JPEG, QOI, PBM,
+  PGM, PNG, and PPM through the existing extension and exact-prefix contract.
 - Resize-fit follows ImageMagick point-resize box rounding for this slice:
   choose the width-bound result when `box_width * source_height <= box_height *
   source_width`; otherwise choose the height-bound result. The other dimension
@@ -235,15 +265,15 @@ JPEG to FARBFELD/QOI/PBM/PGM/PNG/PPM:
   converts one or more shell-provided input paths using the same decoders,
   optional resize operation, encoders, and exact input-prefix checks as the
   single-file commands.
-- `<FORMAT>` must be exactly `FARBFELD`, `JPEG`, `QOI`, `PBM`, `PGM`, `PNG`, or
-  `PPM`. It is not an extension alias; `JPG`, `ff`, lowercase names, and other
-  formats are rejected.
+- `<FORMAT>` must be exactly `BMP`, `FARBFELD`, `JPEG`, `QOI`, `PBM`, `PGM`,
+  `PNG`, or `PPM`. It is not an extension alias; `JPG`, `BM`, `ff`, lowercase
+  names, and other formats are rejected.
 - `--output-dir` must name an existing directory. IMX does not create the
   output directory, walk directories recursively, expand globs, read stdin,
   write stdout, or run batch work in parallel.
 - Output paths are derived deterministically as
   `<output-dir>/<input-file-stem>.<target-extension>` using primary extensions
-  `.ff`, `.jpg`, `.qoi`, `.pbm`, `.pgm`, `.png`, and `.ppm`.
+  `.bmp`, `.ff`, `.jpg`, `.qoi`, `.pbm`, `.pgm`, `.png`, and `.ppm`.
 - The full batch is preflighted before any output is written. Missing inputs,
   non-file inputs, invalid prefixes, duplicate planned output paths, outputs
   that already exist, and outputs that resolve to the same file as an input
@@ -342,13 +372,14 @@ adds evidence for representative already-supported inputs that tend to appear in
 real files or failure reports:
 
 - FARBFELD RGBA16 input with nontrivial channel values.
+- BMP RGB24 and RGBA32 input.
 - Progressive grayscale JPEG input.
 - QOI RGB input with linear colorspace.
 - PBM ASCII input with comments and adjacent raster samples.
 - PGM scaled ASCII and binary 16-bit input.
 - PNG grayscale-alpha and RGBA16 input.
 - PPM ASCII input with comments and high `maxval`.
-- Malformed FARBFELD, QOI, PBM, PGM, PPM, PNG, and JPEG diagnostics with clear
+- Malformed BMP, FARBFELD, QOI, PBM, PGM, PPM, PNG, and JPEG diagnostics with clear
   operation/path context at the CLI.
 - Resource-boundary checks for the 512 MiB decoded-pixel cap without requiring
   large allocations.
@@ -360,10 +391,10 @@ fixtures are vendored.
 
 The compatibility lane keeps `scripts/differential-corpus.sh` as a
 report-producing ImageMagick oracle lane. It generates the deterministic fixture
-corpus, runs `imx identify` for FARBFELD, JPEG, QOI, PBM, PGM, PNG, and PPM
-fixtures, runs prefixed identify cases for the same seven formats, runs
-additional high-depth PPM and PNG identify cases, then checks all 49 directed
-transcodes between the seven supported formats plus a prefixed transcode ring
+corpus, runs `imx identify` for BMP, FARBFELD, JPEG, QOI, PBM, PGM, PNG, and
+PPM fixtures, runs prefixed identify cases for the same eight formats, runs
+additional high-depth PPM and PNG identify cases, then checks directed
+transcodes between the eight supported formats plus a prefixed transcode ring
 that exercises every supported prefix as input and output. It also checks
 plain and prefixed nearest-neighbor resize for every supported format. It runs
 plain and prefixed nearest-neighbor resize-fit for every supported format. It
@@ -396,8 +427,8 @@ accept or clamp.
 - No full ImageMagick command parser.
 - No `magick` binary alias; the shipped command is `imx`.
 - No stdin/stdout streaming.
-- No prefixes beyond exact `FARBFELD:`, `JPEG:`, `QOI:`, `PBM:`, `PGM:`,
-  `PNG:`, and `PPM:`.
+- No prefixes beyond exact `BMP:`, `FARBFELD:`, `JPEG:`, `QOI:`, `PBM:`,
+  `PGM:`, `PNG:`, and `PPM:`.
 - No PAM/PFM support.
 - No delegates, profiles, color management, transform operations beyond the
   explicit nearest-neighbor resize commands and safe batch composition,
@@ -408,9 +439,10 @@ accept or clamp.
   JPEG/JPEG-LS, JPEG 2000, JPEG XL, progressive JPEG output, JPEG
   metadata/profile preservation beyond read-only Orientation, or JPEG
   color-management semantics.
-- No format beyond FARBFELD, JPEG, QOI, PBM, PGM, PNG, and PPM.
+- No format beyond BMP, FARBFELD, JPEG, QOI, PBM, PGM, PNG, and PPM, and no BMP
+  variants beyond uncompressed Windows 24-bit BGR/RGB and 32-bit BGRA/RGBA.
 - No Windows, crates.io, Homebrew/core, or package-manager distribution beyond
-  the `jskoiz/imx` Homebrew tap is claimed for this slice. v0.15.0 Linux x86_64
+  the `jskoiz/imx` Homebrew tap is claimed for this slice. v0.16.0 Linux x86_64
   and Linux arm64 archives require glibc 2.34 or newer; Linux arm64 support is
   claimed only for the published archive and tap block verified from release
   `SHA256SUMS` by Linux-only tap smoke. Release/archive smoke checks that

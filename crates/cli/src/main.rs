@@ -10,7 +10,7 @@ const MAX_INPUT_BYTES: u64 = MAX_PIXEL_BYTES as u64 + 1024 * 1024;
 
 fn usage() -> ! {
     eprintln!(
-        "usage:\n  imx --help\n  imx --version\n  imx identify [FORMAT:]<input.ff|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported formats: farbfeld (.ff, .farbfeld), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm)\nsupported prefixes: FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:"
+        "usage:\n  imx --help\n  imx --version\n  imx identify [FORMAT:]<input.bmp|input.ff|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported formats: bmp (.bmp), farbfeld (.ff, .farbfeld), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm)\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:"
     );
     process::exit(2);
 }
@@ -39,7 +39,7 @@ fn main() {
     match args.as_slice() {
         [_, flag] if flag == "--help" || flag == "-h" || flag == "help" => {
             println!(
-                "IMX Developer Preview\n\nusage:\n  imx identify [FORMAT:]<input.ff|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported transcodes: FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM, including deterministic same-format rewrites except lossy JPEG re-encoding\nsupported resize: nearest-neighbor exact dimensions and aspect-preserving fit for existing supported formats\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, no overwrite or collision renaming\nsupported prefixes: FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:\nunsupported: stdin/stdout, recursive directory walking, crop/rotate, delegates, color management, and formats beyond FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM"
+                "IMX Developer Preview\n\nusage:\n  imx identify [FORMAT:]<input.bmp|input.ff|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported transcodes: BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM, including deterministic same-format rewrites except lossy JPEG re-encoding\nsupported resize: nearest-neighbor exact dimensions and aspect-preserving fit for existing supported formats\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, no overwrite or collision renaming\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:\nunsupported: stdin/stdout, recursive directory walking, crop/rotate, delegates, color management, and formats beyond BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM"
             );
             process::exit(0);
         }
@@ -65,6 +65,7 @@ fn identify(input_path: &str) -> ! {
     let input = read(input_path.path);
     let format = detect_input_format(&input_path, &input).unwrap_or_else(|err| fail(err));
     let info = match format {
+        Format::Bmp => imx_codec_bmp::identify(&input),
         Format::Farbfeld => imx_codec_farbfeld::identify(&input),
         Format::Jpeg => imx_codec_jpeg::identify(&input),
         Format::Pbm => imx_codec_pnm::identify_pbm(&input),
@@ -214,6 +215,7 @@ fn batch_convert(args: &[String]) -> ! {
 
 fn decode_image(format: Format, input: &[u8]) -> Result<imx_core::Image, ImageError> {
     match format {
+        Format::Bmp => imx_codec_bmp::decode(input),
         Format::Farbfeld => imx_codec_farbfeld::decode(input),
         Format::Jpeg => imx_codec_jpeg::decode(input),
         Format::Pbm => imx_codec_pnm::decode_pbm(input),
@@ -226,6 +228,7 @@ fn decode_image(format: Format, input: &[u8]) -> Result<imx_core::Image, ImageEr
 
 fn encode_image(format: Format, image: &imx_core::Image) -> Result<Vec<u8>, ImageError> {
     match format {
+        Format::Bmp => imx_codec_bmp::encode(image),
         Format::Farbfeld => imx_codec_farbfeld::encode(image),
         Format::Jpeg => imx_codec_jpeg::encode(image),
         Format::Pbm => imx_codec_pnm::encode_pbm(image),
@@ -410,6 +413,7 @@ fn parse_cli_path(value: &str) -> Result<CliPath<'_>, String> {
 
 fn parse_format_prefix(prefix: &str) -> Option<Format> {
     match prefix {
+        "BMP" => Some(Format::Bmp),
         "FARBFELD" => Some(Format::Farbfeld),
         "JPEG" => Some(Format::Jpeg),
         "PBM" => Some(Format::Pbm),
@@ -585,6 +589,7 @@ fn validate_batch_output(input_path: &CliPath<'_>, output_path: &Path) {
 
 fn format_extension(format: Format) -> &'static str {
     match format {
+        Format::Bmp => "bmp",
         Format::Farbfeld => "ff",
         Format::Jpeg => "jpg",
         Format::Pbm => "pbm",
@@ -639,6 +644,11 @@ fn detect_unprefixed_input_format(path: &str, bytes: &[u8]) -> Result<Format, St
     {
         return Ok(Format::Farbfeld);
     }
+    if bytes.len() >= imx_codec_bmp::MAGIC.len()
+        && &bytes[..imx_codec_bmp::MAGIC.len()] == imx_codec_bmp::MAGIC
+    {
+        return Ok(Format::Bmp);
+    }
     if bytes.len() >= imx_codec_qoi::MAGIC.len()
         && bytes[..imx_codec_qoi::MAGIC.len()].eq_ignore_ascii_case(imx_codec_qoi::MAGIC)
     {
@@ -688,6 +698,7 @@ fn detect_path_format(path: &str) -> Result<Format, String> {
         .as_deref()
     {
         Some("ff") | Some("farbfeld") => Ok(Format::Farbfeld),
+        Some("bmp") => Ok(Format::Bmp),
         Some("jpg") | Some("jpeg") => Ok(Format::Jpeg),
         Some("pbm") => Ok(Format::Pbm),
         Some("pgm") => Ok(Format::Pgm),

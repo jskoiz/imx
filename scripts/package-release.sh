@@ -15,7 +15,7 @@ if [[ -z "$version" ]]; then
   echo "error: failed to read imx-preview package version" >&2
   exit 1
 fi
-for package in imx-cli imx-core imx-codec-farbfeld imx-codec-jpeg imx-codec-png imx-codec-pnm imx-codec-qoi; do
+for package in imx-cli imx-core imx-codec-bmp imx-codec-farbfeld imx-codec-jpeg imx-codec-png imx-codec-pnm imx-codec-qoi; do
   package_version_value="$(package_version "$package")"
   if [[ "$package_version_value" != "$version" ]]; then
     echo "error: package $package version $package_version_value does not match imx-preview $version" >&2
@@ -170,10 +170,14 @@ run_packaged_binary identify "$verify_dir/input.ppm" >/dev/null
 run_packaged_binary identify "$verify_dir/input16.ppm" >/dev/null
 run_packaged_binary identify "$verify_dir/input.pgm" >/dev/null
 run_packaged_binary identify "$verify_dir/input.pbm" >/dev/null
+run_packaged_binary identify "$fixture_dir/gradient-64.bmp" >/dev/null
+run_packaged_binary identify "BMP:$fixture_dir/intake-rgb24-3x2.bmp" | grep -Fx 'format=BMP width=3 height=2 channels=RGB depth=8' >/dev/null
+run_packaged_binary identify "BMP:$fixture_dir/intake-rgba32-2x2.bmp" | grep -Fx 'format=BMP width=2 height=2 channels=RGBA depth=8' >/dev/null
 run_packaged_binary identify "PPM:$verify_dir/input.ppm" >/dev/null
 run_packaged_binary identify "PPM:$verify_dir/input16.ppm" >/dev/null
 run_packaged_binary identify "PGM:$verify_dir/input.pgm" >/dev/null
 run_packaged_binary identify "PBM:$verify_dir/input.pbm" >/dev/null
+run_packaged_binary identify "BMP:$fixture_dir/gradient-64.bmp" >/dev/null
 run_packaged_binary "$verify_dir/input.ppm" "$verify_dir/output.ff"
 run_packaged_binary "$verify_dir/input16.ppm" "$verify_dir/output16.ff"
 run_packaged_binary identify "$verify_dir/output.ff" >/dev/null
@@ -183,6 +187,9 @@ run_packaged_binary identify "FARBFELD:$verify_dir/output16.ff" >/dev/null
 run_packaged_binary "$verify_dir/output.ff" "$verify_dir/output.qoi"
 run_packaged_binary identify "$verify_dir/output.qoi" >/dev/null
 run_packaged_binary identify "QOI:$verify_dir/output.qoi" >/dev/null
+run_packaged_binary "$verify_dir/input.ppm" "$verify_dir/output.bmp"
+run_packaged_binary identify "$verify_dir/output.bmp" >/dev/null
+run_packaged_binary identify "BMP:$verify_dir/output.bmp" >/dev/null
 run_packaged_binary "$verify_dir/input.ppm" "$verify_dir/output.jpg"
 run_packaged_binary identify "$verify_dir/output.jpg" >/dev/null
 run_packaged_binary identify "JPEG:$verify_dir/output.jpg" >/dev/null
@@ -236,7 +243,9 @@ run_packaged_binary "FARBFELD:$verify_dir/prefix-output.ff" "PBM:$verify_dir/pre
 run_packaged_binary "FARBFELD:$verify_dir/prefix-output.ff" "PGM:$verify_dir/prefix-output.pgm"
 run_packaged_binary "FARBFELD:$verify_dir/prefix-output.ff" "PNG:$verify_dir/prefix-output.png"
 run_packaged_binary "FARBFELD:$verify_dir/prefix-output.ff" "PPM:$verify_dir/prefix-output.ppm"
+run_packaged_binary "FARBFELD:$verify_dir/prefix-output.ff" "BMP:$verify_dir/prefix-output.bmp"
 run_packaged_binary resize 17x11 "FARBFELD:$fixture_dir/gradient-64.ff" "FARBFELD:$verify_dir/resized.ff"
+run_packaged_binary resize 17x11 "BMP:$fixture_dir/gradient-64.bmp" "BMP:$verify_dir/resized.bmp"
 run_packaged_binary resize 17x11 "JPEG:$fixture_dir/gradient-64.jpg" "JPEG:$verify_dir/resized.jpg"
 run_packaged_binary resize 17x11 "QOI:$fixture_dir/gradient-64.qoi" "QOI:$verify_dir/resized.qoi"
 run_packaged_binary resize 17x11 "PBM:$fixture_dir/gradient-64.pbm" "PBM:$verify_dir/resized.pbm"
@@ -244,6 +253,7 @@ run_packaged_binary resize 17x11 "PGM:$fixture_dir/gradient-64.pgm" "PGM:$verify
 run_packaged_binary resize 17x11 "PNG:$fixture_dir/gradient-64.png" "PNG:$verify_dir/resized.png"
 run_packaged_binary resize 17x11 "PPM:$fixture_dir/gradient-64.ppm" "PPM:$verify_dir/resized.ppm"
 run_packaged_binary identify "FARBFELD:$verify_dir/resized.ff" | grep -F 'format=FARBFELD width=17 height=11' >/dev/null
+run_packaged_binary identify "BMP:$verify_dir/resized.bmp" | grep -F 'format=BMP width=17 height=11' >/dev/null
 run_packaged_binary identify "JPEG:$verify_dir/resized.jpg" | grep -F 'format=JPEG width=17 height=11' >/dev/null
 run_packaged_binary identify "QOI:$verify_dir/resized.qoi" | grep -F 'format=QOI width=17 height=11' >/dev/null
 run_packaged_binary identify "PBM:$verify_dir/resized.pbm" | grep -F 'format=PBM width=17 height=11' >/dev/null
@@ -251,6 +261,7 @@ run_packaged_binary identify "PGM:$verify_dir/resized.pgm" | grep -F 'format=PGM
 run_packaged_binary identify "PNG:$verify_dir/resized.png" | grep -F 'format=PNG width=17 height=11' >/dev/null
 run_packaged_binary identify "PPM:$verify_dir/resized.ppm" | grep -F 'format=PPM width=17 height=11' >/dev/null
 run_packaged_binary resize-fit 5x5 "FARBFELD:$verify_dir/output.ff" "FARBFELD:$verify_dir/fit.ff"
+run_packaged_binary resize-fit 5x5 "BMP:$verify_dir/output.bmp" "BMP:$verify_dir/fit.bmp"
 run_packaged_binary resize-fit 5x5 "JPEG:$verify_dir/output.jpg" "JPEG:$verify_dir/fit.jpg"
 run_packaged_binary resize-fit 5x5 "QOI:$verify_dir/output.qoi" "QOI:$verify_dir/fit.qoi"
 run_packaged_binary resize-fit 5x5 "PBM:$verify_dir/input.pbm" "PBM:$verify_dir/fit.pbm"
@@ -258,6 +269,7 @@ run_packaged_binary resize-fit 5x5 "PGM:$verify_dir/input.pgm" "PGM:$verify_dir/
 run_packaged_binary resize-fit 5x5 "PNG:$verify_dir/output.png" "PNG:$verify_dir/fit.png"
 run_packaged_binary resize-fit 5x5 "PPM:$verify_dir/input.ppm" "PPM:$verify_dir/fit.ppm"
 run_packaged_binary identify "FARBFELD:$verify_dir/fit.ff" | grep -F 'format=FARBFELD width=5 height=3' >/dev/null
+run_packaged_binary identify "BMP:$verify_dir/fit.bmp" | grep -F 'format=BMP width=5 height=3' >/dev/null
 run_packaged_binary identify "JPEG:$verify_dir/fit.jpg" | grep -F 'format=JPEG width=5 height=3' >/dev/null
 run_packaged_binary identify "QOI:$verify_dir/fit.qoi" | grep -F 'format=QOI width=5 height=3' >/dev/null
 run_packaged_binary identify "PBM:$verify_dir/fit.pbm" | grep -F 'format=PBM width=5 height=3' >/dev/null
@@ -270,7 +282,12 @@ mkdir -p "$verify_dir/batch"
 run_packaged_binary batch-convert --to PPM --output-dir "$verify_dir/batch" --resize-fit 5x5 "PPM:$verify_dir/batch-ppm.ppm" "PGM:$verify_dir/batch-pgm.pgm"
 run_packaged_binary identify "PPM:$verify_dir/batch/batch-ppm.ppm" | grep -F 'format=PPM width=5 height=3' >/dev/null
 run_packaged_binary identify "PPM:$verify_dir/batch/batch-pgm.ppm" | grep -F 'format=PPM width=5 height=3' >/dev/null
+mkdir -p "$verify_dir/batch-bmp"
+run_packaged_binary batch-convert --to BMP --output-dir "$verify_dir/batch-bmp" --resize-fit 5x5 "PPM:$verify_dir/batch-ppm.ppm" "PGM:$verify_dir/batch-pgm.pgm"
+run_packaged_binary identify "BMP:$verify_dir/batch-bmp/batch-ppm.bmp" | grep -F 'format=BMP width=5 height=3' >/dev/null
+run_packaged_binary identify "BMP:$verify_dir/batch-bmp/batch-pgm.bmp" | grep -F 'format=BMP width=5 height=3' >/dev/null
 run_packaged_binary "$verify_dir/output.ff" "$verify_dir/rewrite.ff"
+run_packaged_binary "$verify_dir/output.bmp" "$verify_dir/rewrite.bmp"
 run_packaged_binary "$verify_dir/output.jpg" "$verify_dir/rewrite.jpg"
 run_packaged_binary "$verify_dir/output.qoi" "$verify_dir/rewrite.qoi"
 run_packaged_binary "$verify_dir/input.pbm" "$verify_dir/rewrite.pbm"
@@ -278,6 +295,7 @@ run_packaged_binary "$verify_dir/input.pgm" "$verify_dir/rewrite.pgm"
 run_packaged_binary "$verify_dir/output.png" "$verify_dir/rewrite.png"
 run_packaged_binary "$verify_dir/input.ppm" "$verify_dir/rewrite.ppm"
 run_packaged_binary identify "$verify_dir/rewrite.ff" >/dev/null
+run_packaged_binary identify "$verify_dir/rewrite.bmp" >/dev/null
 run_packaged_binary identify "$verify_dir/rewrite.jpg" >/dev/null
 run_packaged_binary identify "$verify_dir/rewrite.qoi" >/dev/null
 run_packaged_binary identify "$verify_dir/rewrite.pbm" >/dev/null
@@ -290,6 +308,7 @@ run_packaged_binary identify "PBM:$verify_dir/prefix-output.pbm" >/dev/null
 run_packaged_binary identify "PGM:$verify_dir/prefix-output.pgm" >/dev/null
 run_packaged_binary identify "PNG:$verify_dir/prefix-output.png" >/dev/null
 run_packaged_binary identify "PPM:$verify_dir/prefix-output.ppm" >/dev/null
+run_packaged_binary identify "BMP:$verify_dir/prefix-output.bmp" >/dev/null
 
 if command -v shasum >/dev/null 2>&1; then
   (cd "$artifact_dir" && shasum -a 256 "$archive_name" >SHA256SUMS)

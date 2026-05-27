@@ -26,9 +26,11 @@ cargo run -p imx-cli --bin imx-generate-fixtures -- "$fixture_dir" >/dev/null
 "$imx" "$fixture_dir/pbm-threshold-4x1.ff" "$fixture_dir/pbm-threshold-4x1.pgm"
 "$imx" "$fixture_dir/pbm-threshold-4x1.ff" "$fixture_dir/pbm-threshold-4x1.png"
 "$imx" "$fixture_dir/pbm-threshold-4x1.ff" "$fixture_dir/pbm-threshold-4x1.ppm"
+"$imx" "$fixture_dir/pbm-threshold-4x1.ff" "$fixture_dir/pbm-threshold-4x1.bmp"
 "$imx" "$fixture_dir/gradient-64.ppm" "$fixture_dir/jpeg-source-64.ff"
 "$imx" "$fixture_dir/gradient-64.ppm" "$fixture_dir/jpeg-source-64.qoi"
 "$imx" "$fixture_dir/gradient-64.ppm" "$fixture_dir/jpeg-source-64.png"
+"$imx" "$fixture_dir/gradient-64.ppm" "$fixture_dir/jpeg-source-64.bmp"
 
 results="$out_dir/results.jsonl"
 jpeg_metrics="$out_dir/jpeg-metrics.jsonl"
@@ -36,10 +38,11 @@ summary="$out_dir/summary.json"
 : >"$results"
 : >"$jpeg_metrics"
 
-formats=(farbfeld jpeg qoi pbm pgm png ppm)
+formats=(bmp farbfeld jpeg qoi pbm pgm png ppm)
 
 format_label() {
   case "$1" in
+    bmp) echo "BMP" ;;
     farbfeld) echo "FARBFELD" ;;
     jpeg) echo "JPEG" ;;
     qoi) echo "QOI" ;;
@@ -53,6 +56,7 @@ format_label() {
 
 format_ext() {
   case "$1" in
+    bmp) echo "bmp" ;;
     farbfeld) echo "ff" ;;
     jpeg) echo "jpg" ;;
     qoi) echo "qoi" ;;
@@ -66,6 +70,7 @@ format_ext() {
 
 fixture_path() {
   case "$1" in
+    bmp) echo "$fixture_dir/gradient-64.bmp" ;;
     farbfeld) echo "$fixture_dir/gradient-64.ff" ;;
     jpeg) echo "$fixture_dir/gradient-64.jpg" ;;
     qoi) echo "$fixture_dir/gradient-64.qoi" ;;
@@ -91,6 +96,7 @@ fixture_path_for_case() {
   if [[ "$dst" == "pbm" && "$src" != "pbm" ]]; then
     case "$src" in
       farbfeld) echo "$fixture_dir/pbm-threshold-4x1.ff" ;;
+      bmp) echo "$fixture_dir/pbm-threshold-4x1.bmp" ;;
       jpeg) echo "$fixture_dir/pbm-threshold-4x1.jpg" ;;
       qoi) echo "$fixture_dir/pbm-threshold-4x1.qoi" ;;
       pgm) echo "$fixture_dir/pbm-threshold-4x1.pgm" ;;
@@ -103,6 +109,7 @@ fixture_path_for_case() {
   if [[ "$dst" == "jpeg" ]]; then
     case "$src" in
       farbfeld) echo "$fixture_dir/jpeg-source-64.ff" ;;
+      bmp) echo "$fixture_dir/jpeg-source-64.bmp" ;;
       qoi) echo "$fixture_dir/jpeg-source-64.qoi" ;;
       png) echo "$fixture_dir/jpeg-source-64.png" ;;
       *) fixture_path "$src" ;;
@@ -435,7 +442,7 @@ run_transcode_case() {
   imx_raw="$out_dir/$case_id.imx.rgba"
   oracle_raw="$out_dir/$case_id.oracle.rgba"
   raw_format="RGBA"
-  if [[ "$src" == "jpeg" || "$dst" == "jpeg" ]]; then
+  if [[ "$src" == "jpeg" || "$dst" == "jpeg" || "$src" == "bmp" || "$dst" == "bmp" ]]; then
     imx_raw="$out_dir/$case_id.imx.rgb"
     oracle_raw="$out_dir/$case_id.oracle.rgb"
     raw_format="RGB"
@@ -522,7 +529,7 @@ run_resize_case() {
   imx_raw="$out_dir/$case_id.imx.rgba"
   oracle_raw="$out_dir/$case_id.oracle.rgba"
   raw_format="RGBA"
-  if [[ "$fmt" == "jpeg" ]]; then
+    if [[ "$fmt" == "jpeg" || "$fmt" == "bmp" ]]; then
     imx_raw="$out_dir/$case_id.imx.rgb"
     oracle_raw="$out_dir/$case_id.oracle.rgb"
     raw_format="RGB"
@@ -612,7 +619,7 @@ run_batch_convert_case() {
     imx_raw="$out_dir/batch-convert.$src.$dst.imx.rgba"
     oracle_raw="$out_dir/batch-convert.$src.$dst.oracle.rgba"
     raw_format="RGBA"
-    if [[ "$src" == "jpeg" || "$dst" == "jpeg" ]]; then
+    if [[ "$src" == "jpeg" || "$dst" == "jpeg" || "$src" == "bmp" || "$dst" == "bmp" ]]; then
       imx_raw="$out_dir/batch-convert.$src.$dst.imx.rgb"
       oracle_raw="$out_dir/batch-convert.$src.$dst.oracle.rgb"
       raw_format="RGB"
@@ -863,10 +870,10 @@ run_ppm16_transcode_case ppm
 run_png16_transcode_case farbfeld
 run_png16_transcode_case ppm
 
-for prefixed_pair in farbfeld:jpeg jpeg:qoi qoi:png png:ppm ppm:pgm pgm:pbm pbm:farbfeld; do
+for prefixed_pair in bmp:farbfeld farbfeld:jpeg jpeg:qoi qoi:png png:ppm ppm:pgm pgm:pbm pbm:bmp; do
   run_transcode_case "${prefixed_pair%%:*}" "${prefixed_pair##*:}" prefixed
 done
-for prefixed_fmt in farbfeld jpeg qoi pbm pgm png ppm; do
+for prefixed_fmt in bmp farbfeld jpeg qoi pbm pgm png ppm; do
   run_resize_case "$prefixed_fmt" prefixed
   run_resize_case "$prefixed_fmt" prefixed fit
 done
@@ -889,10 +896,10 @@ cat >"$summary" <<EOF
   "fixture_manifest": "fixtures/manifest.json",
   "results": "results.jsonl",
   "jpeg_metrics": "jpeg-metrics.jsonl",
-  "identify_cases": 21,
-  "transcode_cases": 63,
-  "resize_cases": 14,
-  "resize_fit_cases": 14,
+  "identify_cases": 23,
+  "transcode_cases": 79,
+  "resize_cases": 16,
+  "resize_fit_cases": 16,
   "batch_convert_runs": $batch_convert_runs,
   "batch_convert_output_cases": $batch_convert_output_cases,
   "batch_convert_safety_cases": $batch_convert_safety_cases,

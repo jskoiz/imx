@@ -1776,6 +1776,161 @@ fn standalone_batch_convert_resize_fit_matches_imagemagick_decoded_pixels() {
 }
 
 #[test]
+fn standalone_bmp_transcode_resize_and_batch_match_imagemagick_decoded_pixels() {
+    let Some(magick) = require_or_skip(magick_command(), "ImageMagick oracle") else {
+        return;
+    };
+    let Some(standalone) = require_or_skip(standalone_imx_command(), "standalone imx binary")
+    else {
+        return;
+    };
+    let dir = temp_dir("bmp_oracle");
+    let input = dir.join("source.bmp");
+    let imx_ppm = dir.join("imx.ppm");
+    let oracle_ppm = dir.join("oracle.ppm");
+    let imx_resized = dir.join("imx-resized.bmp");
+    let oracle_resized = dir.join("oracle-resized.bmp");
+    let batch_dir = dir.join("batch");
+    fs::create_dir_all(&batch_dir).unwrap();
+    let imx_batch = batch_dir.join("source.bmp");
+    let oracle_batch = dir.join("oracle-batch.bmp");
+    let image = rgb8_gradient(9, 7);
+    fs::write(&input, imx_codec_bmp::encode(&image).unwrap()).unwrap();
+
+    let imx_transcode = run_magick(
+        &standalone,
+        &[
+            format!("BMP:{}", input.display()),
+            format!("PPM:{}", imx_ppm.display()),
+        ],
+    );
+    assert!(
+        imx_transcode.status.success(),
+        "standalone BMP->PPM failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&imx_transcode.stdout),
+        String::from_utf8_lossy(&imx_transcode.stderr)
+    );
+    let oracle_transcode = run_magick(
+        &magick,
+        &[
+            format!("BMP:{}", input.display()),
+            format!("PPM:{}", oracle_ppm.display()),
+        ],
+    );
+    if !assert_success_or_skip(&oracle_transcode, "ImageMagick BMP->PPM") {
+        return;
+    }
+
+    let imx_resize = run_magick(
+        &standalone,
+        &[
+            "resize".to_string(),
+            "5x3".to_string(),
+            format!("BMP:{}", input.display()),
+            format!("BMP:{}", imx_resized.display()),
+        ],
+    );
+    assert!(
+        imx_resize.status.success(),
+        "standalone BMP resize failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&imx_resize.stdout),
+        String::from_utf8_lossy(&imx_resize.stderr)
+    );
+    let oracle_resize = run_magick(
+        &magick,
+        &[
+            format!("BMP:{}", input.display()),
+            "-filter".to_string(),
+            "Point".to_string(),
+            "-resize".to_string(),
+            "5x3!".to_string(),
+            format!("BMP:{}", oracle_resized.display()),
+        ],
+    );
+    if !assert_success_or_skip(&oracle_resize, "ImageMagick BMP resize") {
+        return;
+    }
+
+    let imx_batch_result = run_magick(
+        &standalone,
+        &[
+            "batch-convert".to_string(),
+            "--to".to_string(),
+            "BMP".to_string(),
+            "--output-dir".to_string(),
+            batch_dir.display().to_string(),
+            "--resize-fit".to_string(),
+            "5x5".to_string(),
+            format!("BMP:{}", input.display()),
+        ],
+    );
+    assert!(
+        imx_batch_result.status.success(),
+        "standalone BMP batch-convert failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&imx_batch_result.stdout),
+        String::from_utf8_lossy(&imx_batch_result.stderr)
+    );
+    let oracle_batch_result = run_magick(
+        &magick,
+        &[
+            format!("BMP:{}", input.display()),
+            "-filter".to_string(),
+            "Point".to_string(),
+            "-resize".to_string(),
+            "5x5".to_string(),
+            format!("BMP:{}", oracle_batch.display()),
+        ],
+    );
+    if !assert_success_or_skip(&oracle_batch_result, "ImageMagick BMP batch oracle") {
+        return;
+    }
+
+    for (label, imx_output, oracle_output) in [
+        ("BMP transcode", imx_ppm.as_path(), oracle_ppm.as_path()),
+        (
+            "BMP resize",
+            imx_resized.as_path(),
+            oracle_resized.as_path(),
+        ),
+        ("BMP batch", imx_batch.as_path(), oracle_batch.as_path()),
+    ] {
+        let imx_raw = dir.join(format!("{}.imx.rgb", label.replace(' ', "-")));
+        let oracle_raw = dir.join(format!("{}.oracle.rgb", label.replace(' ', "-")));
+        let imx_decode = run_magick(
+            &magick,
+            &[
+                imx_output.display().to_string(),
+                "-depth".to_string(),
+                "8".to_string(),
+                format!("RGB:{}", imx_raw.display()),
+            ],
+        );
+        let oracle_decode = run_magick(
+            &magick,
+            &[
+                oracle_output.display().to_string(),
+                "-depth".to_string(),
+                "8".to_string(),
+                format!("RGB:{}", oracle_raw.display()),
+            ],
+        );
+        if !assert_success_or_skip(&imx_decode, &format!("ImageMagick decode IMX {label}"))
+            || !assert_success_or_skip(
+                &oracle_decode,
+                &format!("ImageMagick decode oracle {label}"),
+            )
+        {
+            return;
+        }
+        assert_eq!(
+            fs::read(imx_raw).unwrap(),
+            fs::read(oracle_raw).unwrap(),
+            "{label} decoded pixels differ"
+        );
+    }
+}
+
+#[test]
 fn supported_identify_fields_match_imagemagick_oracle_when_available() {
     let Some(magick) = require_or_skip(magick_command(), "ImageMagick oracle") else {
         return;
@@ -1788,6 +1943,38 @@ fn supported_identify_fields_match_imagemagick_oracle_when_available() {
     let input = dir.join("input.ff");
     let image = rgba16be_fixture();
     fs::write(&input, imx_codec_farbfeld::encode(&image).unwrap()).unwrap();
+
+    let bmp = dir.join("input.bmp");
+    fs::write(
+        &bmp,
+        imx_codec_bmp::encode(&image.to_rgb8().unwrap()).unwrap(),
+    )
+    .unwrap();
+    let result = run_magick(
+        &magick,
+        &[
+            "identify".to_string(),
+            "-format".to_string(),
+            "%m %w %h %[colorspace] %[depth]".to_string(),
+            bmp.display().to_string(),
+        ],
+    );
+    if !assert_success_or_skip(&result, "ImageMagick BMP identify") {
+        return;
+    }
+    let stdout = String::from_utf8_lossy(&result.stdout);
+    assert!(stdout.contains("BMP"));
+    assert!(stdout.contains("2 2"));
+
+    let standalone_result = run_magick(
+        &standalone,
+        &["identify".to_string(), format!("BMP:{}", bmp.display())],
+    );
+    assert!(standalone_result.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&standalone_result.stdout).trim(),
+        "format=BMP width=2 height=2 channels=RGB depth=8"
+    );
 
     let result = run_magick(
         &magick,

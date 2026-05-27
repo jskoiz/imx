@@ -73,6 +73,7 @@ fn jpeg_with_exif_orientation(jpeg: &[u8], orientation: u16) -> Vec<u8> {
 
 fn write_supported_fixtures(dir: &Path) -> Vec<(&'static str, PathBuf, &'static str)> {
     let ff = dir.join("input.ff");
+    let bmp = dir.join("input.bmp");
     let jpeg = dir.join("input.jpg");
     let qoi = dir.join("input.qoi");
     let pbm = dir.join("input.pbm");
@@ -91,6 +92,7 @@ fn write_supported_fixtures(dir: &Path) -> Vec<(&'static str, PathBuf, &'static 
     .unwrap();
 
     fs::write(&ff, imx_codec_farbfeld::encode(&rgba16).unwrap()).unwrap();
+    fs::write(&bmp, imx_codec_bmp::encode(&rgba16).unwrap()).unwrap();
     fs::write(
         &jpeg,
         imx_codec_jpeg::encode(
@@ -135,6 +137,11 @@ fn write_supported_fixtures(dir: &Path) -> Vec<(&'static str, PathBuf, &'static 
 
     vec![
         (
+            "BMP",
+            bmp,
+            "format=BMP width=2 height=1 channels=RGBA depth=8",
+        ),
+        (
             "FARBFELD",
             ff,
             "format=FARBFELD width=2 height=1 channels=RGBA depth=16",
@@ -176,6 +183,7 @@ fn write_supported_fixtures(dir: &Path) -> Vec<(&'static str, PathBuf, &'static 
 fn identifies_farbfeld_qoi_pbm_pgm_and_ppm() {
     let dir = temp_dir("identify");
     let ff = dir.join("input.ff");
+    let bmp = dir.join("input.bmp");
     let jpeg = dir.join("input.jpg");
     let qoi = dir.join("input.qoi");
     let pbm = dir.join("input.pbm");
@@ -190,6 +198,7 @@ fn identifies_farbfeld_qoi_pbm_pgm_and_ppm() {
     )
     .unwrap();
     fs::write(&ff, imx_codec_farbfeld::encode(&image).unwrap()).unwrap();
+    fs::write(&bmp, imx_codec_bmp::encode(&image).unwrap()).unwrap();
     fs::write(
         &jpeg,
         imx_codec_jpeg::encode(&Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap())
@@ -228,6 +237,16 @@ fn identifies_farbfeld_qoi_pbm_pgm_and_ppm() {
     assert_eq!(
         String::from_utf8(output.stdout).unwrap().trim(),
         "format=FARBFELD width=1 height=1 channels=RGBA depth=16"
+    );
+
+    let output = Command::new(imx())
+        .args(["identify", bmp.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap().trim(),
+        "format=BMP width=1 height=1 channels=RGBA depth=8"
     );
 
     let output = Command::new(imx())
@@ -1113,6 +1132,11 @@ fn batch_convert_supports_each_output_format_from_ppm() {
 
     for (format, extension, expected_identify) in [
         (
+            "BMP",
+            "bmp",
+            "format=BMP width=2 height=1 channels=RGB depth=8",
+        ),
+        (
             "FARBFELD",
             "ff",
             "format=FARBFELD width=2 height=1 channels=RGBA depth=16",
@@ -1945,6 +1969,7 @@ fn rewrites_same_format_outputs_for_supported_formats() {
     .unwrap();
 
     let ff = dir.join("input.ff");
+    let bmp = dir.join("input.bmp");
     let jpeg = dir.join("input.jpg");
     let qoi = dir.join("input.qoi");
     let pbm = dir.join("input.pbm");
@@ -1953,6 +1978,7 @@ fn rewrites_same_format_outputs_for_supported_formats() {
     let ppm = dir.join("input.ppm");
 
     fs::write(&ff, imx_codec_farbfeld::encode(&image).unwrap()).unwrap();
+    fs::write(&bmp, imx_codec_bmp::encode(&image).unwrap()).unwrap();
     fs::write(
         &jpeg,
         imx_codec_jpeg::encode(
@@ -1993,6 +2019,12 @@ fn rewrites_same_format_outputs_for_supported_formats() {
     .unwrap();
 
     for (name, input, output_name, expected_identify) in [
+        (
+            "bmp",
+            bmp.as_path(),
+            "output.bmp",
+            "format=BMP width=2 height=1 channels=RGBA depth=8",
+        ),
         (
             "farbfeld",
             ff.as_path(),
@@ -2076,6 +2108,8 @@ fn help_and_version_are_available() {
             assert!(stdout.contains("imx batch-convert --to <FORMAT> --output-dir <dir>"));
             assert!(stdout.contains("nearest-neighbor exact dimensions and aspect-preserving fit"));
             assert!(stdout.contains("no overwrite or collision renaming"));
+            assert!(stdout.contains(".bmp"));
+            assert!(stdout.contains("BMP:"));
             assert!(stdout.contains(".jpg"));
             assert!(stdout.contains(".jpeg"));
             assert!(stdout.contains("JPEG:"));
@@ -2408,6 +2442,7 @@ fn all_supported_prefixes_reject_mismatched_inputs_and_outputs() {
     let dir = temp_dir("prefix_mismatch_matrix");
     let fixtures = write_supported_fixtures(&dir);
     let output_extensions = [
+        ("BMP", "bmp"),
         ("FARBFELD", "ff"),
         ("JPEG", "jpg"),
         ("QOI", "qoi"),
@@ -2496,7 +2531,7 @@ fn lowercase_mixed_case_and_alias_prefixes_do_not_expand_prefix_surface() {
     let image = Image::new(8, 8, PixelFormat::Rgb8, vec![0x80; 8 * 8 * 3]).unwrap();
     fs::write(&input, imx_codec_jpeg::encode(&image).unwrap()).unwrap();
 
-    for alias in ["JPG", "FF", "TIFF"] {
+    for alias in ["BM", "JPG", "FF", "TIFF"] {
         let output = Command::new(imx())
             .args(["identify", prefixed(alias, &input).as_str()])
             .output()
@@ -2506,7 +2541,7 @@ fn lowercase_mixed_case_and_alias_prefixes_do_not_expand_prefix_surface() {
             .contains(&format!("unsupported format prefix: {alias}")));
     }
 
-    for alias in ["jpeg", "Jpeg", "jpg", "ff"] {
+    for alias in ["bmp", "Bmp", "jpeg", "Jpeg", "jpg", "ff"] {
         let arg = format!("{alias}:{}", input.to_string_lossy());
         let output = Command::new(imx())
             .args(["identify", arg.as_str()])

@@ -35,6 +35,9 @@ fn decode_fuzz_smoke_does_not_panic_or_allocate_unboundedly() {
         let png = std::panic::catch_unwind(|| imx_codec_png::decode(&bytes));
         assert!(png.is_ok(), "PNG decode panicked at len {len}");
 
+        let bmp = std::panic::catch_unwind(|| imx_codec_bmp::decode(&bytes));
+        assert!(bmp.is_ok(), "BMP decode panicked at len {len}");
+
         let jpeg = std::panic::catch_unwind(|| imx_codec_jpeg::decode(&bytes));
         assert!(jpeg.is_ok(), "JPEG decode panicked at len {len}");
     }
@@ -95,6 +98,14 @@ fn structured_truncation_fuzz_smoke_does_not_panic() {
     for len in 0..png.len() {
         let result = std::panic::catch_unwind(|| imx_codec_png::decode(&png[..len]));
         assert!(result.is_ok(), "PNG truncation panicked at len {len}");
+    }
+
+    let bmp_image =
+        imx_core::Image::new(3, 2, imx_core::PixelFormat::Rgba8, vec![0x7f; 3 * 2 * 4]).unwrap();
+    let bmp = imx_codec_bmp::encode(&bmp_image).unwrap();
+    for len in 0..bmp.len() {
+        let result = std::panic::catch_unwind(|| imx_codec_bmp::decode(&bmp[..len]));
+        assert!(result.is_ok(), "BMP truncation panicked at len {len}");
     }
 
     let jpeg_image =

@@ -25,6 +25,7 @@ fn png_fixture(
 
 fn identify(format: Format, input: &[u8]) -> Result<Identify, ImageError> {
     match format {
+        Format::Bmp => imx_codec_bmp::identify(input),
         Format::Farbfeld => imx_codec_farbfeld::identify(input),
         Format::Jpeg => imx_codec_jpeg::identify(input),
         Format::Pbm => imx_codec_pnm::identify_pbm(input),
@@ -37,6 +38,7 @@ fn identify(format: Format, input: &[u8]) -> Result<Identify, ImageError> {
 
 fn decode(format: Format, input: &[u8]) -> Result<Image, ImageError> {
     match format {
+        Format::Bmp => imx_codec_bmp::decode(input),
         Format::Farbfeld => imx_codec_farbfeld::decode(input),
         Format::Jpeg => imx_codec_jpeg::decode(input),
         Format::Pbm => imx_codec_pnm::decode_pbm(input),
@@ -85,8 +87,42 @@ fn representative_intake_corpus_identifies_and_decodes() {
         .unwrap(),
     )
     .unwrap();
+    let bmp_rgb24 = imx_codec_bmp::encode(
+        &Image::new(
+            3,
+            2,
+            PixelFormat::Rgb8,
+            vec![
+                255, 0, 0, 0, 255, 0, 0, 0, 255, 12, 34, 56, 78, 90, 123, 222, 111, 3,
+            ],
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let bmp_rgba32 = imx_codec_bmp::encode(
+        &Image::new(
+            2,
+            2,
+            PixelFormat::Rgba8,
+            vec![255, 0, 0, 255, 0, 255, 0, 128, 0, 0, 255, 64, 12, 34, 56, 0],
+        )
+        .unwrap(),
+    )
+    .unwrap();
 
     let cases = vec![
+        (
+            "bmp-rgb24",
+            Format::Bmp,
+            bmp_rgb24,
+            "format=BMP width=3 height=2 channels=RGB depth=8",
+        ),
+        (
+            "bmp-rgba32",
+            Format::Bmp,
+            bmp_rgba32,
+            "format=BMP width=2 height=2 channels=RGBA depth=8",
+        ),
         (
             "farbfeld-rgba16",
             Format::Farbfeld,
@@ -170,8 +206,17 @@ fn adversarial_intake_corpus_fails_with_clear_errors() {
     truncated_qoi.extend_from_slice(&1_u32.to_be_bytes());
     truncated_qoi.extend_from_slice(&1_u32.to_be_bytes());
     truncated_qoi.extend_from_slice(&[3, imx_codec_qoi::QOI_SRGB, imx_codec_qoi::QOI_OP_RGB, 1]);
+    let mut bad_bmp =
+        imx_codec_bmp::encode(&Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap())
+            .unwrap();
+    bad_bmp[30..34].copy_from_slice(&1_u32.to_le_bytes());
 
     let cases = vec![
+        (
+            "bmp-unsupported-compression",
+            decode(Format::Bmp, &bad_bmp).unwrap_err(),
+            "BMP compression is not supported",
+        ),
         (
             "farbfeld-invalid-magic",
             decode(Format::Farbfeld, &bad_farbfeld).unwrap_err(),
@@ -261,6 +306,15 @@ fn resource_boundaries_are_checked_without_large_allocations() {
             .concat()
         ),
         Err(ImageError::ImageTooLarge { .. })
+    ));
+    let mut huge_bmp =
+        imx_codec_bmp::encode(&Image::new(1, 1, PixelFormat::Rgb8, vec![0, 0, 0]).unwrap())
+            .unwrap();
+    huge_bmp[18..22].copy_from_slice(&100_000_i32.to_le_bytes());
+    huge_bmp[22..26].copy_from_slice(&100_000_i32.to_le_bytes());
+    assert!(matches!(
+        imx_codec_bmp::decode(&huge_bmp),
+        Err(ImageError::ImageTooLarge { .. }) | Err(ImageError::UnexpectedEof { .. })
     ));
     assert!(matches!(
         imx_codec_pnm::decode_ppm_header(b"P6\n100000 100000\n255\n"),

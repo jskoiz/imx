@@ -7,7 +7,7 @@ cd "$root"
 corpus_root="${IMX_FUZZ_CORPUS:-$root/fuzz/corpus}"
 generated_dir="$root/target/fuzz-seed-fixtures"
 rm -rf "$generated_dir"
-mkdir -p "$corpus_root/farbfeld_decode" "$corpus_root/qoi_decode" "$corpus_root/pnm_decode" "$corpus_root/png_decode" "$corpus_root/jpeg_decode"
+mkdir -p "$corpus_root/farbfeld_decode" "$corpus_root/qoi_decode" "$corpus_root/pnm_decode" "$corpus_root/png_decode" "$corpus_root/bmp_decode" "$corpus_root/jpeg_decode"
 
 cargo run -p imx-cli --bin imx-generate-fixtures -- "$generated_dir" >/dev/null
 
@@ -21,6 +21,9 @@ cp "$generated_dir/intake-qoi-rgb-linear-2x2.qoi" "$corpus_root/qoi_decode/intak
 cp "$generated_dir/gradient-64.png" "$corpus_root/png_decode/gradient-64.png"
 cp "$generated_dir/gradient-64-png16.png" "$corpus_root/png_decode/gradient-64-png16.png"
 cp "$generated_dir/intake-rgba16-1x1.png" "$corpus_root/png_decode/intake-rgba16-1x1.png"
+cp "$generated_dir/gradient-64.bmp" "$corpus_root/bmp_decode/gradient-64.bmp"
+cp "$generated_dir/intake-rgb24-3x2.bmp" "$corpus_root/bmp_decode/intake-rgb24-3x2.bmp"
+cp "$generated_dir/intake-rgba32-2x2.bmp" "$corpus_root/bmp_decode/intake-rgba32-2x2.bmp"
 cp "$generated_dir/gradient-64.jpg" "$corpus_root/jpeg_decode/gradient-64.jpg"
 cp "$generated_dir/gray-4x1.jpg" "$corpus_root/jpeg_decode/gray-4x1.jpg"
 cp "$generated_dir/progressive-rgb-4x3.jpg" "$corpus_root/jpeg_decode/progressive-rgb-4x3.jpg"
@@ -38,6 +41,9 @@ cp "$generated_dir/intake-pgm16-2x1.pgm" "$corpus_root/pnm_decode/intake-pgm16-2
 printf 'farbfeld' >"$corpus_root/farbfeld_decode/header-only.ff"
 printf 'qoif\x00\x00\x00\x01\x00\x00\x00\x01\x03\x00' >"$corpus_root/qoi_decode/header-only.qoi"
 printf '\x89PNG\r\n\x1a\n' >"$corpus_root/png_decode/signature-only.png"
+printf 'BM' >"$corpus_root/bmp_decode/magic-only.bmp"
+printf 'BM\x36\x00\x00\x00\x00\x00\x00\x00\x36\x00\x00\x00\x28\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x01\x00\x18\x00\x01\x00\x00\x00' >"$corpus_root/bmp_decode/compressed-truncated.bmp"
+printf 'BM\x36\x00\x00\x00\x00\x00\x00\x00\x36\x00\x00\x00\x28\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x01\x00\x08\x00\x00\x00\x00\x00' >"$corpus_root/bmp_decode/indexed-truncated.bmp"
 printf '\xff\xd8' >"$corpus_root/jpeg_decode/soi-only.jpg"
 printf '\xff\xd8\xff\xd9' >"$corpus_root/jpeg_decode/soi-eoi-only.jpg"
 printf '\xff\xd8\xff\xe0\x00\x01' >"$corpus_root/jpeg_decode/bad-app0-length.jpg"

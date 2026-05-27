@@ -9,6 +9,7 @@ fn hex_fixture(text: &str) -> Vec<u8> {
 #[test]
 fn decodes_checked_in_golden_fixture_files() {
     let farbfeld = hex_fixture(include_str!("fixtures/farbfeld-1x1-red-half-alpha.hex"));
+    let bmp = hex_fixture(include_str!("fixtures/bmp-2x2-rgb24-bottom-up.hex"));
     let qoi = hex_fixture(include_str!("fixtures/qoi-1x1-red-half-alpha.hex"));
     let pbm = hex_fixture(include_str!("fixtures/pbm-1x1-black.hex"));
     let ppm = hex_fixture(include_str!("fixtures/ppm-1x1-red.hex"));
@@ -17,6 +18,10 @@ fn decodes_checked_in_golden_fixture_files() {
     assert_eq!(
         imx_codec_farbfeld::decode(&farbfeld).unwrap().pixels(),
         &[0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00]
+    );
+    assert_eq!(
+        imx_codec_bmp::decode(&bmp).unwrap().pixels(),
+        &[255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255]
     );
     assert_eq!(
         imx_codec_qoi::decode(&qoi).unwrap().pixels,
@@ -123,8 +128,13 @@ fn identify_metadata_is_stable_for_supported_fields() {
     let gray = Image::new(1, 1, PixelFormat::Gray8, vec![0x80]).unwrap();
     let pgm = imx_codec_pnm::encode_pgm(&gray).unwrap();
     let png = imx_codec_png::encode(&image.to_rgba8().unwrap()).unwrap();
+    let bmp = imx_codec_bmp::encode(&image.to_rgb8().unwrap()).unwrap();
     let jpeg = imx_codec_jpeg::encode(&image.to_rgb8().unwrap()).unwrap();
 
+    assert_eq!(
+        imx_codec_bmp::identify(&bmp).unwrap().stable_line(),
+        "format=BMP width=1 height=1 channels=RGB depth=8"
+    );
     assert_eq!(
         imx_codec_farbfeld::identify(&ff).unwrap().stable_line(),
         "format=FARBFELD width=1 height=1 channels=RGBA depth=16"

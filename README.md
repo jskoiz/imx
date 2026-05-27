@@ -1,13 +1,13 @@
 # IMX Developer Preview
 
 IMX is a standalone Rust image tool built one ImageMagick-compatible slice at a
-time. The current published developer-preview version is `v0.15.0`: it supports
+time. The current published developer-preview version is `v0.16.0`: it supports
 deterministic identify, cross-format transcode, same-format rewrite, exact
 uppercase format-prefix workflows, bounded nearest-neighbor exact resize,
 aspect-preserving resize-fit, safe batch conversion, high-depth PPM, and a
-bounded PNG raster surface, plus bounded 8-bit baseline/progressive JPEG
-grayscale/RGB support, for FARBFELD, JPEG, QOI, PNG, and Netpbm PBM/PGM/PPM
-through the `imx` binary.
+bounded PNG raster surface, bounded uncompressed BMP, plus bounded 8-bit
+baseline/progressive JPEG grayscale/RGB support, for BMP, FARBFELD, JPEG, QOI,
+PNG, and Netpbm PBM/PGM/PPM through the `imx` binary.
 
 IMX is not an ImageMagick fork and does not link to MagickCore, MagickWand,
 delegates, modules, `policy.xml`, or ImageMagick's build system. ImageMagick is
@@ -68,9 +68,16 @@ collisions and existing outputs before writing, and does not add recursion,
 glob parsing, overwrite mode, rename suffixes, stdin/stdout, or parallel
 execution.
 
+The v0.16.0 release adds bounded uncompressed Windows BMP support for 24-bit
+BGR/RGB and 32-bit BGRA/RGBA rasters. It works through `.bmp` paths and exact
+`BMP:` prefixes for identify, transcode, resize, resize-fit, batch-convert,
+and deterministic same-format rewrites. It does not add indexed, RLE,
+bitfields, OS/2, color-table, high-depth BMP, or broader ImageMagick BMP
+semantics.
+
 ## Install
 
-Install the published v0.15.0 tap release:
+Install the published v0.16.0 tap release:
 
 ```sh
 brew tap jskoiz/imx
@@ -79,41 +86,41 @@ imx --version
 ```
 
 This uses the `jskoiz/homebrew-imx` tap formula generated from each published
-release's `SHA256SUMS`. For v0.15.0, tap support is limited to archive targets
-present in the current v0.15.0 release and verified by tap smoke. It is not a
+release's `SHA256SUMS`. For v0.16.0, tap support is limited to archive targets
+present in the current v0.16.0 release and verified by tap smoke. It is not a
 Homebrew/core formula. Published Linux archives require glibc 2.34 or newer.
 Release/archive smoke checks this by asserting that published Linux binaries do
-not reference `GLIBC_*` symbols newer than `GLIBC_2.34`; the v0.15.0 release
+not reference `GLIBC_*` symbols newer than `GLIBC_2.34`; the v0.16.0 release
 workflow verifies that ceiling from the published assets.
 
 Hosted GitHub Actions for the tap are Linux-only; macOS install proof must be
 run locally or manually after explicit approval.
 
-Install the published v0.15.0 release archive directly:
+Install the published v0.16.0 release archive directly:
 
 ```sh
-IMX_VERSION=v0.15.0
+IMX_VERSION=v0.16.0
 curl -fsSL "https://raw.githubusercontent.com/jskoiz/imx/${IMX_VERSION}/scripts/install.sh" | sh
 ```
 
 The installer verifies the published `SHA256SUMS`, installs `imx`, asserts the
 installed version, checks for glibc 2.34 or newer on Linux, and runs a small
-identify/transcode/resize/resize-fit/batch-convert smoke test. Hosted v0.15.0
+identify/transcode/resize/resize-fit/batch-convert smoke test. Hosted v0.16.0
 tag automation publishes Linux archives for:
 
-- `imx-preview-0.15.0-x86_64-unknown-linux-gnu.tar.gz`
-- `imx-preview-0.15.0-aarch64-unknown-linux-gnu.tar.gz`
+- `imx-preview-0.16.0-x86_64-unknown-linux-gnu.tar.gz`
+- `imx-preview-0.16.0-aarch64-unknown-linux-gnu.tar.gz`
 
-macOS v0.15.0 archives or tap blocks require recorded local/manual proof before
+macOS v0.16.0 archives or tap blocks require recorded local/manual proof before
 being claimed. No Windows, crates.io, Homebrew/core, or package-manager
-distribution beyond the `jskoiz/imx` tap is claimed. The v0.15.0 release URL is:
+distribution beyond the `jskoiz/imx` tap is claimed. The v0.16.0 release URL is:
 
 ```text
-https://github.com/jskoiz/imx/releases/tag/v0.15.0
+https://github.com/jskoiz/imx/releases/tag/v0.16.0
 ```
 
 The release-attached `imx.rb` is the formula source used to update the
-`jskoiz/homebrew-imx` tap from the published `SHA256SUMS`. For v0.15.0, Linux
+`jskoiz/homebrew-imx` tap from the published `SHA256SUMS`. For v0.16.0, Linux
 x86_64 and Linux arm64 tap blocks are generated from the release checksums and
 verified by Linux-only tap smoke.
 
@@ -134,20 +141,20 @@ checkout in CI.
 ```sh
 imx --help
 imx --version
-imx identify [FORMAT:]<input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>
-imx resize <width>x<height> [FORMAT:]<input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
-  [FORMAT:]<output.ff|output.farbfeld|output.jpg|output.jpeg|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
-imx resize-fit <width>x<height> [FORMAT:]<input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
-  [FORMAT:]<output.ff|output.farbfeld|output.jpg|output.jpeg|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
-imx batch-convert --to <FARBFELD|JPEG|QOI|PBM|PGM|PNG|PPM> --output-dir <dir> \
+imx identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>
+imx resize <width>x<height> [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
+  [FORMAT:]<output.bmp|output.ff|output.farbfeld|output.jpg|output.jpeg|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
+imx resize-fit <width>x<height> [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
+  [FORMAT:]<output.bmp|output.ff|output.farbfeld|output.jpg|output.jpeg|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
+imx batch-convert --to <BMP|FARBFELD|JPEG|QOI|PBM|PGM|PNG|PPM> --output-dir <dir> \
   [--resize <width>x<height>|--resize-fit <width>x<height>] \
-  [FORMAT:]<input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>...
-imx [FORMAT:]<input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
-  [FORMAT:]<output.ff|output.farbfeld|output.jpg|output.jpeg|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
+  [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>...
+imx [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
+  [FORMAT:]<output.bmp|output.ff|output.farbfeld|output.jpg|output.jpeg|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
 ```
 
-Supported exact prefixes are `FARBFELD:`, `JPEG:`, `QOI:`, `PBM:`, `PGM:`,
-`PNG:`, and `PPM:`. `JPG:` is intentionally not a supported prefix. Prefixes
+Supported exact prefixes are `BMP:`, `FARBFELD:`, `JPEG:`, `QOI:`, `PBM:`,
+`PGM:`, `PNG:`, and `PPM:`. `JPG:` is intentionally not a supported prefix. Prefixes
 are accepted only on `identify`, `resize`, `resize-fit`, `batch-convert` input
 operands, and two-path transcode operands. They
 are stripped before file IO, must match the detected input format or output
@@ -175,8 +182,8 @@ Existing encoder rules still decide any destination quantization, alpha
 rejection, thresholding, or metadata loss.
 
 Successful batch conversion writes one output per input silently. `--to`
-accepts only exact uppercase `FARBFELD`, `JPEG`, `QOI`, `PBM`, `PGM`, `PNG`,
-or `PPM`. `--output-dir` must name an existing directory. Output names are
+accepts only exact uppercase `BMP`, `FARBFELD`, `JPEG`, `QOI`, `PBM`, `PGM`,
+`PNG`, or `PPM`. `--output-dir` must name an existing directory. Output names are
 `<input-file-stem>.<target-extension>` inside that directory. The full batch is
 preflighted before writes: missing inputs, invalid prefixes, duplicate planned
 outputs, existing outputs, and same-path outputs fail without committing prior
@@ -190,6 +197,11 @@ incidental representation details.
 
 ## Format Scope
 
+- BMP: uncompressed Windows BMP identify/decode/encode for 24-bit BGR/RGB and
+  32-bit BGRA/RGBA rasters. Top-down and bottom-up input are accepted. Output
+  BMP is deterministic bottom-up BI_RGB, with RGB8 written as 24-bit BMP and
+  RGBA8/RGBA16 input written as 32-bit BMP. Indexed, RLE, bitfields, OS/2,
+  color-table, and high-depth BMP variants are rejected.
 - FARBFELD: RGBA16BE identify/decode/encode.
 - JPEG: `.jpg`/`.jpeg` identify/decode/encode for 8-bit grayscale and RGB
   baseline or progressive JPEG streams. EXIF Orientation values 1 through 8 are
@@ -230,17 +242,20 @@ Known lossy paths:
   expands gray into RGB and keeps alpha.
 - Any output to JPEG quantizes to 8-bit grayscale or RGB and is lossy. IMX
   rejects non-opaque alpha for JPEG output.
+- Any output to BMP preserves alpha only for RGBA output; grayscale and RGB-like
+  inputs write 24-bit BMP.
 - Any output to PPM drops alpha; any output to PGM drops color/alpha; any
   output to PBM drops color, alpha, and grayscale precision.
 
 Unsupported by design: full ImageMagick CLI parsing, stdin/stdout streaming,
-prefixes outside the exact seven listed above, delegates, profiles, color
+prefixes outside the exact eight listed above, delegates, profiles, color
 management, transforms beyond the explicit nearest-neighbor resize commands and
 safe batch composition, MagickCore, MagickWand, APNG, indexed/palette
 PNG, low-bit PNG, PNG metadata/profile preservation, CMYK/YCCK JPEG, 12-bit
 JPEG, arithmetic-coded JPEG, lossless JPEG/JPEG-LS,
 JPEG 2000, JPEG XL, JPEG metadata preservation beyond read-only Orientation,
-PAM, PFM, BMP, TIFF, GIF, WebP, and other image formats.
+PAM, PFM, indexed/compressed/bitfields/OS/2/high-depth BMP, TIFF, GIF, WebP,
+and other image formats.
 
 ## Safety Posture
 
@@ -252,8 +267,8 @@ PAM, PFM, BMP, TIFF, GIF, WebP, and other image formats.
 - CLI input reads are capped at 513 MiB.
 - Output writes use a temp file plus rename, and malformed input does not leave
   the requested output behind.
-- Fuzz targets cover FARBFELD, JPEG, QOI, PNG, and PNM decode/identify
-  entrypoints with seeded FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM corpora.
+- Fuzz targets cover BMP, FARBFELD, JPEG, QOI, PNG, and PNM decode/identify
+  entrypoints with seeded BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM corpora.
 
 ## Release Gates
 
@@ -321,17 +336,17 @@ IMX_INSTALL_REPO_URL=https://github.com/jskoiz/imx.git ./scripts/verify-install.
 Verify published Linux release archives after GitHub release publication:
 
 ```sh
-IMX_VERSION=v0.15.0 IMX_RELEASE_TARGET=x86_64-unknown-linux-gnu ./scripts/verify-release-archive.sh
+IMX_VERSION=v0.16.0 IMX_RELEASE_TARGET=x86_64-unknown-linux-gnu ./scripts/verify-release-archive.sh
 ```
 
-Verify the v0.15.0 Homebrew tap install smoke:
+Verify the v0.16.0 Homebrew tap install smoke:
 
 ```sh
 brew tap jskoiz/imx
 brew install imx
 brew test imx
 imx --version
-test "$(imx --version)" = "imx 0.15.0"
+test "$(imx --version)" = "imx 0.16.0"
 ```
 
 `brew test` verifies installation only. Compatibility remains covered by the
@@ -377,8 +392,9 @@ known gaps, and the next adoption milestone.
 The v0.12.0 real-world intake reliability contract is tracked in
 [docs/v0.12.0-real-world-intake.md](docs/v0.12.0-real-world-intake.md), with
 the generated/in-test corpus plan in
-[docs/v0.12.0-curated-corpus.md](docs/v0.12.0-curated-corpus.md). The v0.15.0
-safe batch conversion contract is tracked in
+[docs/v0.12.0-curated-corpus.md](docs/v0.12.0-curated-corpus.md). The v0.16.0
+BMP contract is tracked in [docs/v0.16.0-bmp.md](docs/v0.16.0-bmp.md). The
+v0.15.0 safe batch conversion contract is tracked in
 [docs/v0.15.0-batch-convert.md](docs/v0.15.0-batch-convert.md), the v0.14.0
 resize-fit contract remains in
 [docs/v0.14.0-resize-fit.md](docs/v0.14.0-resize-fit.md), and the v0.13.0

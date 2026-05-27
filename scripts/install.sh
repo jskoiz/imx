@@ -2,7 +2,7 @@
 set -eu
 
 repo="${IMX_REPO:-jskoiz/imx}"
-version="${IMX_VERSION:-v0.15.0}"
+version="${IMX_VERSION:-v0.16.0}"
 install_dir="${IMX_INSTALL_DIR:-$HOME/.local/bin}"
 run_smoke="${IMX_INSTALL_SMOKE:-1}"
 min_glibc="2.34"
@@ -134,10 +134,13 @@ if [ "$run_smoke" != "0" ] && [ "$run_smoke" != "false" ]; then
   "$install_dir/imx" identify "PBM:$smoke_dir/input.pbm" >/dev/null
   "$install_dir/imx" "$smoke_dir/input.ppm" "$smoke_dir/output.qoi"
   "$install_dir/imx" "$smoke_dir/input16.ppm" "$smoke_dir/output16.ff"
+  "$install_dir/imx" "$smoke_dir/input.ppm" "$smoke_dir/output.bmp"
   "$install_dir/imx" identify "$smoke_dir/output.qoi" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/output16.ff" >/dev/null
+  "$install_dir/imx" identify "$smoke_dir/output.bmp" >/dev/null
   "$install_dir/imx" identify "QOI:$smoke_dir/output.qoi" >/dev/null
   "$install_dir/imx" identify "FARBFELD:$smoke_dir/output16.ff" >/dev/null
+  "$install_dir/imx" identify "BMP:$smoke_dir/output.bmp" >/dev/null
   "$install_dir/imx" "$smoke_dir/output.qoi" "$smoke_dir/output.ff"
   "$install_dir/imx" identify "$smoke_dir/output.ff" >/dev/null
   "$install_dir/imx" identify "FARBFELD:$smoke_dir/output.ff" >/dev/null
@@ -152,13 +155,18 @@ if [ "$run_smoke" != "0" ] && [ "$run_smoke" != "false" ]; then
   "$install_dir/imx" "FARBFELD:$smoke_dir/prefix-output.ff" "PGM:$smoke_dir/prefix-output.pgm"
   "$install_dir/imx" "FARBFELD:$smoke_dir/prefix-output.ff" "PNG:$smoke_dir/prefix-output.png"
   "$install_dir/imx" "FARBFELD:$smoke_dir/prefix-output.ff" "PPM:$smoke_dir/prefix-output.ppm"
+  "$install_dir/imx" "FARBFELD:$smoke_dir/prefix-output.ff" "BMP:$smoke_dir/prefix-output.bmp"
   "$install_dir/imx" resize 1x1 "PPM:$smoke_dir/input.ppm" "PPM:$smoke_dir/resized.ppm"
   "$install_dir/imx" identify "PPM:$smoke_dir/resized.ppm" | grep -F "format=PPM width=1 height=1" >/dev/null
+  "$install_dir/imx" resize 1x1 "BMP:$smoke_dir/output.bmp" "BMP:$smoke_dir/resized.bmp"
+  "$install_dir/imx" identify "BMP:$smoke_dir/resized.bmp" | grep -F "format=BMP width=1 height=1" >/dev/null
   "$install_dir/imx" "PPM:$smoke_dir/fit-input.ppm" "FARBFELD:$smoke_dir/fit-source.ff"
+  "$install_dir/imx" "PPM:$smoke_dir/fit-input.ppm" "BMP:$smoke_dir/fit-source.bmp"
   "$install_dir/imx" "PPM:$smoke_dir/fit-input.ppm" "JPEG:$smoke_dir/fit-source.jpg"
   "$install_dir/imx" "PPM:$smoke_dir/fit-input.ppm" "QOI:$smoke_dir/fit-source.qoi"
   "$install_dir/imx" "PPM:$smoke_dir/fit-input.ppm" "PNG:$smoke_dir/fit-source.png"
   "$install_dir/imx" resize-fit 5x5 "FARBFELD:$smoke_dir/fit-source.ff" "FARBFELD:$smoke_dir/fit.ff"
+  "$install_dir/imx" resize-fit 5x5 "BMP:$smoke_dir/fit-source.bmp" "BMP:$smoke_dir/fit.bmp"
   "$install_dir/imx" resize-fit 5x5 "JPEG:$smoke_dir/fit-source.jpg" "JPEG:$smoke_dir/fit.jpg"
   "$install_dir/imx" resize-fit 5x5 "QOI:$smoke_dir/fit-source.qoi" "QOI:$smoke_dir/fit.qoi"
   "$install_dir/imx" resize-fit 5x5 "PBM:$smoke_dir/fit-input.pbm" "PBM:$smoke_dir/fit.pbm"
@@ -166,6 +174,7 @@ if [ "$run_smoke" != "0" ] && [ "$run_smoke" != "false" ]; then
   "$install_dir/imx" resize-fit 5x5 "PNG:$smoke_dir/fit-source.png" "PNG:$smoke_dir/fit.png"
   "$install_dir/imx" resize-fit 5x5 "PPM:$smoke_dir/fit-input.ppm" "PPM:$smoke_dir/fit.ppm"
   "$install_dir/imx" identify "FARBFELD:$smoke_dir/fit.ff" | grep -F "format=FARBFELD width=5 height=3" >/dev/null
+  "$install_dir/imx" identify "BMP:$smoke_dir/fit.bmp" | grep -F "format=BMP width=5 height=3" >/dev/null
   "$install_dir/imx" identify "JPEG:$smoke_dir/fit.jpg" | grep -F "format=JPEG width=5 height=3" >/dev/null
   "$install_dir/imx" identify "QOI:$smoke_dir/fit.qoi" | grep -F "format=QOI width=5 height=3" >/dev/null
   "$install_dir/imx" identify "PBM:$smoke_dir/fit.pbm" | grep -F "format=PBM width=5 height=3" >/dev/null
@@ -178,6 +187,10 @@ if [ "$run_smoke" != "0" ] && [ "$run_smoke" != "false" ]; then
   "$install_dir/imx" batch-convert --to PPM --output-dir "$smoke_dir/batch" --resize-fit 5x5 "PPM:$smoke_dir/batch-ppm.ppm" "PGM:$smoke_dir/batch-pgm.pgm"
   "$install_dir/imx" identify "PPM:$smoke_dir/batch/batch-ppm.ppm" | grep -F "format=PPM width=5 height=3" >/dev/null
   "$install_dir/imx" identify "PPM:$smoke_dir/batch/batch-pgm.ppm" | grep -F "format=PPM width=5 height=3" >/dev/null
+  mkdir -p "$smoke_dir/batch-bmp"
+  "$install_dir/imx" batch-convert --to BMP --output-dir "$smoke_dir/batch-bmp" --resize-fit 5x5 "PPM:$smoke_dir/batch-ppm.ppm" "PGM:$smoke_dir/batch-pgm.pgm"
+  "$install_dir/imx" identify "BMP:$smoke_dir/batch-bmp/batch-ppm.bmp" | grep -F "format=BMP width=5 height=3" >/dev/null
+  "$install_dir/imx" identify "BMP:$smoke_dir/batch-bmp/batch-pgm.bmp" | grep -F "format=BMP width=5 height=3" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/output.pbm" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/output.pgm" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/output.png" >/dev/null
@@ -186,13 +199,16 @@ if [ "$run_smoke" != "0" ] && [ "$run_smoke" != "false" ]; then
   "$install_dir/imx" identify "PGM:$smoke_dir/prefix-output.pgm" >/dev/null
   "$install_dir/imx" identify "PNG:$smoke_dir/prefix-output.png" >/dev/null
   "$install_dir/imx" identify "PPM:$smoke_dir/prefix-output.ppm" >/dev/null
+  "$install_dir/imx" identify "BMP:$smoke_dir/prefix-output.bmp" >/dev/null
   "$install_dir/imx" "$smoke_dir/output.ff" "$smoke_dir/rewrite.ff"
+  "$install_dir/imx" "$smoke_dir/output.bmp" "$smoke_dir/rewrite.bmp"
   "$install_dir/imx" "$smoke_dir/output.qoi" "$smoke_dir/rewrite.qoi"
   "$install_dir/imx" "$smoke_dir/input.pbm" "$smoke_dir/rewrite.pbm"
   "$install_dir/imx" "$smoke_dir/input.pgm" "$smoke_dir/rewrite.pgm"
   "$install_dir/imx" "$smoke_dir/output.png" "$smoke_dir/rewrite.png"
   "$install_dir/imx" "$smoke_dir/input.ppm" "$smoke_dir/rewrite.ppm"
   "$install_dir/imx" identify "$smoke_dir/rewrite.ff" >/dev/null
+  "$install_dir/imx" identify "$smoke_dir/rewrite.bmp" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/rewrite.qoi" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/rewrite.pbm" >/dev/null
   "$install_dir/imx" identify "$smoke_dir/rewrite.pgm" >/dev/null

@@ -68,6 +68,18 @@ fn set_ihdr_dimensions(png: &mut [u8], width: u32, height: u32) {
     rewrite_chunk_crc(png, imx_codec_png::MAGIC.len());
 }
 
+fn set_le_u16(bytes: &mut [u8], offset: usize, value: u16) {
+    bytes[offset..offset + 2].copy_from_slice(&value.to_le_bytes());
+}
+
+fn set_le_u32(bytes: &mut [u8], offset: usize, value: u32) {
+    bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+}
+
+fn set_le_i32(bytes: &mut [u8], offset: usize, value: i32) {
+    bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+}
+
 fn set_ihdr_interlaced(png: &mut [u8]) {
     let ihdr_interlace = imx_codec_png::MAGIC.len() + 8 + 12;
     png[ihdr_interlace] = 1;
@@ -232,6 +244,105 @@ fn png_rejects_malformed_and_unsupported_inputs() {
         .unwrap_err()
         .to_string()
         .contains("PNG decode failed"));
+}
+
+#[test]
+fn bmp_rejects_malformed_and_unsupported_inputs() {
+    assert_eq!(
+        imx_codec_bmp::decode(b"x"),
+        Err(ImageError::UnexpectedEof {
+            expected: 14,
+            actual: 1
+        })
+    );
+
+    let image = Image::new(
+        2,
+        2,
+        PixelFormat::Rgb8,
+        vec![255, 0, 0, 0, 255, 0, 0, 0, 255, 12, 34, 56],
+    )
+    .unwrap();
+    let bmp = imx_codec_bmp::encode(&image).unwrap();
+
+    let mut bad_magic = bmp.clone();
+    bad_magic[0..2].copy_from_slice(b"ZZ");
+    assert_eq!(
+        imx_codec_bmp::decode(&bad_magic),
+        Err(ImageError::InvalidHeader("BMP"))
+    );
+
+    let mut unsupported_dib = bmp.clone();
+    set_le_u32(&mut unsupported_dib, 14, 12);
+    assert!(imx_codec_bmp::decode(&unsupported_dib)
+        .unwrap_err()
+        .to_string()
+        .contains("BITMAPINFOHEADER"));
+
+    let mut bad_offset = bmp.clone();
+    set_le_u32(&mut bad_offset, 10, 10);
+    assert_eq!(
+        imx_codec_bmp::decode(&bad_offset),
+        Err(ImageError::InvalidHeader("BMP"))
+    );
+
+    let mut bad_planes = bmp.clone();
+    set_le_u16(&mut bad_planes, 26, 2);
+    assert!(imx_codec_bmp::decode(&bad_planes)
+        .unwrap_err()
+        .to_string()
+        .contains("planes"));
+
+    let mut compressed = bmp.clone();
+    set_le_u32(&mut compressed, 30, 1);
+    assert!(imx_codec_bmp::decode(&compressed)
+        .unwrap_err()
+        .to_string()
+        .contains("compression"));
+
+    let mut indexed = bmp.clone();
+    set_le_u16(&mut indexed, 28, 8);
+    assert!(imx_codec_bmp::decode(&indexed)
+        .unwrap_err()
+        .to_string()
+        .contains("bit depth 8"));
+
+    let mut color_table = bmp.clone();
+    set_le_u32(&mut color_table, 46, 2);
+    assert!(imx_codec_bmp::decode(&color_table)
+        .unwrap_err()
+        .to_string()
+        .contains("color tables"));
+
+    let truncated = &bmp[..bmp.len() - 1];
+    assert!(matches!(
+        imx_codec_bmp::decode(truncated),
+        Err(ImageError::UnexpectedEof { .. })
+    ));
+
+    let mut huge = bmp.clone();
+    set_le_i32(&mut huge, 18, 100_000);
+    set_le_i32(&mut huge, 22, 100_000);
+    assert!(matches!(
+        imx_codec_bmp::decode(&huge),
+        Err(ImageError::ImageTooLarge { .. })
+            | Err(ImageError::LengthOverflow)
+            | Err(ImageError::UnexpectedEof { .. })
+    ));
+
+    let mut negative_width = bmp.clone();
+    set_le_i32(&mut negative_width, 18, -1);
+    assert_eq!(
+        imx_codec_bmp::decode(&negative_width),
+        Err(ImageError::InvalidDimensions)
+    );
+
+    let mut min_height = bmp;
+    set_le_i32(&mut min_height, 22, i32::MIN);
+    assert_eq!(
+        imx_codec_bmp::decode(&min_height),
+        Err(ImageError::InvalidDimensions)
+    );
 }
 
 #[test]

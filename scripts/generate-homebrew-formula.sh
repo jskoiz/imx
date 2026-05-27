@@ -28,6 +28,7 @@ intake_smoke=0
 resize_smoke=0
 resize_fit_smoke=0
 batch_convert_smoke=0
+bmp_smoke=0
 if [[ "$formula_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
   major="${BASH_REMATCH[1]}"
   minor="${BASH_REMATCH[2]}"
@@ -57,6 +58,9 @@ if [[ "$formula_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
   fi
   if ((major > 0 || minor >= 15)); then
     batch_convert_smoke=1
+  fi
+  if ((major > 0 || minor >= 16)); then
+    bmp_smoke=1
   fi
 fi
 
@@ -266,6 +270,24 @@ if [[ "$batch_convert_smoke" == 1 ]]; then
     system bin/"imx", "batch-convert", "--to", "PPM", "--output-dir", "batch", "--resize-fit", "5x5", "PPM:batch-ppm.ppm", "PGM:batch-pgm.pgm"
     assert_match "format=PPM width=5 height=3 channels=RGB depth=8", shell_output("#{bin/"imx"} identify PPM:batch/batch-ppm.ppm")
     assert_match "format=PPM width=5 height=3 channels=RGB depth=8", shell_output("#{bin/"imx"} identify PPM:batch/batch-pgm.ppm")
+EOF
+fi
+
+if [[ "$bmp_smoke" == 1 ]]; then
+  cat <<'EOF'
+    system bin/"imx", "input.ppm", "output.bmp"
+    assert_match "format=BMP width=2 height=1 channels=RGB depth=8", shell_output("#{bin/"imx"} identify BMP:output.bmp")
+    system bin/"imx", "BMP:output.bmp", "PPM:bmp-output.ppm"
+    assert_match "format=PPM width=2 height=1 channels=RGB depth=8", shell_output("#{bin/"imx"} identify PPM:bmp-output.ppm")
+    system bin/"imx", "resize", "1x1", "BMP:output.bmp", "BMP:resized.bmp"
+    assert_match "format=BMP width=1 height=1 channels=RGB depth=8", shell_output("#{bin/"imx"} identify BMP:resized.bmp")
+    system bin/"imx", "resize-fit", "5x5", "BMP:output.bmp", "BMP:fit.bmp"
+    assert_match "format=BMP width=5 height=3 channels=RGB depth=8", shell_output("#{bin/"imx"} identify BMP:fit.bmp")
+    mkdir "batch-bmp"
+    system bin/"imx", "batch-convert", "--to", "BMP", "--output-dir", "batch-bmp", "--resize-fit", "5x5", "PPM:input.ppm"
+    assert_match "format=BMP width=5 height=3 channels=RGB depth=8", shell_output("#{bin/"imx"} identify BMP:batch-bmp/input.bmp")
+    system bin/"imx", "BMP:output.bmp", "BMP:rewrite.bmp"
+    assert_match "format=BMP width=2 height=1 channels=RGB depth=8", shell_output("#{bin/"imx"} identify rewrite.bmp")
 EOF
 fi
 

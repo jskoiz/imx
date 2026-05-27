@@ -91,19 +91,23 @@ Git revision: \`$git_rev\`
 ## Supported Surface
 
 - Binary: \`imx\`
-- Formats: FARBFELD, JPEG, QOI, PBM, PGM, PNG, PPM
+- Formats: BMP, FARBFELD, JPEG, QOI, PBM, PGM, PNG, PPM
 - Commands: \`imx --help\`, \`imx --version\`, \`imx identify [FORMAT:]<input>\`,
   \`imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\`,
   \`imx resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\`, and
   \`imx batch-convert --to <FORMAT> --output-dir <dir>
   [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\`, and
   two-argument transcodes between supported formats, including exact
-  \`FARBFELD:\`, \`JPEG:\`, \`QOI:\`, \`PBM:\`, \`PGM:\`, \`PNG:\`, and \`PPM:\`
+  \`BMP:\`, \`FARBFELD:\`, \`JPEG:\`, \`QOI:\`, \`PBM:\`, \`PGM:\`, \`PNG:\`, and \`PPM:\`
   operand prefixes and deterministic same-format rewrites when input and output
   paths differ. JPEG rewrites are deterministic lossy decode/re-encode
   operations. Progressive 8-bit grayscale/RGB JPEG input is supported for
   identify/decode/transcode; output remains deterministic baseline quality-90
-  JPEG. $version adds bounded nearest-neighbor resize to exact dimensions for
+  JPEG. $version adds uncompressed Windows BMP support for 24-bit BGR/RGB and
+  32-bit BGRA/RGBA rasters across identify, transcode, resize, resize-fit,
+  same-format rewrite, and batch-convert. It does not add indexed, RLE,
+  bitfields, OS/2, color-table, or high-depth BMP. $version also carries
+  forward bounded nearest-neighbor resize to exact dimensions for
   the same supported formats, plus aspect-preserving nearest-neighbor resize-fit
   to fit within a requested box, and safe batch conversion with deterministic
   output names, existing-directory output, collision preflight, no overwrite,
@@ -142,10 +146,10 @@ $glibc_symbols_report
 
 ## Compatibility Coverage
 
-- Golden fixtures cover representative FARBFELD, JPEG, QOI, PBM, PGM, PNG, and
-  PPM bytes.
+- Golden fixtures cover representative BMP, FARBFELD, JPEG, QOI, PBM, PGM,
+  PNG, and PPM bytes.
 - Curated intake corpus coverage adds representative generated or in-test
-  cases for FARBFELD RGBA16, progressive JPEG grayscale, QOI RGB linear, PBM
+  cases for BMP RGB24/RGBA32, FARBFELD RGBA16, progressive JPEG grayscale, QOI RGB linear, PBM
   ASCII comments, PGM scaled/16-bit, PNG grayscale-alpha/RGBA16, PPM high
   maxval comments, explicit malformed diagnostics, and resource-boundary
   rejection.
@@ -153,7 +157,7 @@ $glibc_symbols_report
   unsupported max values, malformed EXIF Orientation metadata, and failed CLI
   output behavior.
 - ImageMagick differential tests cover decoded-pixel compatibility for
-  FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM identify, prefixed identify, transcode,
+  BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM identify, prefixed identify, transcode,
   prefixed transcode, plain and prefixed resize against ImageMagick
   \`-filter Point -resize <width>x<height>!\`, plain and prefixed resize-fit
   against ImageMagick \`-filter Point -resize <width>x<height>\`,
@@ -164,7 +168,7 @@ $glibc_symbols_report
   PPM/PNG identify/decode/transcode cases, JPEG RGB8 lossy metric cases, and
   JPEG EXIF Orientation cases compared with ImageMagick \`-auto-orient\`, and
   progressive JPEG RGB/gray/orientation input cases.
-- Cargo-fuzz targets exercise FARBFELD, JPEG, QOI, PNG, and shared PNM
+- Cargo-fuzz targets exercise BMP, FARBFELD, JPEG, QOI, PNG, and shared PNM
   identify/decode entrypoints with seeded corpora.
 - Benchmarks record library throughput, process timing, process RSS, and output
   hashes for standalone and ImageMagick oracle cases.
@@ -179,7 +183,8 @@ $glibc_symbols_report
 - No prefixes beyond exact \`FARBFELD:\`, \`JPEG:\`, \`QOI:\`, \`PBM:\`, \`PGM:\`,
   \`PNG:\`, and \`PPM:\`.
 - No APNG, indexed/palette PNG, low-bit PNG, PNG color management/profile
-  preservation, TIFF, PAM, PFM, BMP, GIF, or WebP support in this conformance
+  preservation, TIFF, PAM, PFM, GIF, WebP, indexed BMP, compressed BMP,
+  bitfields BMP, OS/2 BMP, or high-depth BMP support in this conformance
   surface.
 - No CMYK/YCCK JPEG, 12-bit JPEG, arithmetic-coded JPEG, lossless
   JPEG/JPEG-LS, JPEG 2000, JPEG XL, metadata/profile preservation beyond
@@ -190,13 +195,14 @@ cat >"$out_dir/conformance-summary.json" <<EOF
 {
   "schema_version": 1,
   "version": "$version",
-  "formats": ["FARBFELD", "JPEG", "QOI", "PBM", "PGM", "PNG", "PPM"],
-  "prefixes": ["FARBFELD:", "JPEG:", "QOI:", "PBM:", "PGM:", "PNG:", "PPM:"],
+  "formats": ["BMP", "FARBFELD", "JPEG", "QOI", "PBM", "PGM", "PNG", "PPM"],
+  "prefixes": ["BMP:", "FARBFELD:", "JPEG:", "QOI:", "PBM:", "PGM:", "PNG:", "PPM:"],
+  "bmp": "uncompressed Windows BMP supports 24-bit BGR/RGB and 32-bit BGRA/RGBA rasters without color tables, compression, bitfields, OS/2 headers, or high-depth variants",
   "jpeg_progressive": "8-bit grayscale/RGB progressive JPEG input is supported",
   "jpeg_orientation": "EXIF Orientation values 1 through 8 are normalized on JPEG input",
-  "resize": "exact nearest-neighbor resize is supported for FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM",
-  "resize_fit": "aspect-preserving nearest-neighbor resize-fit is supported for FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM",
-  "batch_convert": "safe batch-convert supports existing FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM inputs, exact uppercase target formats, deterministic output names, collision preflight, and optional resize/resize-fit composition",
+  "resize": "exact nearest-neighbor resize is supported for BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM",
+  "resize_fit": "aspect-preserving nearest-neighbor resize-fit is supported for BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM",
+  "batch_convert": "safe batch-convert supports existing BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM inputs, exact uppercase target formats, deterministic output names, collision preflight, and optional resize/resize-fit composition",
   "intake_reliability": "generated and in-test corpus cases cover representative supported-format intake, malformed diagnostics, and resource-boundary rejection",
   "git_rev": "$git_rev",
   "generated_at": "$generated_at",

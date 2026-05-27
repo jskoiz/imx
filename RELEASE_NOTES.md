@@ -1,5 +1,22 @@
 # IMX Release Notes
 
+## IMX v0.16.0 Bounded BMP Slice
+
+- Adds bounded uncompressed Windows BMP support for `.bmp` paths and exact
+  uppercase `BMP:` prefixes.
+- Supports 24-bit BGR/RGB and 32-bit BGRA/RGBA BMP identify/decode/encode,
+  including top-down and bottom-up input, deterministic bottom-up output,
+  transcode, same-format rewrite, exact resize, resize-fit, and batch-convert.
+- Extends CLI tests, golden fixtures, curated corpus, malformed-input coverage,
+  fuzz smoke and cargo-fuzz targets, ImageMagick differential tests,
+  differential corpus, install verification, package/archive smoke, benchmark
+  smoke, conformance wording, and Homebrew formula/archive smoke with BMP
+  evidence.
+- Keeps the slice bounded: no indexed BMP, RLE compression, bitfields, OS/2
+  headers, color tables, masks, high-depth BMP, profiles, metadata
+  preservation, color management, `magick` alias, full ImageMagick CLI parsing,
+  Homebrew/core, crates.io, Windows, or hosted macOS/iOS Actions.
+
 ## IMX v0.15.0 Safe Batch Conversion Slice
 
 - Adds one explicit safe batch command:

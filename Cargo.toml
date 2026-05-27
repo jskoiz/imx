@@ -1,6 +1,6 @@
 [package]
 name = "imx-preview"
-version = "0.15.0"
+version = "0.16.0"
 edition = "2021"
 license = "ImageMagick"
 publish = false
@@ -8,6 +8,7 @@ publish = false
 [workspace]
 members = [
   "crates/core",
+  "crates/codecs/bmp",
   "crates/codecs/farbfeld",
   "crates/codecs/jpeg",
   "crates/codecs/png",
@@ -24,6 +25,7 @@ publish = false
 
 [workspace.dependencies]
 imx-core = { path = "crates/core" }
+imx-codec-bmp = { path = "crates/codecs/bmp" }
 imx-codec-farbfeld = { path = "crates/codecs/farbfeld" }
 imx-codec-jpeg = { path = "crates/codecs/jpeg" }
 imx-codec-png = { path = "crates/codecs/png" }
@@ -32,6 +34,7 @@ imx-codec-qoi = { path = "crates/codecs/qoi" }
 
 [dependencies]
 imx-core = { workspace = true }
+imx-codec-bmp = { workspace = true }
 imx-codec-farbfeld = { workspace = true }
 imx-codec-jpeg = { workspace = true }
 imx-codec-png = { workspace = true }

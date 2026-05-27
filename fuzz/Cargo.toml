@@ -10,6 +10,7 @@ cargo-fuzz = true
 [workspace]
 
 [dependencies]
+imx-codec-bmp = { path = "../crates/codecs/bmp" }
 imx-codec-farbfeld = { path = "../crates/codecs/farbfeld" }
 imx-codec-jpeg = { path = "../crates/codecs/jpeg" }
 imx-codec-png = { path = "../crates/codecs/png" }
@@ -32,6 +33,12 @@ doc = false
 [[bin]]
 name = "png_decode"
 path = "fuzz_targets/png_decode.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "bmp_decode"
+path = "fuzz_targets/bmp_decode.rs"
 test = false
 doc = false
 
