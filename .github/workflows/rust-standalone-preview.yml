@@ -127,6 +127,7 @@ jobs:
           IMX_LINKAGE_COMMAND: aarch64-linux-gnu-readelf -d
           IMX_PACKAGE_RUNNER: qemu-aarch64 -L /usr/aarch64-linux-gnu
           IMX_PACKAGE_TARGET: aarch64-unknown-linux-gnu
+          QEMU_LD_PREFIX: /usr/aarch64-linux-gnu
         run: |
           set -euo pipefail
           bash scripts/package-release.sh
@@ -137,6 +138,7 @@ jobs:
           IMX_RELEASE_DIR: target/release-artifacts-linux-arm64
           IMX_RELEASE_RUNNER: qemu-aarch64 -L /usr/aarch64-linux-gnu
           IMX_RELEASE_TARGET: aarch64-unknown-linux-gnu
+          QEMU_LD_PREFIX: /usr/aarch64-linux-gnu
         run: |
           set -euo pipefail
           bash scripts/verify-release-archive.sh
@@ -194,11 +196,13 @@ jobs:
             target: x86_64-unknown-linux-gnu
             package_runner: ""
             linkage_command: ""
+            qemu_ld_prefix: ""
           - name: linux-arm64
             runner: ubuntu-22.04
             target: aarch64-unknown-linux-gnu
             package_runner: qemu-aarch64 -L /usr/aarch64-linux-gnu
             linkage_command: aarch64-linux-gnu-readelf -d
+            qemu_ld_prefix: /usr/aarch64-linux-gnu
 
     steps:
       - uses: actions/checkout@v6
@@ -225,6 +229,7 @@ jobs:
           IMX_LINKAGE_COMMAND: ${{ matrix.linkage_command }}
           IMX_PACKAGE_RUNNER: ${{ matrix.package_runner }}
           IMX_PACKAGE_TARGET: ${{ matrix.target }}
+          QEMU_LD_PREFIX: ${{ matrix.qemu_ld_prefix }}
         run: |
           set -euo pipefail
           bash scripts/package-release.sh
@@ -345,11 +350,13 @@ jobs:
             target: x86_64-unknown-linux-gnu
             release_runner: ""
             linkage_command: ""
+            qemu_ld_prefix: ""
           - name: linux-arm64
             runner: ubuntu-22.04
             target: aarch64-unknown-linux-gnu
             release_runner: qemu-aarch64 -L /usr/aarch64-linux-gnu
             linkage_command: aarch64-linux-gnu-readelf -d
+            qemu_ld_prefix: /usr/aarch64-linux-gnu
 
     steps:
       - uses: actions/checkout@v6
@@ -377,6 +384,7 @@ jobs:
         env:
           IMX_LINKAGE_COMMAND: ${{ matrix.linkage_command }}
           IMX_RELEASE_RUNNER: ${{ matrix.release_runner }}
+          QEMU_LD_PREFIX: ${{ matrix.qemu_ld_prefix }}
         run: |
           set -euo pipefail
           IMX_REPO="$GITHUB_REPOSITORY" \
