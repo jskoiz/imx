@@ -1,5 +1,23 @@
 # IMX Release Notes
 
+## IMX v0.19.0 Daily-Use Corpus Hardening
+
+- Adds `scripts/daily-use-corpus.sh`, a no-oracle installed-binary gate over
+  the existing BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM surface.
+- Proves `identify --json` and `report --json` for generated fixtures and
+  representative intake variants, then runs prefixed transcode smoke across all
+  supported format families.
+- Hardens stable diagnostic proof for unsupported prefixes, missing prefixed
+  paths, missing inputs, prefix mismatches, unsupported formats, malformed QOI,
+  malformed PNM max values, unsupported BMP compression, and `identify --json`
+  failure JSON on stderr.
+- Wires the gate into CI, fresh install verification, package smoke,
+  release-archive smoke, and generated conformance evidence lookup.
+- Keeps the slice bounded: no new formats, stdin/stdout, recursive report or
+  batch mode, `magick` alias, full ImageMagick CLI parsing, metadata/profile
+  reporting, delegates, MagickCore, MagickWand, Homebrew/core, crates.io,
+  Windows, or hosted macOS/iOS Actions.
+
 ## IMX v0.18.0 JSON Identify and Report Slice
 
 - Adds `imx identify --json [FORMAT:]<input>`, a deterministic JSON projection

@@ -147,6 +147,13 @@ run_archive_binary self-test >/dev/null
 
 smoke_dir="$work_dir/smoke"
 mkdir -p "$smoke_dir"
+daily_fixture_dir="$work_dir/daily-use-fixtures"
+cargo run -p imx-cli --bin imx-generate-fixtures -- "$daily_fixture_dir" >/dev/null
+IMX_DAILY_USE_BIN="$binary" \
+  IMX_DAILY_USE_RUNNER="${IMX_RELEASE_RUNNER:-}" \
+  IMX_DAILY_USE_FIXTURE_DIR="$daily_fixture_dir" \
+  IMX_DAILY_USE_OUT="$work_dir/daily-use-corpus" \
+  bash scripts/daily-use-corpus.sh >/dev/null
 printf 'P3\n2 2\n255\n255 0 0 0 255 0 0 0 255 255 255 255\n' >"$smoke_dir/input.ppm"
 printf 'P6\n2 1\n65535\n\x12\x34\x56\x78\x9a\xbc\x00\x00\x80\x00\xff\xff' >"$smoke_dir/input16.ppm"
 printf 'P2\n2 2\n255\n0 85 170 255\n' >"$smoke_dir/input.pgm"

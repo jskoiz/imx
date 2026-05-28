@@ -452,20 +452,21 @@ fn identifies_json_for_supported_formats_with_and_without_prefixes() {
 fn report_json_summarizes_supported_inputs() {
     let dir = temp_dir("report_json_supported");
     for (prefix, path, expected_identify) in write_supported_fixtures(&dir) {
-        let arg = prefixed(prefix, &path);
-        let output = Command::new(imx())
-            .args(["report", "--json", arg.as_str()])
-            .output()
-            .unwrap();
-        assert!(
-            output.status.success(),
-            "{prefix} JSON report failed with stderr={}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        assert_eq!(
-            String::from_utf8(output.stdout).unwrap().trim(),
-            report_json_from_stable_line(expected_identify)
-        );
+        for arg in [path.to_string_lossy().into_owned(), prefixed(prefix, &path)] {
+            let output = Command::new(imx())
+                .args(["report", "--json", arg.as_str()])
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{prefix} JSON report failed for {arg} with stderr={}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert_eq!(
+                String::from_utf8(output.stdout).unwrap().trim(),
+                report_json_from_stable_line(expected_identify)
+            );
+        }
     }
 }
 
@@ -499,6 +500,32 @@ fn farbfeld_extension_alias_identifies_and_transcodes() {
         String::from_utf8_lossy(&identify.stdout).trim(),
         "format=FARBFELD width=1 height=1 channels=RGBA depth=16"
     );
+    let identify_json = Command::new(imx())
+        .args(["identify", "--json", input_arg.as_str()])
+        .output()
+        .unwrap();
+    assert!(
+        identify_json.status.success(),
+        "farbfeld alias JSON identify failed with stderr={}",
+        String::from_utf8_lossy(&identify_json.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&identify_json.stdout).trim(),
+        "{\"schema_version\":1,\"format\":\"FARBFELD\",\"width\":1,\"height\":1,\"channels\":\"RGBA\",\"depth\":16}"
+    );
+    let report_json = Command::new(imx())
+        .args(["report", "--json", input_arg.as_str()])
+        .output()
+        .unwrap();
+    assert!(
+        report_json.status.success(),
+        "farbfeld alias JSON report failed with stderr={}",
+        String::from_utf8_lossy(&report_json.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&report_json.stdout).trim(),
+        "{\"schema_version\":1,\"status\":\"supported\",\"diagnostic_code\":null,\"format\":\"FARBFELD\",\"width\":1,\"height\":1,\"channels\":\"RGBA\",\"depth\":16}"
+    );
 
     let transcode = Command::new(imx())
         .args([input_arg.as_str(), output_arg.as_str()])
@@ -510,6 +537,43 @@ fn farbfeld_extension_alias_identifies_and_transcodes() {
         String::from_utf8_lossy(&transcode.stderr)
     );
     assert_eq!(fs::read(input).unwrap(), fs::read(output).unwrap());
+}
+
+#[test]
+fn jpeg_extension_alias_reports_json() {
+    let dir = temp_dir("jpeg_extension_alias_json");
+    let input = dir.join("input.jpeg");
+    let image = Image::new(2, 1, PixelFormat::Rgb8, vec![255, 0, 0, 0, 0, 255]).unwrap();
+    fs::write(&input, imx_codec_jpeg::encode(&image).unwrap()).unwrap();
+    let input_arg = prefixed("JPEG", &input);
+
+    let identify = Command::new(imx())
+        .args(["identify", "--json", input_arg.as_str()])
+        .output()
+        .unwrap();
+    assert!(
+        identify.status.success(),
+        "jpeg alias JSON identify failed with stderr={}",
+        String::from_utf8_lossy(&identify.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&identify.stdout).trim(),
+        "{\"schema_version\":1,\"format\":\"JPEG\",\"width\":2,\"height\":1,\"channels\":\"RGB\",\"depth\":8}"
+    );
+
+    let report = Command::new(imx())
+        .args(["report", "--json", input.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        report.status.success(),
+        "jpeg alias JSON report failed with stderr={}",
+        String::from_utf8_lossy(&report.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&report.stdout).trim(),
+        "{\"schema_version\":1,\"status\":\"supported\",\"diagnostic_code\":null,\"format\":\"JPEG\",\"width\":2,\"height\":1,\"channels\":\"RGB\",\"depth\":8}"
+    );
 }
 
 #[test]
@@ -2369,6 +2433,7 @@ fn help_and_version_are_available() {
             assert!(stdout.contains("nearest-neighbor exact dimensions and aspect-preserving fit"));
             assert!(stdout.contains("no overwrite or collision renaming"));
             assert!(stdout.contains(".bmp"));
+            assert!(stdout.contains(".farbfeld"));
             assert!(stdout.contains("BMP:"));
             assert!(stdout.contains(".jpg"));
             assert!(stdout.contains(".jpeg"));
@@ -2795,9 +2860,17 @@ fn report_json_returns_stable_diagnostic_codes() {
     let dir = temp_dir("report_json_diagnostics");
     let ppm = dir.join("input.ppm");
     let qoi = dir.join("bad.qoi");
+    let bad_max_ppm = dir.join("bad-max.ppm");
+    let unknown = dir.join("unknown.dat");
+    let bad_bmp = dir.join("bad-compression.bmp");
     let image = Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap();
     fs::write(&ppm, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
     fs::write(&qoi, b"qoif\0\0\0\x01\0\0\0\x01\x02\0").unwrap();
+    fs::write(&bad_max_ppm, b"P3\n1 1\n65536\n0 0 0\n").unwrap();
+    fs::write(&unknown, b"not an image\n").unwrap();
+    let mut bad_bmp_bytes = imx_codec_bmp::encode(&image).unwrap();
+    bad_bmp_bytes[30..34].copy_from_slice(&1_u32.to_le_bytes());
+    fs::write(&bad_bmp, bad_bmp_bytes).unwrap();
     let missing = dir.join("missing.ppm");
 
     let cases = [
@@ -2849,11 +2922,44 @@ fn report_json_returns_stable_diagnostic_codes() {
             vec![
                 "report".to_string(),
                 "--json".to_string(),
+                unknown.to_string_lossy().into_owned(),
+            ],
+            report_unsupported_json(
+                "input.unsupported_format",
+                &format!("unsupported format: {}", unknown.to_string_lossy()),
+            ),
+        ),
+        (
+            vec![
+                "report".to_string(),
+                "--json".to_string(),
                 prefixed("QOI", &qoi),
             ],
             report_unsupported_json(
                 "qoi.invalid_channels",
                 "failed to identify QOI input: QOI channels must be 3 or 4, got 2",
+            ),
+        ),
+        (
+            vec![
+                "report".to_string(),
+                "--json".to_string(),
+                prefixed("PPM", &bad_max_ppm),
+            ],
+            report_unsupported_json(
+                "pnm.invalid_max_value",
+                "failed to identify PPM input: PPM max value must be 1..=65535, got 65536",
+            ),
+        ),
+        (
+            vec![
+                "report".to_string(),
+                "--json".to_string(),
+                prefixed("BMP", &bad_bmp),
+            ],
+            report_unsupported_json(
+                "bmp.unsupported_feature",
+                "failed to identify BMP input: unsupported format: BMP compression is not supported",
             ),
         ),
     ];

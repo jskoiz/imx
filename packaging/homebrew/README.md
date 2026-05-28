@@ -23,6 +23,9 @@ archive plus the current FARBFELD/QOI/PBM/PGM/PNG/PPM/JPEG command slice,
 including JPEG EXIF Orientation, progressive JPEG, v0.12 intake smoke, and the
 v0.13 resize, v0.14 resize-fit, v0.15 batch-convert, v0.16 BMP, v0.17
 self-test, and v0.18 JSON identify/report smoke, before support is claimed.
+For v0.19.0 and newer, the generator also emits direct JSON diagnostic smoke
+for unsupported prefixes and prefix mismatches so tap tests cover the daily-use
+diagnostic contract without requiring source-tree fixtures.
 
 `brew test` verifies installation only. Compatibility remains covered by the
 IMX differential corpus, fuzz, benchmark, and conformance gates; macOS tap

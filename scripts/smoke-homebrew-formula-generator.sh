@@ -158,6 +158,21 @@ assert_contains "$json_report_formula" 'system bin/"imx", "self-test"'
 assert_contains "$json_report_formula" 'identify --json PPM:input.ppm'
 assert_contains "$json_report_formula" 'report --json PPM:input.ppm'
 assert_contains "$json_report_formula" 'assert_equal "supported", report_json.fetch("status")'
+assert_not_contains "$json_report_formula" 'input.format_prefix_mismatch'
+
+daily_use_release="$work_dir/daily-use-release.SHA256SUMS"
+write_checksums "$daily_use_release" \
+  imx-preview-0.19.0-x86_64-unknown-linux-gnu.tar.gz \
+  imx-preview-0.19.0-aarch64-unknown-linux-gnu.tar.gz
+daily_use_formula="$work_dir/daily-use-release.rb"
+bash scripts/generate-homebrew-formula.sh v0.19.0 "$daily_use_release" "$daily_use_formula"
+assert_formula_syntax "$daily_use_formula"
+assert_contains "$daily_use_formula" 'identify --json PPM:input.ppm'
+assert_contains "$daily_use_formula" 'report --json GIF:input.ppm'
+assert_contains "$daily_use_formula" 'input.unsupported_format_prefix'
+assert_contains "$daily_use_formula" 'report --json QOI:input.ppm'
+assert_contains "$daily_use_formula" 'input.format_prefix_mismatch'
+assert_contains "$daily_use_formula" 'identify --json QOI:input.ppm 2>&1'
 
 all_targets="$work_dir/all-targets.SHA256SUMS"
 write_checksums "$all_targets" \

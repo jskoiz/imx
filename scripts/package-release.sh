@@ -167,6 +167,12 @@ printf 'P2\n2 1\n255\n0 255\n' >"$verify_dir/input.pgm"
 printf 'P1\n2 1\n0 1\n' >"$verify_dir/input.pbm"
 fixture_dir="$verify_dir/fixtures"
 cargo run -p imx-cli --bin imx-generate-fixtures -- "$fixture_dir" >/dev/null
+IMX_DAILY_USE_BIN="$packaged_binary" \
+  IMX_DAILY_USE_RUNNER="${IMX_PACKAGE_RUNNER:-}" \
+  IMX_DAILY_USE_FIXTURE_DIR="$fixture_dir" \
+  IMX_DAILY_USE_OUT="$verify_dir/daily-use-corpus" \
+  bash scripts/daily-use-corpus.sh >/dev/null
+cp "$verify_dir/daily-use-corpus/summary.json" "$artifact_dir/daily-use-corpus-$target-summary.json"
 run_packaged_binary identify "$verify_dir/input.ppm" >/dev/null
 run_packaged_binary identify "$verify_dir/input16.ppm" >/dev/null
 run_packaged_binary identify "$verify_dir/input.pgm" >/dev/null

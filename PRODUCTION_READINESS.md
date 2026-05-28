@@ -14,6 +14,9 @@ identify/transcode/resize/resize-fit/batch-convert surface. v0.17.0 adds an
 offline installed-binary self-test and hardens CLI diagnostic/exit-code proof.
 v0.18.0 adds deterministic JSON identify/report output for the same existing
 identify fields plus report status and diagnostic codes.
+Current `main` additionally carries the v0.19.0 daily-use corpus hardening gate
+for the same supported surface. That gate is source/readiness evidence until a
+future v0.19.0 release is intentionally cut and published.
 GitHub release archive support is claimed only for the Linux archive targets
 present in the published v0.18.0 GitHub `SHA256SUMS` and verified by
 Linux-only release/archive smoke. Tap support is verified through the
@@ -121,6 +124,7 @@ local/manual only unless explicitly approved in the current turn.
 | Release gates | `scripts/ci.sh` | terminal plus CI logs | fmt, clippy, tests, fixture generation, self-test and diagnostics tests, fuzz smoke, benchmark smoke, differential tests | required before tag |
 | Differential corpus | `scripts/differential-corpus.sh` | `target/differential-corpus-*/summary.json` | identify for 8 formats, prefixed identify for 8 formats, JSON identify/report smoke over the same metadata, high-depth PPM/PNG identify, directed transcodes across BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM, a prefixed transcode ring covering every supported prefix as input/output, plain and prefixed resize plus resize-fit for 8 formats, batch-convert runs across all destination formats plus safety cases, an `imx self-test` result row, 16-bit PPM/PNG preserving transcodes, JPEG RGB8 lossy metric evidence, EXIF Orientation cases against ImageMagick `-auto-orient`, and progressive JPEG RGB/gray/orientation cases | required before tag |
 | Curated intake corpus | `scripts/curated-corpus.sh` and `cargo test --test curated_corpus` | `target/curated-corpus/summary.json` | generated/in-test representative intake cases, malformed diagnostic assertions, and resource-boundary checks for supported formats only | required before tag |
+| Daily-use corpus | `scripts/daily-use-corpus.sh` | `target/daily-use-corpus/summary.json` | installed-style binary smoke for JSON identify/report over generated fixtures, representative prefixed transcodes, stable unsupported `report --json` diagnostics, and `identify --json` failure JSON on stderr | required before tag |
 | Fuzz smoke | `scripts/run-fuzz.sh` | `target/fuzz-runs/*/summary.json` | BMP, FARBFELD, JPEG, QOI, PNG, and PNM identify/decode with retained crash artifacts | required before tag |
 | Scheduled fuzz | `.github/workflows/rust-fuzz-scheduled.yml` | `scheduled-fuzz-evidence` artifact | longer cargo-fuzz run with artifact retention | required CI lane |
 | Bench/RSS thresholds | `scripts/bench-release.sh` | `target/release-bench-*/threshold-summary.json` | throughput and process/library RSS sanity budgets | required before tag |
@@ -155,6 +159,7 @@ IMX_INSTALL_REPO_URL=/Users/jk/Desktop/imx \
 bash scripts/verify-install.sh
 bash scripts/package-release.sh
 cat target/release-artifacts/linkage-$(rustc -vV | sed -n 's/^host: //p').txt
+bash scripts/daily-use-corpus.sh
 brew tap jskoiz/imx
 brew install imx
 brew test imx
@@ -272,9 +277,9 @@ published binary references a `GLIBC_*` symbol newer than `GLIBC_2.34`.
 
 ## Next Smallest Milestone
 
-After the v0.18.0 release/tap closure, the next milestone should improve
-everyday usefulness with one bounded operation or format gap, prove it against
-ImageMagick where applicable, and keep package/tap proof current. TIFF, GIF,
-WebP, APNG, delegates, MagickCore, MagickWand, color management, metadata
+After the v0.19.0 daily-use corpus hardening lands, the next milestone should
+improve everyday usefulness with one bounded operation or format gap, prove it
+against ImageMagick where applicable, and keep package/tap proof current. TIFF,
+GIF, WebP, APNG, delegates, MagickCore, MagickWand, color management, metadata
 preservation beyond declared read-only fields, and full ImageMagick CLI
 compatibility remain too broad for a single next milestone.

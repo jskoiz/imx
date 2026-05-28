@@ -30,6 +30,7 @@ latest_match() {
 fuzz_summary="$(latest_match '*/fuzz-runs/*/summary.json')"
 differential_summary="$(latest_match '*/differential-corpus-*/summary.json')"
 curated_summary="$(latest_match '*/curated-corpus/summary.json')"
+daily_use_summary="$(latest_match '*/daily-use-corpus/summary.json')"
 bench_summary="$(latest_match '*/release-bench-*/summary.json')"
 bench_thresholds="$(latest_match '*/release-bench-*/threshold-summary.json')"
 bench_regression="$(latest_match '*/bench-regression-*/regression-report.json')"
@@ -40,6 +41,7 @@ if [[ "${IMX_CONFORMANCE_REQUIRE_EVIDENCE:-0}" == 1 ]]; then
   missing_required=()
   [[ -n "$differential_summary" ]] || missing_required+=("differential corpus")
   [[ -n "$curated_summary" ]] || missing_required+=("curated corpus")
+  [[ -n "$daily_use_summary" ]] || missing_required+=("daily-use corpus")
   [[ -n "$fuzz_summary" ]] || missing_required+=("fuzz smoke")
   [[ -n "$bench_summary" ]] || missing_required+=("benchmark summary")
   [[ -n "$bench_thresholds" ]] || missing_required+=("benchmark thresholds")
@@ -164,6 +166,7 @@ $glibc_symbols_report
 | --- | --- |
 | Differential corpus | ${differential_summary:-missing} |
 | Curated intake corpus | ${curated_summary:-missing} |
+| Daily-use corpus | ${daily_use_summary:-missing} |
 | Fuzz | ${fuzz_summary:-missing} |
 | Benchmark/RSS | ${bench_summary:-missing} |
 | Benchmark thresholds | ${bench_thresholds:-missing} |
@@ -185,6 +188,12 @@ $glibc_symbols_report
   PPM high-maxval/commented/binary-comment input, explicit malformed
   diagnostics, and resource-boundary rejection. No externally sourced
   real-world file corpus is claimed.
+- Daily-use corpus coverage runs an actual \`imx\` binary against generated
+  fixtures for JSON identify/report, representative prefixed transcodes across
+  all supported format families, stable \`report --json\` unsupported
+  diagnostics, and \`identify --json\` failure JSON on stderr. This is a
+  no-oracle installed-binary confidence gate and does not add formats or CLI
+  shapes.
 - Malformed-input tests cover invalid headers, truncation, oversized dimensions,
   unsupported max values, malformed EXIF Orientation metadata, and failed CLI
   output behavior.
@@ -257,6 +266,7 @@ cat >"$out_dir/conformance-summary.json" <<EOF
   "batch_convert": "safe batch-convert supports existing BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM inputs, exact uppercase target formats, deterministic output names, collision preflight, and optional resize/resize-fit composition",
   "self_test": "imx self-test creates temporary fixtures and exercises identify/transcode/resize/resize-fit/batch-convert across BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM without ImageMagick or network access",
   "json_identify_report": "JSON identify/report emits deterministic schema_version, format, width, height, channels, depth, status, and diagnostic_code fields for existing supported formats only; it does not add new metadata extraction or ImageMagick JSON compatibility claims",
+  "daily_use_corpus": "scripts/daily-use-corpus.sh runs an actual imx binary against generated fixtures for JSON identify/report, representative prefixed transcodes, stable unsupported diagnostics, and identify --json failure JSON on stderr",
   "cli_diagnostics": "CLI tests cover exit code and error-prefix behavior for unknown prefixes, mismatched prefixes, missing paths, unsupported variants, invalid geometry, same-path output, batch failures, and unsupported command shapes",
   "intake_reliability": "representative generated and in-test corpus cases cover supported-format intake, malformed diagnostics, and resource-boundary rejection",
   "real_world_files": "No externally sourced real-world file corpus is claimed.",
@@ -264,6 +274,7 @@ cat >"$out_dir/conformance-summary.json" <<EOF
   "generated_at": "$generated_at",
   "differential_summary": "${differential_summary:-}",
   "curated_summary": "${curated_summary:-}",
+  "daily_use_summary": "${daily_use_summary:-}",
   "fuzz_summary": "${fuzz_summary:-}",
   "benchmark_summary": "${bench_summary:-}",
   "benchmark_thresholds": "${bench_thresholds:-}",

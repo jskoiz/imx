@@ -95,6 +95,13 @@ adds `status` and `diagnostic_code` for supported/unsupported outcomes. It does
 not add new metadata extraction, ImageMagick JSON compatibility, profiles,
 color management, file hashes, recursive batch reporting, or new formats.
 
+The v0.19.0 development track adds a daily-use corpus hardening gate for the
+same existing surface. `scripts/daily-use-corpus.sh` runs a real `imx` binary
+against generated fixtures for JSON identify/report, representative prefixed
+transcodes, stable unsupported diagnostics, and `identify --json` failure JSON.
+It is a no-oracle install/package/release confidence gate, not a new format or
+command surface.
+
 ## Install
 
 Install the verified v0.18.0 tap release:
@@ -436,10 +443,13 @@ The v0.12.0 representative intake reliability contract is tracked in
 the generated/in-test corpus plan in
 [docs/v0.12.0-curated-corpus.md](docs/v0.12.0-curated-corpus.md). The v0.16.0
 BMP contract is tracked in [docs/v0.16.0-bmp.md](docs/v0.16.0-bmp.md). The
+v0.17.0 self-test and diagnostics contract is tracked in
+[docs/v0.17.0-self-test-diagnostics.md](docs/v0.17.0-self-test-diagnostics.md).
+The
 v0.18.0 JSON identify/report contract is tracked in
 [docs/v0.18.0-json-identify-report.md](docs/v0.18.0-json-identify-report.md).
-The v0.17.0 self-test and diagnostics contract is tracked in
-[docs/v0.17.0-self-test-diagnostics.md](docs/v0.17.0-self-test-diagnostics.md).
+v0.19.0 daily-use corpus hardening is tracked in
+[docs/v0.19.0-daily-use-corpus.md](docs/v0.19.0-daily-use-corpus.md).
 The
 v0.15.0 safe batch conversion contract is tracked in
 [docs/v0.15.0-batch-convert.md](docs/v0.15.0-batch-convert.md), the v0.14.0

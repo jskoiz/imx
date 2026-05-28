@@ -458,6 +458,12 @@ identify error output.
 `target/curated-corpus/summary.json` and is run by the local/hosted release
 gate. IMX intentionally rejects several malformed inputs that ImageMagick may
 accept or clamp.
+`scripts/daily-use-corpus.sh` records `target/daily-use-corpus/summary.json`
+and proves the current binary against generated fixtures for JSON
+identify/report, representative prefixed transcodes, stable unsupported
+`report --json` diagnostics, and `identify --json` failure JSON on stderr. This
+gate is a no-oracle install/package/release confidence check and does not add
+new formats or command shapes.
 
 ## Unsupported Surface
 

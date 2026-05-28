@@ -31,6 +31,7 @@ batch_convert_smoke=0
 bmp_smoke=0
 self_test_smoke=0
 json_report_smoke=0
+daily_use_smoke=0
 if [[ "$formula_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
   major="${BASH_REMATCH[1]}"
   minor="${BASH_REMATCH[2]}"
@@ -69,6 +70,9 @@ if [[ "$formula_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
   fi
   if ((major > 0 || minor >= 18)); then
     json_report_smoke=1
+  fi
+  if ((major > 0 || minor >= 19)); then
+    daily_use_smoke=1
   fi
 fi
 
@@ -205,6 +209,20 @@ if [[ "$json_report_smoke" == 1 ]]; then
     assert_equal "supported", report_json.fetch("status")
     assert_nil report_json.fetch("diagnostic_code")
     assert_equal "PPM", report_json.fetch("format")
+EOF
+fi
+
+if [[ "$daily_use_smoke" == 1 ]]; then
+  cat <<'EOF'
+    unsupported_report = JSON.parse(shell_output("#{bin/"imx"} report --json GIF:input.ppm"))
+    assert_equal "unsupported", unsupported_report.fetch("status")
+    assert_equal "input.unsupported_format_prefix", unsupported_report.fetch("diagnostic_code")
+    mismatch_report = JSON.parse(shell_output("#{bin/"imx"} report --json QOI:input.ppm"))
+    assert_equal "unsupported", mismatch_report.fetch("status")
+    assert_equal "input.format_prefix_mismatch", mismatch_report.fetch("diagnostic_code")
+    identify_error = JSON.parse(shell_output("#{bin/"imx"} identify --json QOI:input.ppm 2>&1", 1))
+    assert_equal "unsupported", identify_error.fetch("status")
+    assert_equal "input.format_prefix_mismatch", identify_error.fetch("diagnostic_code")
 EOF
 fi
 

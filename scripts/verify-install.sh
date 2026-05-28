@@ -21,6 +21,10 @@ git clone "$repo_url" "$checkout" >/dev/null
 
   fixture_dir="$work_dir/fixtures"
   cargo run -p imx-cli --bin imx-generate-fixtures -- "$fixture_dir" >/dev/null
+  IMX_DAILY_USE_BIN="$install_root/bin/imx" \
+    IMX_DAILY_USE_FIXTURE_DIR="$fixture_dir" \
+    IMX_DAILY_USE_OUT="$work_dir/daily-use-corpus" \
+    bash scripts/daily-use-corpus.sh >/dev/null
   printf 'P3\n2 1\n255\n255 0 0 0 0 255\n' >"$work_dir/fit-input.ppm"
   printf 'P2\n2 1\n255\n0 255\n' >"$work_dir/fit-input.pgm"
   printf 'P1\n2 1\n0 1\n' >"$work_dir/fit-input.pbm"
