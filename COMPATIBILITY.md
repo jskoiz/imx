@@ -483,7 +483,7 @@ accept or clamp.
   the `jskoiz/imx` Homebrew tap is claimed for this slice. v0.18.0 Linux x86_64
   and Linux arm64 archives require glibc 2.34 or newer; Linux arm64 support is
   claimed only for published archives and release-attached formula blocks
-  verified from release `SHA256SUMS`. A v0.18.0 tap claim additionally requires
-  updating `jskoiz/homebrew-imx` from those checksums and passing Linux-only tap
-  smoke. Release/archive smoke checks that published Linux binaries do not
-  reference `GLIBC_*` symbols newer than `GLIBC_2.34`.
+  verified from release `SHA256SUMS`. The v0.18.0 tap claim is verified through
+  `jskoiz/homebrew-imx` from those checksums and Linux-only tap smoke.
+  Release/archive smoke checks that published Linux binaries do not reference
+  `GLIBC_*` symbols newer than `GLIBC_2.34`.

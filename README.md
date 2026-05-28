@@ -97,8 +97,7 @@ color management, file hashes, recursive batch reporting, or new formats.
 
 ## Install
 
-Install from the tap after the separate tap repo has been updated for the
-release:
+Install the verified v0.18.0 tap release:
 
 ```sh
 brew tap jskoiz/imx
@@ -107,13 +106,12 @@ imx --version
 ```
 
 This uses the `jskoiz/homebrew-imx` tap formula generated from each published
-release's `SHA256SUMS`. For v0.18.0, the GitHub release attaches the generated
-formula source; a tap claim requires updating `jskoiz/homebrew-imx` from those
-checksums and passing Linux-only tap smoke. It is not a Homebrew/core formula.
-Published Linux archives require glibc 2.34 or newer. Release/archive smoke
-checks this by asserting that published Linux binaries do not reference
-`GLIBC_*` symbols newer than `GLIBC_2.34`; the v0.18.0 release workflow
-verifies that ceiling from the published assets.
+release's `SHA256SUMS`. For v0.18.0, the `jskoiz/homebrew-imx` tap was updated
+from the published release checksums and passed Linux-only tap smoke. It is not
+a Homebrew/core formula. Published Linux archives require glibc 2.34 or newer.
+Release/archive smoke checks this by asserting that published Linux binaries do
+not reference `GLIBC_*` symbols newer than `GLIBC_2.34`; the v0.18.0 release
+workflow verifies that ceiling from the published assets.
 
 Hosted GitHub Actions for the tap are Linux-only; macOS install proof must be
 run locally or manually after explicit approval.
@@ -144,9 +142,8 @@ https://github.com/jskoiz/imx/releases/tag/v0.18.0
 
 The release-attached `imx.rb` is the formula source used to update the
 `jskoiz/homebrew-imx` tap from the published `SHA256SUMS`. For v0.18.0, Linux
-x86_64 and Linux arm64 tap blocks are generated from the release checksums;
-the separate tap update must pass Linux-only tap smoke before tap support is
-claimed for that version.
+x86_64 and Linux arm64 tap blocks were generated from the release checksums and
+verified by Linux-only tap smoke.
 
 Or install the current source tree directly:
 

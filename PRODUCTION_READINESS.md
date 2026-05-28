@@ -16,11 +16,11 @@ v0.18.0 adds deterministic JSON identify/report output for the same existing
 identify fields plus report status and diagnostic codes.
 GitHub release archive support is claimed only for the Linux archive targets
 present in the published v0.18.0 GitHub `SHA256SUMS` and verified by
-Linux-only release/archive smoke. Tap support requires a separate
-`jskoiz/homebrew-imx` update from those `SHA256SUMS` plus Linux-only tap smoke
-before it is claimed for v0.18.0. Published Linux archives require glibc 2.34
-or newer, with release/archive smoke checking that published Linux binaries do
-not reference `GLIBC_*` symbols newer than `GLIBC_2.34`. Hosted release proof is
+Linux-only release/archive smoke. Tap support is verified through the
+`jskoiz/homebrew-imx` update generated from those `SHA256SUMS` and proven by
+Linux-only tap smoke. Published Linux archives require glibc 2.34 or newer,
+with release/archive smoke checking that published Linux binaries do not
+reference `GLIBC_*` symbols newer than `GLIBC_2.34`. Hosted release proof is
 Linux-only.
 Automatic hosted macOS/iOS GitHub Actions remain disabled; macOS proof is
 local/manual only unless explicitly approved in the current turn.
@@ -244,8 +244,8 @@ published binary references a `GLIBC_*` symbol newer than `GLIBC_2.34`.
 - No Windows, crates.io, Homebrew/core, or unverified macOS v0.18.x package is
   claimed. Linux arm64 is claimed only for published v0.18.0 archives and
   release-attached formula blocks verified from release `SHA256SUMS`; Homebrew
-  tap support is tap-only through `jskoiz/imx` and requires separate tap smoke
-  before a v0.18.0 tap claim.
+  tap support is tap-only through `jskoiz/imx` and is verified by Linux-only tap
+  smoke for v0.18.0.
 
 ## Safety Wins
 
