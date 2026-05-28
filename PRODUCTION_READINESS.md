@@ -1,4 +1,12 @@
-# IMX Compatibility Readiness
+# IMX Production Readiness
+
+IMX is a fast, memory-safe, differentially-verified image conversion library
+and CLI, not a fork or port of ImageMagick; ImageMagick is used only as an
+external oracle in IMX's tests and benchmarks. This document records the current
+release evidence, the exact bounded surface that has been verified, the known
+gaps, and the next adoption milestone. Every capability below is scoped
+deliberately and backed by the differential, fuzz, benchmark, and conformance
+gates.
 
 Status: v0.19.0 is the current developer-preview release surface. It carries
 forward the v0.6.0 exact format-prefix surface, the v0.7.0 high-depth PPM

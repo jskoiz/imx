@@ -1,3 +1,38 @@
+//! Core image model and pixel-format conversions for the `imx` image toolkit.
+//!
+//! `imx-core` provides the format-agnostic [`Image`] type plus the
+//! deterministic, byte-identical pixel conversions that the `imx` CLI and the
+//! per-format codec crates build on. Every conversion is differentially
+//! verified against the real ImageMagick binary as an oracle, and all buffer
+//! allocations are bounded by [`MAX_PIXEL_BYTES`] and performed through checked
+//! reservation so malformed or hostile inputs cannot trigger uncontrolled
+//! allocation.
+//!
+//! This crate is codec-free: it operates on already-decoded pixel buffers and
+//! never reads or writes files. Decoding and encoding of concrete container
+//! formats (PNG, JPEG, BMP, QOI, Netpbm, farbfeld) live in the separate `imx`
+//! codec crates.
+//!
+//! # Example
+//!
+//! Construct an [`Image`] from raw RGB8 pixels and convert it to 8-bit
+//! grayscale using the Rec.709 luma weights:
+//!
+//! ```
+//! use imx_core::{Image, PixelFormat};
+//!
+//! // A 2x1 RGB8 image: one pure-red pixel, one pure-green pixel.
+//! let rgb = Image::new(2, 1, PixelFormat::Rgb8, vec![255, 0, 0, 0, 255, 0])?;
+//!
+//! let gray = rgb.to_gray8()?;
+//! assert_eq!(gray.pixel_format(), PixelFormat::Gray8);
+//! assert_eq!(gray.width(), 2);
+//! assert_eq!(gray.height(), 1);
+//! // Deterministic Rec.709 luma: red -> 54, green -> 182.
+//! assert_eq!(gray.pixels(), &[54, 182]);
+//! # Ok::<(), imx_core::ImageError>(())
+//! ```
+
 use std::fmt;
 
 pub const MAX_PIXEL_BYTES: usize = 512 * 1024 * 1024;
