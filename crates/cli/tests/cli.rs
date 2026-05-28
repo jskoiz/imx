@@ -49,6 +49,44 @@ fn prefixed(prefix: &str, path: &Path) -> String {
     format!("{prefix}:{}", path.to_str().unwrap())
 }
 
+fn identify_json_from_stable_line(stable_line: &str) -> String {
+    let mut format = "";
+    let mut width = "";
+    let mut height = "";
+    let mut channels = "";
+    let mut depth = "";
+    for field in stable_line.split_whitespace() {
+        if let Some(value) = field.strip_prefix("format=") {
+            format = value;
+        } else if let Some(value) = field.strip_prefix("width=") {
+            width = value;
+        } else if let Some(value) = field.strip_prefix("height=") {
+            height = value;
+        } else if let Some(value) = field.strip_prefix("channels=") {
+            channels = value;
+        } else if let Some(value) = field.strip_prefix("depth=") {
+            depth = value;
+        }
+    }
+    format!(
+        "{{\"schema_version\":1,\"format\":\"{format}\",\"width\":{width},\"height\":{height},\"channels\":\"{channels}\",\"depth\":{depth}}}"
+    )
+}
+
+fn report_json_from_stable_line(stable_line: &str) -> String {
+    identify_json_from_stable_line(stable_line).replacen(
+        "{\"schema_version\":1,",
+        "{\"schema_version\":1,\"status\":\"supported\",\"diagnostic_code\":null,",
+        1,
+    )
+}
+
+fn report_unsupported_json(code: &str, message: &str) -> String {
+    format!(
+        "{{\"schema_version\":1,\"status\":\"unsupported\",\"diagnostic_code\":\"{code}\",\"message\":\"{message}\"}}"
+    )
+}
+
 fn png_fixture(
     path: &Path,
     width: u32,
@@ -389,6 +427,49 @@ fn identifies_with_exact_format_prefixes_for_supported_formats() {
 }
 
 #[test]
+fn identifies_json_for_supported_formats_with_and_without_prefixes() {
+    let dir = temp_dir("identify_json");
+    for (prefix, path, expected_identify) in write_supported_fixtures(&dir) {
+        for arg in [path.to_string_lossy().into_owned(), prefixed(prefix, &path)] {
+            let output = Command::new(imx())
+                .args(["identify", "--json", arg.as_str()])
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{prefix} JSON identify failed for {arg} with stderr={}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert_eq!(
+                String::from_utf8(output.stdout).unwrap().trim(),
+                identify_json_from_stable_line(expected_identify)
+            );
+        }
+    }
+}
+
+#[test]
+fn report_json_summarizes_supported_inputs() {
+    let dir = temp_dir("report_json_supported");
+    for (prefix, path, expected_identify) in write_supported_fixtures(&dir) {
+        let arg = prefixed(prefix, &path);
+        let output = Command::new(imx())
+            .args(["report", "--json", arg.as_str()])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{prefix} JSON report failed with stderr={}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            String::from_utf8(output.stdout).unwrap().trim(),
+            report_json_from_stable_line(expected_identify)
+        );
+    }
+}
+
+#[test]
 fn farbfeld_extension_alias_identifies_and_transcodes() {
     let dir = temp_dir("farbfeld_extension_alias");
     let input = dir.join("input.farbfeld");
@@ -508,6 +589,19 @@ fn jpeg_exif_orientation_affects_identify_and_transcode_dimensions() {
     assert_eq!(
         String::from_utf8(identify.stdout).unwrap().trim(),
         "format=JPEG width=2 height=3 channels=RGB depth=8"
+    );
+    let identify_json = Command::new(imx())
+        .args(["identify", "--json", input_arg.as_str()])
+        .output()
+        .unwrap();
+    assert!(
+        identify_json.status.success(),
+        "JPEG EXIF JSON identify failed with stderr={}",
+        String::from_utf8_lossy(&identify_json.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(identify_json.stdout).unwrap().trim(),
+        "{\"schema_version\":1,\"format\":\"JPEG\",\"width\":2,\"height\":3,\"channels\":\"RGB\",\"depth\":8}"
     );
 
     let output_arg = prefixed("PPM", &output_ppm);
@@ -1921,6 +2015,19 @@ fn identifies_sixteen_bit_ppm_with_and_without_prefix() {
             String::from_utf8(output.stdout).unwrap().trim(),
             "format=PPM width=2 height=1 channels=RGB depth=16"
         );
+        let output = Command::new(imx())
+            .args(["identify", "--json", arg.as_str()])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "PPM16 JSON identify failed with stderr={}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            String::from_utf8(output.stdout).unwrap().trim(),
+            "{\"schema_version\":1,\"format\":\"PPM\",\"width\":2,\"height\":1,\"channels\":\"RGB\",\"depth\":16}"
+        );
     }
 }
 
@@ -2250,6 +2357,10 @@ fn help_and_version_are_available() {
         assert!(!output.stdout.is_empty());
         if flag == "--help" {
             let stdout = String::from_utf8(output.stdout).unwrap();
+            assert!(stdout.contains("imx identify --json"));
+            assert!(stdout.contains("imx report --json"));
+            assert!(stdout.contains("supported identify JSON"));
+            assert!(stdout.contains("stable diagnostic_code"));
             assert!(stdout.contains("imx resize <width>x<height>"));
             assert!(stdout.contains("imx resize-fit <width>x<height>"));
             assert!(stdout.contains("imx batch-convert --to <FORMAT> --output-dir <dir>"));
@@ -2338,6 +2449,44 @@ fn unsupported_imagemagick_command_shapes_are_rejected() {
 }
 
 #[test]
+fn json_command_shapes_are_exact() {
+    let dir = temp_dir("json_command_shapes");
+    let input = dir.join("input.ppm");
+    fs::write(
+        &input,
+        imx_codec_pnm::encode_ppm(&Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap())
+            .unwrap(),
+    )
+    .unwrap();
+
+    for args in [
+        vec!["identify".to_string(), "--json".to_string()],
+        vec![
+            "identify".to_string(),
+            input.to_string_lossy().into_owned(),
+            "--json".to_string(),
+        ],
+        vec![
+            "identify".to_string(),
+            "--format".to_string(),
+            "json".to_string(),
+            input.to_string_lossy().into_owned(),
+        ],
+        vec!["report".to_string(), "--json".to_string()],
+        vec!["report".to_string(), input.to_string_lossy().into_owned()],
+        vec![
+            "report".to_string(),
+            "--format".to_string(),
+            "json".to_string(),
+            input.to_string_lossy().into_owned(),
+        ],
+    ] {
+        let output = Command::new(imx()).args(&args).output().unwrap();
+        assert_failure(output, 2, "usage:");
+    }
+}
+
+#[test]
 fn malformed_input_exits_nonzero_with_error_prefix() {
     let dir = temp_dir("malformed");
     let bad = dir.join("bad.qoi");
@@ -2350,6 +2499,27 @@ fn malformed_input_exits_nonzero_with_error_prefix() {
     assert!(String::from_utf8_lossy(&output.stderr).starts_with("error: "));
     assert!(String::from_utf8_lossy(&output.stderr).contains("failed to identify QOI input"));
     assert!(String::from_utf8_lossy(&output.stderr).contains("QOI channels must be 3 or 4, got 2"));
+}
+
+#[test]
+fn identify_json_errors_are_machine_readable() {
+    let dir = temp_dir("identify_json_error");
+    let bad = dir.join("bad.qoi");
+    fs::write(&bad, b"qoif\0\0\0\x01\0\0\0\x01\x02\0").unwrap();
+
+    let output = Command::new(imx())
+        .args(["identify", "--json", prefixed("QOI", &bad).as_str()])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(
+        String::from_utf8(output.stderr).unwrap().trim(),
+        report_unsupported_json(
+            "qoi.invalid_channels",
+            "failed to identify QOI input: QOI channels must be 3 or 4, got 2",
+        )
+    );
 }
 
 #[test]
@@ -2616,6 +2786,88 @@ fn malformed_format_prefixes_are_rejected() {
             String::from_utf8_lossy(&output.stderr).contains(expected_error),
             "expected stderr to contain {expected_error:?}, got {:?}",
             String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+#[test]
+fn report_json_returns_stable_diagnostic_codes() {
+    let dir = temp_dir("report_json_diagnostics");
+    let ppm = dir.join("input.ppm");
+    let qoi = dir.join("bad.qoi");
+    let image = Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap();
+    fs::write(&ppm, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
+    fs::write(&qoi, b"qoif\0\0\0\x01\0\0\0\x01\x02\0").unwrap();
+    let missing = dir.join("missing.ppm");
+
+    let cases = [
+        (
+            vec![
+                "report".to_string(),
+                "--json".to_string(),
+                prefixed("GIF", &ppm),
+            ],
+            report_unsupported_json(
+                "input.unsupported_format_prefix",
+                "unsupported format prefix: GIF",
+            ),
+        ),
+        (
+            vec![
+                "report".to_string(),
+                "--json".to_string(),
+                "PPM:".to_string(),
+            ],
+            report_unsupported_json(
+                "input.missing_prefix_path",
+                "missing path after format prefix PPM:",
+            ),
+        ),
+        (
+            vec![
+                "report".to_string(),
+                "--json".to_string(),
+                prefixed("PNG", &ppm),
+            ],
+            report_unsupported_json(
+                "input.format_prefix_mismatch",
+                "format prefix PNG does not match detected format PPM",
+            ),
+        ),
+        (
+            vec![
+                "report".to_string(),
+                "--json".to_string(),
+                missing.to_string_lossy().into_owned(),
+            ],
+            report_unsupported_json(
+                "input.missing",
+                &format!("missing input: {}", missing.to_string_lossy()),
+            ),
+        ),
+        (
+            vec![
+                "report".to_string(),
+                "--json".to_string(),
+                prefixed("QOI", &qoi),
+            ],
+            report_unsupported_json(
+                "qoi.invalid_channels",
+                "failed to identify QOI input: QOI channels must be 3 or 4, got 2",
+            ),
+        ),
+    ];
+
+    for (args, expected_json) in cases {
+        let output = Command::new(imx()).args(&args).output().unwrap();
+        assert!(
+            output.status.success(),
+            "report failed for {args:?} with stderr={}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            String::from_utf8(output.stdout).unwrap().trim(),
+            expected_json
         );
     }
 }

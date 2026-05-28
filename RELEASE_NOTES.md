@@ -1,5 +1,25 @@
 # IMX Release Notes
 
+## IMX v0.18.0 JSON Identify and Report Slice
+
+- Adds `imx identify --json [FORMAT:]<input>`, a deterministic JSON projection
+  of the existing identify metadata: `schema_version`, `format`, `width`,
+  `height`, `channels`, and `depth`.
+- Adds `imx report --json [FORMAT:]<input>`, a single-input status report that
+  returns supported metadata or `status="unsupported"` with a stable
+  `diagnostic_code` and message for unsupported, missing, mismatched, or
+  malformed inputs.
+- Keeps text `imx identify [FORMAT:]<input>` output unchanged. JPEG JSON width
+  and height use the same Orientation-normalized dimensions as text identify.
+- Extends CLI tests, self-test, install verification, package smoke,
+  release-archive smoke, generated conformance wording, and Homebrew formula
+  smoke with JSON identify/report evidence.
+- Keeps the slice bounded: no new formats, recursive reporting, stdin/stdout,
+  ImageMagick JSON schema compatibility, metadata/profile/color-management
+  reporting, histograms, hashes, `magick` alias, full ImageMagick CLI parsing,
+  delegates, MagickCore, MagickWand, Homebrew/core, crates.io, Windows, or
+  hosted macOS/iOS Actions.
+
 ## IMX v0.17.0 Self-Test and Diagnostics Slice
 
 - Adds `imx self-test`, an offline installed-binary confidence check that

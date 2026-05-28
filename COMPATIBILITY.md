@@ -22,6 +22,8 @@ This contract covers only the standalone developer-preview slice.
 imx --help
 imx --version
 imx identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>
+imx identify --json [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>
+imx report --json [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>
 imx resize <width>x<height> [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
   [FORMAT:]<output.bmp|output.ff|output.farbfeld|output.jpg|output.jpeg|output.qoi|output.pbm|output.pgm|output.png|output.ppm>
 imx resize-fit <width>x<height> [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm> \
@@ -40,10 +42,25 @@ imx [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|i
 format=<FORMAT> width=<WIDTH> height=<HEIGHT> channels=<GRAY|RGB|RGBA> depth=<1|8|16>
 ```
 
+`identify --json` outputs the same proven identify fields as deterministic JSON:
+
+```json
+{"schema_version":1,"format":"PPM","width":2,"height":1,"channels":"RGB","depth":8}
+```
+
+`report --json` outputs one single-input status object. Supported inputs add
+`status="supported"` and `diagnostic_code=null` to the identify fields.
+Unsupported or malformed inputs exit `0` and emit `status="unsupported"`, a
+stable `diagnostic_code`, and a human-readable `message`. `identify --json`
+uses the same diagnostic JSON on stderr and exits `1` for data, IO, malformed
+input, or validation failures. Invalid command shapes still exit `2` with usage
+text.
+
 `self-test` creates temporary fixtures and invokes the installed `imx` binary
-for unprefixed and prefixed identify, cross-format transcode, same-format
-resize, same-format resize-fit, and batch-convert across BMP, FARBFELD, JPEG,
-QOI, PBM, PGM, PNG, and PPM. It exits `0` and prints `self-test: passed` only
+for unprefixed and prefixed identify, JSON identify/report, cross-format
+transcode, same-format resize, same-format resize-fit, and batch-convert across
+BMP, FARBFELD, JPEG, QOI, PBM, PGM, PNG, and PPM. It exits `0` and prints
+`self-test: passed` only
 when every smoke step succeeds. It exits `1` with `error: self-test failed: ...`
 if any covered command fails. `self-test` is an offline install confidence check,
 not an ImageMagick oracle, fuzz target, benchmark, or full conformance proof.
@@ -405,7 +422,9 @@ corpus, runs `imx identify` metadata parity for BMP, FARBFELD, JPEG, QOI, PBM,
 PGM, PNG, and PPM fixtures, runs prefixed identify cases for the same eight
 formats, runs additional high-depth PPM and PNG identify cases, and adds
 representative intake identify/pixel parity for generated and in-test fixture
-families. It then checks directed transcodes between the eight supported
+families. CLI tests and smoke scripts cover `imx identify --json` and
+`imx report --json` as deterministic projections of the same identify metadata,
+including supported/unsupported status and diagnostic codes. It then checks directed transcodes between the eight supported
 formats plus a prefixed transcode ring that exercises every supported prefix as
 input and output. It also checks plain and prefixed nearest-neighbor resize for
 every supported format. It runs plain and prefixed nearest-neighbor resize-fit
@@ -432,7 +451,9 @@ fuzz targets rather than by ImageMagick byte-for-byte compatibility.
 CLI diagnostic tests cover exit code and `error:` prefix behavior for unknown
 prefixes, mismatched prefixes, missing paths, unsupported variants, invalid
 geometry, same-path outputs, batch output-directory failures, and unsupported
-command-shape usage.
+command-shape usage. JSON diagnostic tests cover unknown prefixes, missing
+prefixed paths, prefix mismatches, missing inputs, malformed QOI, and JSON
+identify error output.
 `scripts/curated-corpus.sh` records the v0.12.0 intake corpus summary at
 `target/curated-corpus/summary.json` and is run by the local/hosted release
 gate. IMX intentionally rejects several malformed inputs that ImageMagick may
@@ -441,6 +462,7 @@ accept or clamp.
 ## Unsupported Surface
 
 - No full ImageMagick command parser.
+- No ImageMagick JSON schema compatibility or verbose metadata report.
 - No `magick` binary alias; the shipped command is `imx`.
 - No stdin/stdout streaming.
 - No prefixes beyond exact `BMP:`, `FARBFELD:`, `JPEG:`, `QOI:`, `PBM:`,
@@ -458,9 +480,10 @@ accept or clamp.
 - No format beyond BMP, FARBFELD, JPEG, QOI, PBM, PGM, PNG, and PPM, and no BMP
   variants beyond uncompressed Windows 24-bit BGR/RGB and 32-bit BGRA/RGBA.
 - No Windows, crates.io, Homebrew/core, or package-manager distribution beyond
-  the `jskoiz/imx` Homebrew tap is claimed for this slice. v0.17.0 Linux x86_64
+  the `jskoiz/imx` Homebrew tap is claimed for this slice. v0.18.0 Linux x86_64
   and Linux arm64 archives require glibc 2.34 or newer; Linux arm64 support is
-  claimed only for the published archive and tap block verified from release
-  `SHA256SUMS` by Linux-only tap smoke. Release/archive smoke checks that
-  published Linux binaries do not reference `GLIBC_*` symbols newer than
-  `GLIBC_2.34`.
+  claimed only for published archives and release-attached formula blocks
+  verified from release `SHA256SUMS`. A v0.18.0 tap claim additionally requires
+  updating `jskoiz/homebrew-imx` from those checksums and passing Linux-only tap
+  smoke. Release/archive smoke checks that published Linux binaries do not
+  reference `GLIBC_*` symbols newer than `GLIBC_2.34`.

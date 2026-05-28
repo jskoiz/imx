@@ -587,6 +587,26 @@ pub enum ImageError {
     UnsupportedFormat(String),
 }
 
+impl ImageError {
+    pub fn diagnostic_code(&self) -> &'static str {
+        match self {
+            Self::InvalidHeader(_) => "image.invalid_header",
+            Self::InvalidDimensions => "image.invalid_dimensions",
+            Self::LengthOverflow => "image.length_overflow",
+            Self::ImageTooLarge { .. } => "image.too_large",
+            Self::UnexpectedEof { .. } => "image.unexpected_eof",
+            Self::InvalidPixelBuffer { .. } => "image.invalid_pixel_buffer",
+            Self::AllocationFailed { .. } => "image.allocation_failed",
+            Self::InvalidChannels { .. } => "qoi.invalid_channels",
+            Self::InvalidColorspace { .. } => "qoi.invalid_colorspace",
+            Self::InvalidMaxValue { .. } => "pnm.invalid_max_value",
+            Self::InvalidSampleValue { .. } => "pnm.invalid_sample_value",
+            Self::InvalidPbmSample { .. } => "pbm.invalid_sample",
+            Self::UnsupportedFormat(_) => "image.unsupported_format",
+        }
+    }
+}
+
 impl fmt::Display for ImageError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

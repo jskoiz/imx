@@ -256,6 +256,53 @@ if oracle_depth not in allowed_depths:
 PY
 }
 
+assert_json_identify_report() {
+  local case_id="$1"
+  local identify_json="$2"
+  local report_json="$3"
+  local expected_format="$4"
+  local expected_width="$5"
+  local expected_height="$6"
+  local expected_channels="$7"
+  local expected_depth="$8"
+  python3 - "$case_id" "$identify_json" "$report_json" "$expected_format" "$expected_width" "$expected_height" "$expected_channels" "$expected_depth" <<'PY'
+import json
+import sys
+
+(
+    case_id,
+    identify_path,
+    report_path,
+    expected_format,
+    expected_width,
+    expected_height,
+    expected_channels,
+    expected_depth,
+) = sys.argv[1:9]
+
+expected = {
+    "schema_version": 1,
+    "format": expected_format,
+    "width": int(expected_width),
+    "height": int(expected_height),
+    "channels": expected_channels,
+    "depth": int(expected_depth),
+}
+identify = json.loads(open(identify_path, encoding="utf-8").read())
+if identify != expected:
+    raise SystemExit(f"{case_id}: identify JSON {identify!r} != expected {expected!r}")
+report = json.loads(open(report_path, encoding="utf-8").read())
+report_expected = {
+    "schema_version": 1,
+    "status": "supported",
+    "diagnostic_code": None,
+    **{key: expected[key] for key in ("format", "width", "height", "channels", "depth")},
+}
+if report != report_expected:
+    raise SystemExit(f"{case_id}: report JSON {report!r} != expected {report_expected!r}")
+PY
+}
+
 identify_expectation() {
   case "$1" in
     bmp) echo "BMP|64|64|RGB|8|8" ;;
@@ -282,6 +329,7 @@ batch_convert_runs=0
 batch_convert_output_cases=0
 batch_convert_safety_cases=0
 self_test_cases=0
+json_report_cases=0
 
 run_self_test_case() {
   if "$imx" self-test >"$out_dir/self-test.stdout" 2>"$out_dir/self-test.stderr"; then
@@ -334,6 +382,28 @@ run_prefixed_identify_case() {
     passes=$((passes + 1))
   else
     record "identify-prefixed.$fmt" failed "$label-prefixed identify metadata parity failed"
+    failures=$((failures + 1))
+  fi
+}
+
+run_json_report_case() {
+  local fmt="$1"
+  local label input identify_json report_json expectation expected_format expected_width expected_height expected_channels expected_depth expected_oracle_depths
+  label="$(format_label "$fmt")"
+  input="$(fixture_path "$fmt")"
+  identify_json="$out_dir/identify-json-$fmt.imx.json"
+  report_json="$out_dir/report-json-$fmt.imx.json"
+  expectation="$(identify_expectation "$fmt")"
+  IFS='|' read -r expected_format expected_width expected_height expected_channels expected_depth expected_oracle_depths <<<"$expectation"
+  json_report_cases=$((json_report_cases + 1))
+
+  if "$imx" identify --json "$label:$input" >"$identify_json" 2>"$out_dir/identify-json-$fmt.imx.stderr" &&
+    "$imx" report --json "$label:$input" >"$report_json" 2>"$out_dir/report-json-$fmt.imx.stderr" &&
+    assert_json_identify_report "json-report.$fmt" "$identify_json" "$report_json" "$expected_format" "$expected_width" "$expected_height" "$expected_channels" "$expected_depth" >"$out_dir/json-report-$fmt.parity.stdout" 2>"$out_dir/json-report-$fmt.parity.stderr"; then
+    record "json-report.$fmt" passed "$label JSON identify/report matches stable identify metadata"
+    passes=$((passes + 1))
+  else
+    record "json-report.$fmt" failed "$label JSON identify/report metadata parity failed"
     failures=$((failures + 1))
   fi
 }
@@ -1061,6 +1131,7 @@ run_png16_transcode_case() {
 for fmt in "${formats[@]}"; do
   run_identify_case "$fmt"
   run_prefixed_identify_case "$fmt"
+  run_json_report_case "$fmt"
 done
 run_self_test_case
 run_ppm16_identify_case plain
@@ -1138,6 +1209,7 @@ cat >"$summary" <<EOF
   "resize_cases": 16,
   "resize_fit_cases": 16,
   "self_test_cases": $self_test_cases,
+  "json_report_cases": $json_report_cases,
   "batch_convert_runs": $batch_convert_runs,
   "batch_convert_output_cases": $batch_convert_output_cases,
   "batch_convert_safety_cases": $batch_convert_safety_cases,

@@ -5,13 +5,13 @@ use std::path::{Path, PathBuf};
 use std::process::{self, Command};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use imx_core::{Format, ImageError, MAX_PIXEL_BYTES};
+use imx_core::{Format, Identify, ImageError, MAX_PIXEL_BYTES};
 
 const MAX_INPUT_BYTES: u64 = MAX_PIXEL_BYTES as u64 + 1024 * 1024;
 
 fn usage() -> ! {
     eprintln!(
-        "usage:\n  imx --help\n  imx --version\n  imx identify [FORMAT:]<input.bmp|input.ff|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\n  imx self-test\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported formats: bmp (.bmp), farbfeld (.ff, .farbfeld), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm)\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:"
+        "usage:\n  imx --help\n  imx --version\n  imx identify [FORMAT:]<input.bmp|input.ff|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx identify --json [FORMAT:]<input.bmp|input.ff|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx report --json [FORMAT:]<input.bmp|input.ff|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\n  imx self-test\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported formats: bmp (.bmp), farbfeld (.ff, .farbfeld), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm)\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:"
     );
     process::exit(2);
 }
@@ -40,7 +40,7 @@ fn main() {
     match args.as_slice() {
         [_, flag] if flag == "--help" || flag == "-h" || flag == "help" => {
             println!(
-                "IMX Developer Preview\n\nusage:\n  imx identify [FORMAT:]<input.bmp|input.ff|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\n  imx self-test\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported transcodes: BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM, including deterministic same-format rewrites except lossy JPEG re-encoding\nsupported resize: nearest-neighbor exact dimensions and aspect-preserving fit for existing supported formats\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, no overwrite or collision renaming\nsupported self-test: offline install confidence check for identify/transcode/resize/resize-fit/batch-convert across supported formats\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:\nunsupported: stdin/stdout, recursive directory walking, crop/rotate, delegates, color management, and formats beyond BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM"
+                "IMX Developer Preview\n\nusage:\n  imx identify [FORMAT:]<input.bmp|input.ff|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx identify --json [FORMAT:]<input.bmp|input.ff|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx report --json [FORMAT:]<input.bmp|input.ff|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\n  imx self-test\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported transcodes: BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM, including deterministic same-format rewrites except lossy JPEG re-encoding\nsupported identify JSON: deterministic schema_version/format/width/height/channels/depth over existing identify metadata\nsupported report JSON: single-input supported/unsupported status with stable diagnostic_code values\nsupported resize: nearest-neighbor exact dimensions and aspect-preserving fit for existing supported formats\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, no overwrite or collision renaming\nsupported self-test: offline install confidence check for identify/transcode/resize/resize-fit/batch-convert across supported formats\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:\nunsupported: stdin/stdout, recursive directory walking, crop/rotate, delegates, color management, and formats beyond BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM"
             );
             process::exit(0);
         }
@@ -48,7 +48,13 @@ fn main() {
             println!("imx {}", env!("CARGO_PKG_VERSION"));
             process::exit(0);
         }
+        [_, command, flag] if command == "identify" && flag == "--json" => usage(),
+        [_, command, flag, input] if command == "identify" && flag == "--json" => {
+            identify_json(input)
+        }
         [_, command, input] if command == "identify" => identify(input),
+        [_, command, flag, input] if command == "report" && flag == "--json" => report_json(input),
+        [_, command, ..] if command == "report" => usage(),
         [_, command, dimensions, input, output] if command == "resize" => {
             resize(dimensions, input, output)
         }
@@ -135,6 +141,19 @@ fn run_self_test_in(work_dir: &Path) -> Result<(), String> {
             &["identify".to_string(), input],
         )?;
         require_exact_stdout(&stdout, fixture.expected_identify)?;
+        let input = prefixed_path(fixture.format, &fixture.path)?;
+        let stdout = run_self_test_command(
+            &binary,
+            &format!("identify --json {}", fixture.format.name()),
+            &["identify".to_string(), "--json".to_string(), input.clone()],
+        )?;
+        require_exact_stdout(&stdout, &expected_identify_json(fixture.expected_identify)?)?;
+        let stdout = run_self_test_command(
+            &binary,
+            &format!("report --json {}", fixture.format.name()),
+            &["report".to_string(), "--json".to_string(), input],
+        )?;
+        require_exact_stdout(&stdout, &expected_report_json(fixture.expected_identify)?)?;
     }
     println!("self-test: identify ok");
 
@@ -465,6 +484,51 @@ fn resized_expected(expected_identify: &str, width: u32, height: u32) -> String 
         .replace("height=1", &format!("height={height}"))
 }
 
+fn expected_identify_json(expected_identify: &str) -> Result<String, String> {
+    let (format, width, height, channels, depth) = parse_expected_identify(expected_identify)?;
+    Ok(format!(
+        "{{\"schema_version\":1,\"format\":\"{format}\",\"width\":{width},\"height\":{height},\"channels\":\"{channels}\",\"depth\":{depth}}}"
+    ))
+}
+
+fn expected_report_json(expected_identify: &str) -> Result<String, String> {
+    let (format, width, height, channels, depth) = parse_expected_identify(expected_identify)?;
+    Ok(format!(
+        "{{\"schema_version\":1,\"status\":\"supported\",\"diagnostic_code\":null,\"format\":\"{format}\",\"width\":{width},\"height\":{height},\"channels\":\"{channels}\",\"depth\":{depth}}}"
+    ))
+}
+
+fn parse_expected_identify(
+    expected_identify: &str,
+) -> Result<(&str, &str, &str, &str, &str), String> {
+    let mut format = None;
+    let mut width = None;
+    let mut height = None;
+    let mut channels = None;
+    let mut depth = None;
+    for field in expected_identify.split_whitespace() {
+        if let Some(value) = field.strip_prefix("format=") {
+            format = Some(value);
+        } else if let Some(value) = field.strip_prefix("width=") {
+            width = Some(value);
+        } else if let Some(value) = field.strip_prefix("height=") {
+            height = Some(value);
+        } else if let Some(value) = field.strip_prefix("channels=") {
+            channels = Some(value);
+        } else if let Some(value) = field.strip_prefix("depth=") {
+            depth = Some(value);
+        }
+    }
+    match (format, width, height, channels, depth) {
+        (Some(format), Some(width), Some(height), Some(channels), Some(depth)) => {
+            Ok((format, width, height, channels, depth))
+        }
+        _ => Err(format!(
+            "failed to parse expected identify line: {expected_identify}"
+        )),
+    }
+}
+
 fn prefixed_path(format: Format, path: &Path) -> Result<String, String> {
     Ok(format!("{}:{}", format.name(), path_string(path)?))
 }
@@ -479,19 +543,56 @@ fn identify(input_path: &str) -> ! {
     let input_path = parse_cli_path(input_path).unwrap_or_else(|err| fail(err));
     let input = read(input_path.path);
     let format = detect_input_format(&input_path, &input).unwrap_or_else(|err| fail(err));
-    let info = match format {
-        Format::Bmp => imx_codec_bmp::identify(&input),
-        Format::Farbfeld => imx_codec_farbfeld::identify(&input),
-        Format::Jpeg => imx_codec_jpeg::identify(&input),
-        Format::Pbm => imx_codec_pnm::identify_pbm(&input),
-        Format::Pgm => imx_codec_pnm::identify_pgm(&input),
-        Format::Png => imx_codec_png::identify(&input),
-        Format::Ppm => imx_codec_pnm::identify_ppm(&input),
-        Format::Qoi => imx_codec_qoi::identify(&input),
-    }
-    .unwrap_or_else(|err| fail_image_operation(format, "identify", "input", &input_path, err));
+    let info = identify_bytes(format, &input)
+        .unwrap_or_else(|err| fail_image_operation(format, "identify", "input", &input_path, err));
     println!("{}", info.stable_line());
     process::exit(0);
+}
+
+fn identify_json(input_path: &str) -> ! {
+    match try_identify(input_path) {
+        Ok(info) => {
+            println!("{}", identify_json_object(info));
+            process::exit(0);
+        }
+        Err(err) => {
+            eprintln!("{}", diagnostic_json_object(&err));
+            process::exit(1);
+        }
+    }
+}
+
+fn report_json(input_path: &str) -> ! {
+    match try_identify(input_path) {
+        Ok(info) => println!("{}", report_supported_json_object(info)),
+        Err(err) => println!("{}", report_unsupported_json_object(&err)),
+    }
+    process::exit(0);
+}
+
+fn identify_bytes(format: Format, input: &[u8]) -> Result<Identify, ImageError> {
+    match format {
+        Format::Bmp => imx_codec_bmp::identify(input),
+        Format::Farbfeld => imx_codec_farbfeld::identify(input),
+        Format::Jpeg => imx_codec_jpeg::identify(input),
+        Format::Pbm => imx_codec_pnm::identify_pbm(input),
+        Format::Pgm => imx_codec_pnm::identify_pgm(input),
+        Format::Png => imx_codec_png::identify(input),
+        Format::Ppm => imx_codec_pnm::identify_ppm(input),
+        Format::Qoi => imx_codec_qoi::identify(input),
+    }
+}
+
+fn try_identify(input_path: &str) -> Result<Identify, Diagnostic> {
+    let input_path = parse_cli_path_diagnostic(input_path)?;
+    let input = read_diagnostic(input_path.path)?;
+    let format = detect_input_format_diagnostic(&input_path, &input)?;
+    identify_bytes(format, &input).map_err(|err| {
+        Diagnostic::new(
+            image_diagnostic_code(format, "identify", &err),
+            format!("failed to identify {} input: {err}", format.name()),
+        )
+    })
 }
 
 fn transcode(input_path: &str, output_path: &str) -> ! {
@@ -685,6 +786,119 @@ fn read(path: &str) -> Vec<u8> {
     input
 }
 
+#[derive(Debug)]
+struct Diagnostic {
+    code: &'static str,
+    message: String,
+}
+
+impl Diagnostic {
+    fn new(code: &'static str, message: impl Into<String>) -> Self {
+        Self {
+            code,
+            message: message.into(),
+        }
+    }
+}
+
+fn read_diagnostic(path: &str) -> Result<Vec<u8>, Diagnostic> {
+    let mut file = fs::File::open(path).map_err(|err| {
+        if err.kind() == std::io::ErrorKind::NotFound {
+            Diagnostic::new("input.missing", format!("missing input: {path}"))
+        } else {
+            Diagnostic::new("input.read_failed", format!("failed to read {path}: {err}"))
+        }
+    })?;
+    if let Ok(metadata) = file.metadata() {
+        if metadata.len() > MAX_INPUT_BYTES {
+            return Err(Diagnostic::new(
+                "input.too_large",
+                format!(
+                    "input file too large: {} bytes exceeds {} byte limit for {path}",
+                    metadata.len(),
+                    MAX_INPUT_BYTES
+                ),
+            ));
+        }
+    }
+    let mut input = Vec::new();
+    Read::by_ref(&mut file)
+        .take(MAX_INPUT_BYTES + 1)
+        .read_to_end(&mut input)
+        .map_err(|err| {
+            Diagnostic::new("input.read_failed", format!("failed to read {path}: {err}"))
+        })?;
+    if input.len() as u64 > MAX_INPUT_BYTES {
+        return Err(Diagnostic::new(
+            "input.too_large",
+            format!(
+                "input file too large: {} bytes exceeds {} byte limit for {path}",
+                input.len(),
+                MAX_INPUT_BYTES
+            ),
+        ));
+    }
+    Ok(input)
+}
+
+fn identify_json_object(info: Identify) -> String {
+    format!(
+        "{{\"schema_version\":1,\"format\":\"{}\",\"width\":{},\"height\":{},\"channels\":\"{}\",\"depth\":{}}}",
+        info.format.name(),
+        info.width,
+        info.height,
+        info.pixel_format.channels(),
+        info.pixel_format.depth()
+    )
+}
+
+fn report_supported_json_object(info: Identify) -> String {
+    format!(
+        "{{\"schema_version\":1,\"status\":\"supported\",\"diagnostic_code\":null,\"format\":\"{}\",\"width\":{},\"height\":{},\"channels\":\"{}\",\"depth\":{}}}",
+        info.format.name(),
+        info.width,
+        info.height,
+        info.pixel_format.channels(),
+        info.pixel_format.depth()
+    )
+}
+
+fn report_unsupported_json_object(diagnostic: &Diagnostic) -> String {
+    format!(
+        "{{\"schema_version\":1,\"status\":\"unsupported\",\"diagnostic_code\":\"{}\",\"message\":{}}}",
+        diagnostic.code,
+        json_string(&diagnostic.message)
+    )
+}
+
+fn diagnostic_json_object(diagnostic: &Diagnostic) -> String {
+    format!(
+        "{{\"schema_version\":1,\"status\":\"unsupported\",\"diagnostic_code\":\"{}\",\"message\":{}}}",
+        diagnostic.code,
+        json_string(&diagnostic.message)
+    )
+}
+
+fn json_string(value: &str) -> String {
+    let mut out = String::with_capacity(value.len() + 2);
+    out.push('"');
+    for ch in value.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            '\u{08}' => out.push_str("\\b"),
+            '\u{0c}' => out.push_str("\\f"),
+            ch if ch.is_control() => out.push_str(&format!("\\u{:04x}", ch as u32)),
+            ch => out.push(ch),
+        }
+    }
+    out.push('"');
+    out
+}
+
 fn reject_same_path(input_path: &str, output_path: &str) {
     if let (Ok(input), Ok(output)) = (fs::canonicalize(input_path), fs::canonicalize(output_path)) {
         if input == output {
@@ -816,6 +1030,36 @@ fn parse_cli_path(value: &str) -> Result<CliPath<'_>, String> {
             };
             if path.is_empty() {
                 return Err(format!("missing path after format prefix {prefix}:"));
+            }
+            return Ok(CliPath {
+                original: value,
+                path,
+                prefix: Some(format),
+            });
+        }
+    }
+
+    Ok(CliPath {
+        original: value,
+        path: value,
+        prefix: None,
+    })
+}
+
+fn parse_cli_path_diagnostic(value: &str) -> Result<CliPath<'_>, Diagnostic> {
+    if let Some((prefix, path)) = value.split_once(':') {
+        if !prefix.is_empty() && prefix.bytes().all(|byte| byte.is_ascii_uppercase()) {
+            let Some(format) = parse_format_prefix(prefix) else {
+                return Err(Diagnostic::new(
+                    "input.unsupported_format_prefix",
+                    format!("unsupported format prefix: {prefix}"),
+                ));
+            };
+            if path.is_empty() {
+                return Err(Diagnostic::new(
+                    "input.missing_prefix_path",
+                    format!("missing path after format prefix {prefix}:"),
+                ));
             }
             return Ok(CliPath {
                 original: value,
@@ -1062,6 +1306,28 @@ fn detect_input_format(path: &CliPath<'_>, bytes: &[u8]) -> Result<Format, Strin
     enforce_prefix(path, detected, "detected format")
 }
 
+fn detect_input_format_diagnostic(path: &CliPath<'_>, bytes: &[u8]) -> Result<Format, Diagnostic> {
+    let detected = detect_unprefixed_input_format(path.path, bytes).map_err(|_| {
+        Diagnostic::new(
+            "input.unsupported_format",
+            format!("unsupported format: {}", path.path),
+        )
+    })?;
+    if let Some(prefix) = path.prefix {
+        if prefix != detected {
+            return Err(Diagnostic::new(
+                "input.format_prefix_mismatch",
+                format!(
+                    "format prefix {} does not match detected format {}",
+                    prefix.name(),
+                    detected.name()
+                ),
+            ));
+        }
+    }
+    Ok(detected)
+}
+
 fn detect_unprefixed_input_format(path: &str, bytes: &[u8]) -> Result<Format, String> {
     if bytes.len() >= imx_codec_farbfeld::MAGIC.len()
         && &bytes[..imx_codec_farbfeld::MAGIC.len()] == imx_codec_farbfeld::MAGIC
@@ -1107,6 +1373,20 @@ fn detect_unprefixed_input_format(path: &str, bytes: &[u8]) -> Result<Format, St
         return Ok(Format::Pgm);
     }
     detect_path_format(path)
+}
+
+fn image_diagnostic_code(format: Format, operation: &str, err: &ImageError) -> &'static str {
+    match err {
+        ImageError::UnsupportedFormat(_) => match (format, operation) {
+            (Format::Bmp, _) => "bmp.unsupported_feature",
+            (Format::Jpeg, "identify") => "jpeg.identify_failed",
+            (Format::Jpeg, "decode") => "jpeg.decode_failed",
+            (Format::Png, "identify") => "png.identify_failed",
+            (Format::Png, "decode") => "png.decode_failed",
+            _ => err.diagnostic_code(),
+        },
+        _ => err.diagnostic_code(),
+    }
 }
 
 fn detect_output_format(path: &CliPath<'_>) -> Result<Format, String> {

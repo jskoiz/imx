@@ -145,6 +145,19 @@ assert_formula_syntax "$self_test_formula"
 assert_contains "$self_test_formula" 'system bin/"imx", "self-test"'
 assert_contains "$self_test_formula" "BMP:output.bmp"
 assert_contains "$self_test_formula" '"batch-convert", "--to", "BMP", "--output-dir", "batch-bmp", "--resize-fit", "5x5", "PPM:input.ppm"'
+assert_not_contains "$self_test_formula" 'identify --json PPM:input.ppm'
+
+json_report_release="$work_dir/json-report-release.SHA256SUMS"
+write_checksums "$json_report_release" \
+  imx-preview-0.18.0-x86_64-unknown-linux-gnu.tar.gz \
+  imx-preview-0.18.0-aarch64-unknown-linux-gnu.tar.gz
+json_report_formula="$work_dir/json-report-release.rb"
+bash scripts/generate-homebrew-formula.sh v0.18.0 "$json_report_release" "$json_report_formula"
+assert_formula_syntax "$json_report_formula"
+assert_contains "$json_report_formula" 'system bin/"imx", "self-test"'
+assert_contains "$json_report_formula" 'identify --json PPM:input.ppm'
+assert_contains "$json_report_formula" 'report --json PPM:input.ppm'
+assert_contains "$json_report_formula" 'assert_equal "supported", report_json.fetch("status")'
 
 all_targets="$work_dir/all-targets.SHA256SUMS"
 write_checksums "$all_targets" \

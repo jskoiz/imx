@@ -68,6 +68,8 @@ git clone "$repo_url" "$checkout" >/dev/null
   "$install_root/bin/imx" identify "PPM:$fixture_dir/intake-comments-2x1.ppm" | grep -Fx 'format=PPM width=2 height=1 channels=RGB depth=16'
   "$install_root/bin/imx" identify "PGM:$fixture_dir/intake-pgm16-2x1.pgm" | grep -Fx 'format=PGM width=2 height=1 channels=GRAY depth=16'
   "$install_root/bin/imx" identify "PNG:$fixture_dir/intake-rgba16-1x1.png" | grep -Fx 'format=PNG width=1 height=1 channels=RGBA depth=16'
+  "$install_root/bin/imx" identify --json "PPM:$work_dir/fit-input.ppm" | grep -Fx '{"schema_version":1,"format":"PPM","width":2,"height":1,"channels":"RGB","depth":8}'
+  "$install_root/bin/imx" report --json "PPM:$work_dir/fit-input.ppm" | grep -Fx '{"schema_version":1,"status":"supported","diagnostic_code":null,"format":"PPM","width":2,"height":1,"channels":"RGB","depth":8}'
   "$install_root/bin/imx" "$fixture_dir/gradient-64.ff" "$work_dir/gradient.qoi"
   "$install_root/bin/imx" "FARBFELD:$fixture_dir/gradient-64.ff" "QOI:$work_dir/prefix-gradient.qoi"
   "$install_root/bin/imx" "FARBFELD:$fixture_dir/gradient-64.ff" "BMP:$work_dir/prefix-gradient.bmp"

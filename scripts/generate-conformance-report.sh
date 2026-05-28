@@ -113,6 +113,8 @@ Git revision: \`$git_rev\`
 - Binary: \`imx\`
 - Formats: BMP, FARBFELD, JPEG, QOI, PBM, PGM, PNG, PPM
 - Commands: \`imx --help\`, \`imx --version\`, \`imx identify [FORMAT:]<input>\`,
+  \`imx identify --json [FORMAT:]<input>\`,
+  \`imx report --json [FORMAT:]<input>\`,
   \`imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\`,
   \`imx resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\`, and
   \`imx batch-convert --to <FORMAT> --output-dir <dir>
@@ -126,10 +128,12 @@ Git revision: \`$git_rev\`
   identify/decode/transcode; output remains deterministic baseline quality-90
   JPEG. v0.16.0 added uncompressed Windows BMP support for 24-bit BGR/RGB and
   32-bit BGRA/RGBA rasters across identify, transcode, resize, resize-fit,
-  same-format rewrite, and batch-convert. This version adds an installed-binary
-  offline self-test that creates temporary fixtures and exercises
-  identify/transcode/resize/resize-fit/batch-convert across the supported
-  formats without ImageMagick or network access. It does not add indexed, RLE,
+  same-format rewrite, and batch-convert. This version adds deterministic
+  machine-readable identify/report JSON for the existing identify fields and an
+  installed-binary offline self-test that creates temporary fixtures and
+  exercises identify/JSON identify/report/transcode/resize/resize-fit/batch-convert
+  across the supported formats without ImageMagick or network access. It does
+  not add indexed, RLE,
   bitfields, OS/2, color-table, or high-depth BMP. $version also carries
   forward bounded nearest-neighbor resize to exact dimensions for
   the same supported formats, plus aspect-preserving nearest-neighbor resize-fit
@@ -186,7 +190,10 @@ $glibc_symbols_report
   output behavior.
 - ImageMagick differential tests cover identify metadata parity for
   BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM identify, prefixed identify, and
-  representative intake fixtures. They cover decoded-pixel parity for
+  representative intake fixtures. CLI tests and smoke scripts cover
+  \`identify --json\` and \`report --json\` as deterministic projections of the
+  same metadata, including supported/unsupported status and diagnostic codes.
+  They cover decoded-pixel parity for
   representative generated/in-test intake, transcode,
   prefixed transcode, plain and prefixed resize against ImageMagick
   \`-filter Point -resize <width>x<height>!\`, plain and prefixed resize-fit
@@ -201,7 +208,9 @@ $glibc_symbols_report
 - CLI diagnostic tests cover exit code and \`error:\` prefix behavior for
   unknown prefixes, mismatched prefixes, missing paths, unsupported BMP
   variants, invalid geometry, same-path output, batch output-directory
-  failures, and unsupported command-shape usage.
+  failures, and unsupported command-shape usage. JSON diagnostic tests cover
+  unknown prefixes, missing prefixed paths, prefix mismatches, missing inputs,
+  malformed QOI, and JSON identify error output.
 - \`imx self-test\` provides a no-network installed-binary smoke check for all
   supported formats and primary command surfaces. It is not an ImageMagick
   differential oracle and does not replace the corpus, fuzz, or benchmark gates.
@@ -214,6 +223,7 @@ $glibc_symbols_report
 
 - No full ImageMagick CLI parser, \`magick\` alias, \`convert\` alias, or
   \`mogrify\` alias.
+- No ImageMagick JSON schema compatibility or verbose metadata report.
 - No stdin/stdout streaming, delegates, profiles, color management, transforms
   beyond the explicit nearest-neighbor resize, resize-fit, and safe batch
   composition commands, MagickCore, or
@@ -246,6 +256,7 @@ cat >"$out_dir/conformance-summary.json" <<EOF
   "resize_fit": "aspect-preserving nearest-neighbor resize-fit is supported for BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM",
   "batch_convert": "safe batch-convert supports existing BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM inputs, exact uppercase target formats, deterministic output names, collision preflight, and optional resize/resize-fit composition",
   "self_test": "imx self-test creates temporary fixtures and exercises identify/transcode/resize/resize-fit/batch-convert across BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM without ImageMagick or network access",
+  "json_identify_report": "JSON identify/report emits deterministic schema_version, format, width, height, channels, depth, status, and diagnostic_code fields for existing supported formats only; it does not add new metadata extraction or ImageMagick JSON compatibility claims",
   "cli_diagnostics": "CLI tests cover exit code and error-prefix behavior for unknown prefixes, mismatched prefixes, missing paths, unsupported variants, invalid geometry, same-path output, batch failures, and unsupported command shapes",
   "intake_reliability": "representative generated and in-test corpus cases cover supported-format intake, malformed diagnostics, and resource-boundary rejection",
   "real_world_files": "No externally sourced real-world file corpus is claimed.",

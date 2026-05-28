@@ -30,6 +30,7 @@ resize_fit_smoke=0
 batch_convert_smoke=0
 bmp_smoke=0
 self_test_smoke=0
+json_report_smoke=0
 if [[ "$formula_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
   major="${BASH_REMATCH[1]}"
   minor="${BASH_REMATCH[2]}"
@@ -65,6 +66,9 @@ if [[ "$formula_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
   fi
   if ((major > 0 || minor >= 17)); then
     self_test_smoke=1
+  fi
+  if ((major > 0 || minor >= 18)); then
+    json_report_smoke=1
   fi
 fi
 
@@ -184,6 +188,23 @@ EOF
 if [[ "$self_test_smoke" == 1 ]]; then
   cat <<'EOF'
     system bin/"imx", "self-test"
+EOF
+fi
+
+if [[ "$json_report_smoke" == 1 ]]; then
+  cat <<'EOF'
+    require "json"
+    identify_json = JSON.parse(shell_output("#{bin/"imx"} identify --json PPM:input.ppm"))
+    assert_equal 1, identify_json.fetch("schema_version")
+    assert_equal "PPM", identify_json.fetch("format")
+    assert_equal 2, identify_json.fetch("width")
+    assert_equal 1, identify_json.fetch("height")
+    assert_equal "RGB", identify_json.fetch("channels")
+    assert_equal 8, identify_json.fetch("depth")
+    report_json = JSON.parse(shell_output("#{bin/"imx"} report --json PPM:input.ppm"))
+    assert_equal "supported", report_json.fetch("status")
+    assert_nil report_json.fetch("diagnostic_code")
+    assert_equal "PPM", report_json.fetch("format")
 EOF
 fi
 

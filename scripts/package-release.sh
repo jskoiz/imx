@@ -175,6 +175,8 @@ run_packaged_binary identify "$fixture_dir/gradient-64.bmp" >/dev/null
 run_packaged_binary identify "BMP:$fixture_dir/intake-rgb24-3x2.bmp" | grep -Fx 'format=BMP width=3 height=2 channels=RGB depth=8' >/dev/null
 run_packaged_binary identify "BMP:$fixture_dir/intake-rgba32-2x2.bmp" | grep -Fx 'format=BMP width=2 height=2 channels=RGBA depth=8' >/dev/null
 run_packaged_binary identify "PPM:$verify_dir/input.ppm" >/dev/null
+run_packaged_binary identify --json "PPM:$verify_dir/input.ppm" | grep -Fx '{"schema_version":1,"format":"PPM","width":2,"height":1,"channels":"RGB","depth":8}' >/dev/null
+run_packaged_binary report --json "PPM:$verify_dir/input.ppm" | grep -Fx '{"schema_version":1,"status":"supported","diagnostic_code":null,"format":"PPM","width":2,"height":1,"channels":"RGB","depth":8}' >/dev/null
 run_packaged_binary identify "PPM:$verify_dir/input16.ppm" >/dev/null
 run_packaged_binary identify "PGM:$verify_dir/input.pgm" >/dev/null
 run_packaged_binary identify "PBM:$verify_dir/input.pbm" >/dev/null
