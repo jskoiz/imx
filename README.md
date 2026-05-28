@@ -1,14 +1,14 @@
 # IMX Developer Preview
 
 IMX is a standalone Rust image tool built one ImageMagick-compatible slice at a
-time. The current developer-preview version is `v0.18.0`: it supports
+time. The current developer-preview version is `v0.19.0`: it supports
 deterministic identify, cross-format transcode, same-format rewrite, exact
 uppercase format-prefix workflows, bounded nearest-neighbor exact resize,
 aspect-preserving resize-fit, safe batch conversion, an offline installed-binary
 self-test, machine-readable identify/report JSON, high-depth PPM, a bounded PNG
-raster surface, bounded uncompressed BMP, plus bounded 8-bit
-baseline/progressive JPEG grayscale/RGB support, for BMP, FARBFELD, JPEG, QOI,
-PNG, and Netpbm PBM/PGM/PPM through the `imx` binary.
+raster surface, bounded uncompressed BMP, a daily-use corpus confidence gate,
+plus bounded 8-bit baseline/progressive JPEG grayscale/RGB support, for BMP,
+FARBFELD, JPEG, QOI, PNG, and Netpbm PBM/PGM/PPM through the `imx` binary.
 
 IMX is not an ImageMagick fork and does not link to MagickCore, MagickWand,
 delegates, modules, `policy.xml`, or ImageMagick's build system. ImageMagick is
@@ -95,8 +95,8 @@ adds `status` and `diagnostic_code` for supported/unsupported outcomes. It does
 not add new metadata extraction, ImageMagick JSON compatibility, profiles,
 color management, file hashes, recursive batch reporting, or new formats.
 
-The v0.19.0 development track adds a daily-use corpus hardening gate for the
-same existing surface. `scripts/daily-use-corpus.sh` runs a real `imx` binary
+The v0.19.0 release adds a daily-use corpus hardening gate for the same
+existing surface. `scripts/daily-use-corpus.sh` runs a real `imx` binary
 against generated fixtures for JSON identify/report, representative prefixed
 transcodes, stable unsupported diagnostics, and `identify --json` failure JSON.
 It is a no-oracle install/package/release confidence gate, not a new format or
@@ -104,7 +104,7 @@ command surface.
 
 ## Install
 
-Install the verified v0.18.0 tap release:
+Install the verified v0.19.0 tap release:
 
 ```sh
 brew tap jskoiz/imx
@@ -113,42 +113,42 @@ imx --version
 ```
 
 This uses the `jskoiz/homebrew-imx` tap formula generated from each published
-release's `SHA256SUMS`. For v0.18.0, the `jskoiz/homebrew-imx` tap was updated
+release's `SHA256SUMS`. For v0.19.0, the `jskoiz/homebrew-imx` tap was updated
 from the published release checksums and passed Linux-only tap smoke. It is not
 a Homebrew/core formula. Published Linux archives require glibc 2.34 or newer.
 Release/archive smoke checks this by asserting that published Linux binaries do
-not reference `GLIBC_*` symbols newer than `GLIBC_2.34`; the v0.18.0 release
+not reference `GLIBC_*` symbols newer than `GLIBC_2.34`; the v0.19.0 release
 workflow verifies that ceiling from the published assets.
 
 Hosted GitHub Actions for the tap are Linux-only; macOS install proof must be
 run locally or manually after explicit approval.
 
-Install the published v0.18.0 release archive directly:
+Install the published v0.19.0 release archive directly:
 
 ```sh
-IMX_VERSION=v0.18.0
+IMX_VERSION=v0.19.0
 curl -fsSL "https://raw.githubusercontent.com/jskoiz/imx/${IMX_VERSION}/scripts/install.sh" | sh
 ```
 
 The installer verifies the published `SHA256SUMS`, installs `imx`, asserts the
 installed version, checks for glibc 2.34 or newer on Linux, and runs a small
 `imx self-test` plus identify/report JSON and
-identify/transcode/resize/resize-fit/batch-convert smoke. Hosted v0.18.0 tag
+identify/transcode/resize/resize-fit/batch-convert smoke. Hosted v0.19.0 tag
 automation publishes Linux archives for:
 
-- `imx-preview-0.18.0-x86_64-unknown-linux-gnu.tar.gz`
-- `imx-preview-0.18.0-aarch64-unknown-linux-gnu.tar.gz`
+- `imx-preview-0.19.0-x86_64-unknown-linux-gnu.tar.gz`
+- `imx-preview-0.19.0-aarch64-unknown-linux-gnu.tar.gz`
 
-macOS v0.18.0 archives or tap blocks require recorded local/manual proof before
+macOS v0.19.0 archives or tap blocks require recorded local/manual proof before
 being claimed. No Windows, crates.io, Homebrew/core, or package-manager
-distribution beyond the `jskoiz/imx` tap is claimed. The v0.18.0 release URL is:
+distribution beyond the `jskoiz/imx` tap is claimed. The v0.19.0 release URL is:
 
 ```text
-https://github.com/jskoiz/imx/releases/tag/v0.18.0
+https://github.com/jskoiz/imx/releases/tag/v0.19.0
 ```
 
 The release-attached `imx.rb` is the formula source used to update the
-`jskoiz/homebrew-imx` tap from the published `SHA256SUMS`. For v0.18.0, Linux
+`jskoiz/homebrew-imx` tap from the published `SHA256SUMS`. For v0.19.0, Linux
 x86_64 and Linux arm64 tap blocks were generated from the release checksums and
 verified by Linux-only tap smoke.
 
@@ -384,7 +384,7 @@ IMX_INSTALL_REPO_URL=https://github.com/jskoiz/imx.git ./scripts/verify-install.
 Verify published Linux release archives after GitHub release publication:
 
 ```sh
-IMX_VERSION=v0.18.0 IMX_RELEASE_TARGET=x86_64-unknown-linux-gnu ./scripts/verify-release-archive.sh
+IMX_VERSION=v0.19.0 IMX_RELEASE_TARGET=x86_64-unknown-linux-gnu ./scripts/verify-release-archive.sh
 ```
 
 Verify the Homebrew tap install smoke after the tap update:
@@ -395,7 +395,7 @@ brew install imx
 brew test imx
 imx --version
 imx self-test
-test "$(imx --version)" = "imx 0.18.0"
+test "$(imx --version)" = "imx 0.19.0"
 ```
 
 `brew test` verifies installation only. Compatibility remains covered by the

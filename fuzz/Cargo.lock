@@ -86,21 +86,21 @@ dependencies = [
 
 [[package]]
 name = "imx-codec-bmp"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "imx-core",
 ]
 
 [[package]]
 name = "imx-codec-farbfeld"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "imx-core",
 ]
 
 [[package]]
 name = "imx-codec-jpeg"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "imx-core",
  "jpeg-decoder",
@@ -109,7 +109,7 @@ dependencies = [
 
 [[package]]
 name = "imx-codec-png"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "imx-core",
  "png",
@@ -117,21 +117,21 @@ dependencies = [
 
 [[package]]
 name = "imx-codec-pnm"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "imx-core",
 ]
 
 [[package]]
 name = "imx-codec-qoi"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "imx-core",
 ]
 
 [[package]]
 name = "imx-core"
-version = "0.18.0"
+version = "0.19.0"
 
 [[package]]
 name = "imx-fuzz"

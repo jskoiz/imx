@@ -486,10 +486,10 @@ new formats or command shapes.
 - No format beyond BMP, FARBFELD, JPEG, QOI, PBM, PGM, PNG, and PPM, and no BMP
   variants beyond uncompressed Windows 24-bit BGR/RGB and 32-bit BGRA/RGBA.
 - No Windows, crates.io, Homebrew/core, or package-manager distribution beyond
-  the `jskoiz/imx` Homebrew tap is claimed for this slice. v0.18.0 Linux x86_64
+  the `jskoiz/imx` Homebrew tap is claimed for this slice. v0.19.0 Linux x86_64
   and Linux arm64 archives require glibc 2.34 or newer; Linux arm64 support is
   claimed only for published archives and release-attached formula blocks
-  verified from release `SHA256SUMS`. The v0.18.0 tap claim is verified through
+  verified from release `SHA256SUMS`. The v0.19.0 tap claim is verified through
   `jskoiz/homebrew-imx` from those checksums and Linux-only tap smoke.
   Release/archive smoke checks that published Linux binaries do not reference
   `GLIBC_*` symbols newer than `GLIBC_2.34`.

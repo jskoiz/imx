@@ -4,7 +4,7 @@ IMX releases generate a binary Homebrew formula from the release archive
 checksums:
 
 ```sh
-scripts/generate-homebrew-formula.sh v0.18.0 SHA256SUMS imx.rb
+scripts/generate-homebrew-formula.sh v0.19.0 SHA256SUMS imx.rb
 ```
 
 The generated formula is committed to the `jskoiz/homebrew-imx` tap only, not
@@ -17,12 +17,13 @@ Tap updates are automation for the `jskoiz/homebrew-imx` tap only. They must not
 trigger hosted macOS or iOS GitHub Actions; macOS tap proof remains local/manual
 unless explicitly approved in the current turn.
 
-For v0.18.0, the generated tap formula includes Linux archive blocks present in
+For v0.19.0, the generated tap formula includes Linux archive blocks present in
 the published `SHA256SUMS`, and Linux-only tap smoke verifies the selected
 archive plus the current FARBFELD/QOI/PBM/PGM/PNG/PPM/JPEG command slice,
 including JPEG EXIF Orientation, progressive JPEG, v0.12 intake smoke, and the
 v0.13 resize, v0.14 resize-fit, v0.15 batch-convert, v0.16 BMP, v0.17
-self-test, and v0.18 JSON identify/report smoke, before support is claimed.
+self-test, v0.18 JSON identify/report smoke, and v0.19 daily-use diagnostic
+smoke, before support is claimed.
 For v0.19.0 and newer, the generator also emits direct JSON diagnostic smoke
 for unsupported prefixes and prefix mismatches so tap tests cover the daily-use
 diagnostic contract without requiring source-tree fixtures.
