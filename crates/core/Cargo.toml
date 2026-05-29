@@ -12,5 +12,9 @@ categories = ["multimedia::images"]
 license-file = "LICENSE"
 readme = "README.md"
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [lib]
 path = "src/lib.rs"

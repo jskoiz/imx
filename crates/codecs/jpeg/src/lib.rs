@@ -1,3 +1,14 @@
+//! JPEG decoding and encoding for the `imx` image toolkit.
+//!
+//! `imx-codec-jpeg` decodes baseline and progressive JPEG into the
+//! format-agnostic [`imx_core::Image`] type and re-encodes it at a configurable
+//! quality. The EXIF Orientation tag is parsed and applied on decode by default
+//! so images come out upright, with raw stored pixels available on request.
+//! Decoding is memory-safe and bounded: decode size is capped by
+//! [`MAX_JPEG_DECODE_BYTES`] so malformed or hostile inputs cannot trigger
+//! uncontrolled allocation. Behavior is differentially verified against the
+//! real ImageMagick binary as an oracle.
+
 use std::io::Cursor;
 
 use exif::{In, Reader, Tag};

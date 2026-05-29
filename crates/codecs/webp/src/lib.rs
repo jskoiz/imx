@@ -1,3 +1,13 @@
+//! WebP decoding and lossless encoding for the `imx` image toolkit.
+//!
+//! `imx-codec-webp` decodes still and animated WebP into the format-agnostic
+//! [`imx_core::Image`] type, exposing frame enumeration ([`frame_count`]) and
+//! per-frame extraction ([`decode_frame`]) for animations. Encoding writes a
+//! single lossless WebP frame. Decoding is memory-safe and bounded: allocations
+//! are capped via [`MAX_PIXEL_BYTES`], so malformed or hostile inputs cannot
+//! trigger uncontrolled allocation. Behavior is differentially verified against
+//! the real ImageMagick binary as an oracle.
+
 use std::io::Cursor;
 
 use image_webp::{ColorType, DecodingError, EncodingError, WebPDecoder, WebPEncoder};

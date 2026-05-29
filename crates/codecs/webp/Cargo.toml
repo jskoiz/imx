@@ -12,6 +12,10 @@ categories = ["multimedia::images", "multimedia::encoding"]
 license-file = "LICENSE"
 readme = "README.md"
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [dependencies]
 imx-core = { workspace = true }
 image-webp = "0.2.4"

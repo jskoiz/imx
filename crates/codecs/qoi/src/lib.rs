@@ -1,3 +1,16 @@
+//! QOI (Quite OK Image) decoding and encoding for the `imx` image toolkit.
+//!
+//! `imx-codec-qoi` reads and writes the lossless [QOI] format, producing and
+//! consuming the format-agnostic [`imx_core::Image`] type shared across the
+//! workspace. Encoding is lossless and deterministic, so a decode/encode
+//! round-trip is byte-stable. Decoding is memory-safe and bounded: header
+//! fields are validated and pixel buffers are capped by the `imx-core`
+//! allocation limits, so malformed or hostile inputs cannot trigger
+//! uncontrolled allocation. Behavior is differentially verified against the
+//! real ImageMagick binary as an oracle.
+//!
+//! [QOI]: https://qoiformat.org/
+
 use imx_core::{
     pixel_count, pixel_len, try_vec_with_capacity, Format, Identify, Image, ImageError, PixelFormat,
 };

@@ -1,3 +1,13 @@
+//! BMP decoding and encoding for the `imx` image toolkit.
+//!
+//! `imx-codec-bmp` reads and writes uncompressed (`BI_RGB`) Windows BMP files,
+//! producing and consuming the format-agnostic [`imx_core::Image`] type shared
+//! across the workspace. Decoding is memory-safe and deterministic: header
+//! fields are validated up front and pixel buffers are bounded by the
+//! `imx-core` allocation limits, so malformed or hostile inputs cannot trigger
+//! uncontrolled allocation. Round-trips are differentially verified against the
+//! real ImageMagick binary as an oracle.
+
 use imx_core::{
     pixel_len, try_vec_with_capacity, Format, Identify, Image, ImageError, PixelFormat,
 };
