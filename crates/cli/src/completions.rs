@@ -16,7 +16,7 @@ _imx() {
         prev="${COMP_WORDS[COMP_CWORD-1]}"
     }
 
-    local subcommands="identify report resize resize-fit crop rotate flip flop batch-convert self-test completions"
+    local subcommands="identify report resize resize-fit crop rotate flip flop pipeline batch-convert self-test completions"
     local global_flags="--help -h --version -V --no-auto-orient"
 
     # Complete the subcommand in the first position.
@@ -29,6 +29,14 @@ _imx() {
     case "${cmd}" in
         completions)
             COMPREPLY=( $(compgen -W "bash zsh fish" -- "${cur}") )
+            return 0
+            ;;
+        pipeline)
+            if [[ "${cur}" == --* ]]; then
+                COMPREPLY=( $(compgen -W "--op" -- "${cur}") )
+                return 0
+            fi
+            _filedir
             return 0
             ;;
         batch-convert)
@@ -92,6 +100,7 @@ _imx() {
         'rotate:Rotate clockwise by 90, 180, or 270 degrees'
         'flip:Flip vertically'
         'flop:Flop horizontally'
+        'pipeline:Apply ordered ops in one decode/encode pass'
         'batch-convert:Convert many inputs into an output directory'
         'self-test:Run the offline install confidence check'
         'completions:Print a shell completion script'
@@ -127,6 +136,11 @@ _imx() {
                         '--resize-fit[Fit geometry]:geometry:' \
                         '--quality[JPEG quality 1..=100]:quality:' \
                         '*:input file:_files'
+                    ;;
+                pipeline)
+                    _arguments \
+                        '*--op[Operation to apply, left-to-right]:op:' \
+                        '*:file:_files'
                     ;;
                 self-test)
                     ;;
@@ -167,6 +181,7 @@ complete -c imx -f -n '__fish_imx_no_subcommand' -a crop -d 'Crop a bounded regi
 complete -c imx -f -n '__fish_imx_no_subcommand' -a rotate -d 'Rotate clockwise 90/180/270'
 complete -c imx -f -n '__fish_imx_no_subcommand' -a flip -d 'Flip vertically'
 complete -c imx -f -n '__fish_imx_no_subcommand' -a flop -d 'Flop horizontally'
+complete -c imx -f -n '__fish_imx_no_subcommand' -a pipeline -d 'Apply ordered ops in one pass'
 complete -c imx -f -n '__fish_imx_no_subcommand' -a batch-convert -d 'Convert many inputs'
 complete -c imx -f -n '__fish_imx_no_subcommand' -a self-test -d 'Run the install confidence check'
 complete -c imx -f -n '__fish_imx_no_subcommand' -a completions -d 'Print a shell completion script'
@@ -176,6 +191,9 @@ complete -c imx -f -n '__fish_seen_subcommand_from completions' -a 'bash zsh fis
 
 # identify / report flags.
 complete -c imx -n '__fish_seen_subcommand_from identify report' -l json -d 'Emit JSON output'
+
+# pipeline flags.
+complete -c imx -n '__fish_seen_subcommand_from pipeline' -l op -d 'Operation to apply, left-to-right' -x
 
 # batch-convert flags.
 complete -c imx -n '__fish_seen_subcommand_from batch-convert' -l to -d 'Output format' -x -a 'BMP FARBFELD JPEG QOI PBM PGM PNG PPM WEBP'

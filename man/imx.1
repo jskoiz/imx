@@ -37,6 +37,9 @@ imx \- memory-safe, deterministic, differentially-verified image conversion CLI
 .B imx flop
 .RI [ FORMAT :] input " " [ FORMAT :] output
 .br
+.B imx pipeline
+.RI [ FORMAT :] input " " [ FORMAT :] output " \-\-op " <op> " [\-\-op " <op> "]..."
+.br
 .B imx batch-convert \-\-to
 .I FORMAT
 .B \-\-output-dir
@@ -106,6 +109,22 @@ Flip vertically. Format-preserving.
 .TP
 .B flop [FORMAT:]<input> [FORMAT:]<output>
 Flop horizontally. Format-preserving.
+.TP
+.B pipeline [FORMAT:]<input> [FORMAT:]<output> \-\-op <op> [\-\-op <op>]...
+Apply an ordered list of operations in a single decode/encode pass. Supported
+.I \-\-op
+values are
+.IR resize: <geometry> ,
+.IR resize-fit: <width>x<height> ,
+.IR crop: <width>x<height>+<x>+<y> ,
+.IR rotate: <90|180|270> ,
+.IR flip ,
+and
+.IR flop .
+Ops apply left-to-right, so order matters, and at least one
+.I \-\-op
+is required. Output is byte-deterministic and equivalent to running the same
+ops as sequential subcommands. Format-preserving.
 .TP
 .B batch-convert \-\-to <FORMAT> \-\-output-dir <dir> [\-\-resize <width>x<height>|\-\-resize-fit <width>x<height>] [\-\-quality <1..=100>] [FORMAT:]<input>...
 Convert shell-expanded input paths into an existing output directory with an
