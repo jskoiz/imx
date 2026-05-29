@@ -2614,7 +2614,13 @@ fn help_and_version_are_available() {
             assert!(stdout.contains(".tif"));
             assert!(stdout.contains(".tiff"));
             assert!(stdout.contains("TIFF:"));
-            // Frame selection documentation and the reworded animation line.
+            assert!(stdout.contains(".gif"));
+            assert!(stdout.contains("GIF:"));
+            // GIF is now a full input/output format, no longer input-only.
+            assert!(!stdout.contains("input-only"));
+            assert!(stdout.contains("BMP/FARBFELD/GIF/JPEG"));
+            // Frame selection documentation and the reworded animation line
+            // (multi-frame decode is supported; only animation OUTPUT is not).
             assert!(stdout.contains("--frame <N>"));
             assert!(stdout.contains("supported frame selection"));
             assert!(stdout.contains("\"frames\""));
@@ -4264,24 +4270,52 @@ fn batch_convert_supports_webp_output() {
 }
 
 #[test]
-fn gif_is_rejected_as_output_target() {
-    let dir = temp_dir("input_only_output");
+fn png_transcodes_to_gif_and_round_trips_to_png() {
+    let dir = temp_dir("gif_output");
     let png = dir.join("input.png");
-    let image = Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap();
+    let gif = dir.join("output.gif");
+    let round = dir.join("round.png");
+    let image = Image::new(
+        2,
+        2,
+        PixelFormat::Rgb8,
+        vec![255, 0, 0, 0, 255, 0, 0, 0, 255, 9, 8, 7],
+    )
+    .unwrap();
     fs::write(&png, imx_codec_png::encode(&image).unwrap()).unwrap();
 
-    let output_path = dir.join("out.gif");
-    let output = Command::new(imx())
-        .args([png.to_str().unwrap(), output_path.to_str().unwrap()])
+    let transcode = Command::new(imx())
+        .args([png.to_str().unwrap(), gif.to_str().unwrap()])
         .output()
         .unwrap();
-    assert!(!output.status.success(), "GIF output should be rejected");
-    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("input-only format") && stderr.contains("GIF"),
-        "GIF: got stderr={stderr}"
+        transcode.status.success(),
+        "PNG->GIF failed with stderr={}",
+        String::from_utf8_lossy(&transcode.stderr)
     );
-    assert!(!output_path.exists());
+
+    let identify = Command::new(imx())
+        .args(["identify", gif.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(identify.status.success());
+    assert_eq!(
+        String::from_utf8(identify.stdout).unwrap().trim(),
+        "format=GIF width=2 height=2 channels=RGBA depth=8"
+    );
+
+    // Round-trip back to PNG; the small known palette survives losslessly (as RGBA).
+    let back = Command::new(imx())
+        .args([gif.to_str().unwrap(), round.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        back.status.success(),
+        "GIF->PNG failed with stderr={}",
+        String::from_utf8_lossy(&back.stderr)
+    );
+    let decoded = imx_codec_png::decode(&fs::read(&round).unwrap()).unwrap();
+    assert_eq!(decoded, image.to_rgba8().unwrap());
 }
 
 // A deterministic 1x1 3-frame GIF where each frame is a distinct solid color
@@ -4463,12 +4497,31 @@ fn frame_zero_works_on_single_frame_formats_and_rejects_higher() {
 }
 
 #[test]
-fn gif_is_rejected_as_batch_output_format() {
-    let dir = temp_dir("input_only_batch");
+fn gif_output_is_deterministic() {
+    let dir = temp_dir("gif_output_deterministic");
+    let png = dir.join("input.png");
+    let first = dir.join("first.gif");
+    let second = dir.join("second.gif");
+    let image = Image::new(2, 1, PixelFormat::Rgb8, vec![10, 20, 30, 40, 50, 60]).unwrap();
+    fs::write(&png, imx_codec_png::encode(&image).unwrap()).unwrap();
+
+    for out in [&first, &second] {
+        let status = Command::new(imx())
+            .args([png.to_str().unwrap(), out.to_str().unwrap()])
+            .status()
+            .unwrap();
+        assert!(status.success());
+    }
+    assert_eq!(fs::read(&first).unwrap(), fs::read(&second).unwrap());
+}
+
+#[test]
+fn batch_convert_supports_gif_output() {
+    let dir = temp_dir("gif_batch_output");
     let png = dir.join("input.png");
     let out_dir = dir.join("out");
     fs::create_dir_all(&out_dir).unwrap();
-    let image = Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap();
+    let image = Image::new(2, 1, PixelFormat::Rgb8, vec![1, 2, 3, 4, 5, 6]).unwrap();
     fs::write(&png, imx_codec_png::encode(&image).unwrap()).unwrap();
 
     let output = Command::new(imx())
@@ -4482,6 +4535,17 @@ fn gif_is_rejected_as_batch_output_format() {
         ])
         .output()
         .unwrap();
-    assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("input-only format"));
+    assert!(
+        output.status.success(),
+        "batch GIF failed with stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let identify = Command::new(imx())
+        .args(["identify", out_dir.join("input.gif").to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8(identify.stdout).unwrap().trim(),
+        "format=GIF width=2 height=1 channels=RGBA depth=8"
+    );
 }

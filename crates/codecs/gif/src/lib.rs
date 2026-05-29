@@ -13,10 +13,21 @@
 //! does not play back animation timing. Every frame is composited onto the
 //! logical screen canvas as RGBA8, so decode and identify always agree on the
 //! reported dimensions.
+//!
+//! Encoding writes a single still frame with a palette of at most 256 colors.
+//! Quantization is deterministic: when the source uses at most 256 distinct
+//! colors the exact palette is preserved, otherwise a NeuQuant color map with a
+//! fixed sample factor is used. Fully transparent pixels (alpha 0) are mapped to
+//! a single reserved transparent palette index; if there are none, no
+//! transparency is emitted. Animation output is explicitly out of scope.
 
 use std::io::Cursor;
 
-use gif::{ColorOutput, DecodeOptions, DecodingError, DisposalMethod, MemoryLimit};
+use color_quant::NeuQuant;
+use gif::{
+    ColorOutput, DecodeOptions, DecodingError, DisposalMethod, Encoder, EncodingError, Frame,
+    MemoryLimit,
+};
 use imx_core::{
     pixel_len, try_vec_with_capacity, Format, Identify, Image, ImageError, PixelFormat,
     MAX_PIXEL_BYTES,
@@ -25,6 +36,12 @@ use imx_core::{
 pub const MAGIC_87A: &[u8; 6] = b"GIF87a";
 pub const MAGIC_89A: &[u8; 6] = b"GIF89a";
 pub const MAGIC_LEN: usize = 6;
+
+/// Maximum number of palette entries permitted by the GIF format.
+const MAX_PALETTE_COLORS: usize = 256;
+/// Fixed NeuQuant sample factor; smaller is higher quality and slower. A fixed
+/// value keeps quantization deterministic across runs.
+const NEUQUANT_SAMPLE_FACTOR: i32 = 10;
 
 pub fn identify(input: &[u8]) -> Result<Identify, ImageError> {
     let decoder = decoder(input, "identify")?;
@@ -515,4 +532,201 @@ mod tests {
         let err = decode(&gif[..MAGIC_LEN + 4]).unwrap_err().to_string();
         assert!(err.contains("GIF decode failed"), "{err}");
     }
+}
+
+/// Encodes an image as a single-frame GIF with a deterministic, palette-quantized
+/// color table of at most 256 entries.
+pub fn encode(image: &Image) -> Result<Vec<u8>, ImageError> {
+    let rgba = image.to_rgba8()?;
+    let width = rgba.width();
+    let height = rgba.height();
+    let pixel_count = pixel_len(width, height, 1)?;
+    let pixels = rgba.pixels();
+
+    // GIF dimensions are u16; reject anything that would not fit.
+    let gif_width = u16::try_from(width).map_err(|_| {
+        ImageError::UnsupportedFormat(format!(
+            "GIF encode failed: width {width} exceeds the 65535 pixel limit"
+        ))
+    })?;
+    let gif_height = u16::try_from(height).map_err(|_| {
+        ImageError::UnsupportedFormat(format!(
+            "GIF encode failed: height {height} exceeds the 65535 pixel limit"
+        ))
+    })?;
+
+    let has_transparency = pixels.chunks_exact(4).any(|px| px[3] == 0);
+    let quantized = quantize(pixels, pixel_count, has_transparency)?;
+
+    let mut out = Vec::new();
+    {
+        let mut encoder = Encoder::new(&mut out, gif_width, gif_height, &quantized.palette)
+            .map_err(gif_encode_error)?;
+        let frame = Frame {
+            width: gif_width,
+            height: gif_height,
+            transparent: quantized.transparent_index,
+            buffer: quantized.indices.into(),
+            ..Frame::default()
+        };
+        encoder.write_frame(&frame).map_err(gif_encode_error)?;
+    }
+    Ok(out)
+}
+
+/// The result of mapping RGBA8 pixels onto a bounded GIF palette.
+struct Quantized {
+    /// Flattened `[r, g, b, ...]` palette, at most 256 colors.
+    palette: Vec<u8>,
+    /// One palette index per pixel.
+    indices: Vec<u8>,
+    /// Palette index reserved for fully transparent pixels, if any.
+    transparent_index: Option<u8>,
+}
+
+fn quantize(
+    pixels: &[u8],
+    pixel_count: usize,
+    has_transparency: bool,
+) -> Result<Quantized, ImageError> {
+    // The transparent index, when present, occupies one palette slot, leaving
+    // the rest for opaque colors.
+    let opaque_capacity = if has_transparency {
+        MAX_PALETTE_COLORS - 1
+    } else {
+        MAX_PALETTE_COLORS
+    };
+
+    match exact_palette(pixels, pixel_count, has_transparency, opaque_capacity)? {
+        Some(quantized) => Ok(quantized),
+        None => neuquant_palette(pixels, pixel_count, has_transparency),
+    }
+}
+
+/// Builds an exact, lossless palette when the source uses few enough distinct
+/// opaque colors. Returns `None` when the color count exceeds the palette
+/// budget, signalling that quantization is required.
+fn exact_palette(
+    pixels: &[u8],
+    pixel_count: usize,
+    has_transparency: bool,
+    opaque_capacity: usize,
+) -> Result<Option<Quantized>, ImageError> {
+    // Collect distinct opaque colors in deterministic sorted order.
+    let mut colors: Vec<[u8; 3]> = Vec::new();
+    for px in pixels.chunks_exact(4) {
+        if px[3] == 0 {
+            continue;
+        }
+        let rgb = [px[0], px[1], px[2]];
+        match colors.binary_search(&rgb) {
+            Ok(_) => {}
+            Err(insert_at) => {
+                if colors.len() >= opaque_capacity {
+                    return Ok(None);
+                }
+                colors.insert(insert_at, rgb);
+            }
+        }
+    }
+
+    // The transparent index (when present) is placed last so opaque indices are
+    // stable regardless of where transparent pixels appear.
+    let transparent_index = if has_transparency {
+        Some(u8::try_from(colors.len()).expect("at most 255 opaque colors when transparent"))
+    } else {
+        None
+    };
+
+    let mut palette = try_vec_with_capacity(colors.len().saturating_mul(3).saturating_add(3))?;
+    for rgb in &colors {
+        palette.extend_from_slice(rgb);
+    }
+    if has_transparency {
+        // A defined RGB triple for the transparent slot; value is irrelevant
+        // because the index is flagged transparent.
+        palette.extend_from_slice(&[0, 0, 0]);
+    }
+
+    let mut indices = try_vec_with_capacity(pixel_count)?;
+    for px in pixels.chunks_exact(4) {
+        if px[3] == 0 {
+            indices.push(transparent_index.expect("transparent index present for alpha-0 pixel"));
+        } else {
+            let rgb = [px[0], px[1], px[2]];
+            let index = colors
+                .binary_search(&rgb)
+                .expect("color was collected into the palette");
+            indices.push(u8::try_from(index).expect("palette index fits in u8"));
+        }
+    }
+
+    Ok(Some(Quantized {
+        palette,
+        indices,
+        transparent_index,
+    }))
+}
+
+/// Quantizes with NeuQuant using a fixed sample factor (deterministic) when the
+/// source exceeds the exact-palette budget.
+fn neuquant_palette(
+    pixels: &[u8],
+    pixel_count: usize,
+    has_transparency: bool,
+) -> Result<Quantized, ImageError> {
+    // NeuQuant trains on opaque pixels only; transparent pixels are excluded so
+    // they do not pull palette colors toward the placeholder.
+    let mut training = try_vec_with_capacity(pixel_count.saturating_mul(4))?;
+    for px in pixels.chunks_exact(4) {
+        if px[3] != 0 {
+            training.extend_from_slice(&[px[0], px[1], px[2], 255]);
+        }
+    }
+    // NeuQuant requires a non-empty sample; if every pixel is transparent, fall
+    // back to a single black training pixel.
+    if training.is_empty() {
+        training.extend_from_slice(&[0, 0, 0, 255]);
+    }
+
+    let color_budget = if has_transparency {
+        MAX_PALETTE_COLORS - 1
+    } else {
+        MAX_PALETTE_COLORS
+    };
+    let nq = NeuQuant::new(NEUQUANT_SAMPLE_FACTOR, color_budget, &training);
+
+    let color_map = nq.color_map_rgb();
+    let opaque_colors = color_map.len() / 3;
+    let transparent_index = if has_transparency {
+        Some(u8::try_from(opaque_colors).expect("at most 255 opaque colors when transparent"))
+    } else {
+        None
+    };
+
+    let mut palette = try_vec_with_capacity(color_map.len().saturating_add(3))?;
+    palette.extend_from_slice(&color_map);
+    if has_transparency {
+        palette.extend_from_slice(&[0, 0, 0]);
+    }
+
+    let mut indices = try_vec_with_capacity(pixel_count)?;
+    for px in pixels.chunks_exact(4) {
+        if px[3] == 0 {
+            indices.push(transparent_index.expect("transparent index present for alpha-0 pixel"));
+        } else {
+            let index = nq.index_of(&[px[0], px[1], px[2], 255]);
+            indices.push(u8::try_from(index).expect("NeuQuant index fits in u8"));
+        }
+    }
+
+    Ok(Quantized {
+        palette,
+        indices,
+        transparent_index,
+    })
+}
+
+fn gif_encode_error(err: EncodingError) -> ImageError {
+    ImageError::UnsupportedFormat(format!("GIF encode failed: {err}"))
 }
