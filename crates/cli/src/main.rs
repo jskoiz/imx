@@ -11,7 +11,7 @@ const MAX_INPUT_BYTES: u64 = MAX_PIXEL_BYTES as u64 + 1024 * 1024;
 
 fn usage() -> ! {
     eprintln!(
-        "usage:\n  imx --help\n  imx --version\n  imx identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx identify --json [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx report --json [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\n  imx self-test\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported formats: bmp (.bmp), farbfeld (.ff, .farbfeld), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm)\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:"
+        "usage:\n  imx --help\n  imx --version\n  imx identify [FORMAT:]<input|FORMAT:->\n  imx identify --json [FORMAT:]<input|FORMAT:->\n  imx report --json [FORMAT:]<input|FORMAT:->\n  imx resize <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\n  imx self-test\n  imx [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported formats: bmp (.bmp), farbfeld (.ff, .farbfeld), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm)\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:\nstdin/stdout: use - as a path with a FORMAT: prefix (e.g. PNG:-); --quality applies only to JPEG output"
     );
     process::exit(2);
 }
@@ -45,7 +45,7 @@ fn main() {
     match args.as_slice() {
         [_, flag] if flag == "--help" || flag == "-h" || flag == "help" => {
             println!(
-                "IMX Developer Preview\n\nusage:\n  imx identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx identify --json [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx report --json [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\n  imx self-test\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported transcodes: BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM, including deterministic same-format rewrites except lossy JPEG re-encoding\nsupported identify JSON: deterministic schema_version/format/width/height/channels/depth over existing identify metadata\nsupported report JSON: single-input supported/unsupported status with stable diagnostic_code values\nsupported resize: nearest-neighbor exact dimensions and aspect-preserving fit for existing supported formats\nsupported geometry: bounds-checked crop (<width>x<height>+<x>+<y>), clockwise rotate (90/180/270), vertical flip, and horizontal flop, all format-preserving\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, no overwrite or collision renaming\nsupported self-test: offline install confidence check for identify/transcode/resize/resize-fit/batch-convert across supported formats\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:\nunsupported: stdin/stdout, recursive directory walking, arbitrary-angle rotation, delegates, color management, and formats beyond BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM"
+                "IMX Developer Preview\n\nusage:\n  imx identify [FORMAT:]<input|FORMAT:->\n  imx identify --json [FORMAT:]<input|FORMAT:->\n  imx report --json [FORMAT:]<input|FORMAT:->\n  imx resize <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\n  imx self-test\n  imx [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported transcodes: BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM, including deterministic same-format rewrites except lossy JPEG re-encoding\nsupported streaming: read input from stdin and/or write output to stdout via - with a FORMAT: prefix (e.g. PNG:-); only image bytes go to stdout\nsupported JPEG quality: --quality <1..=100> on the single transcode when the output format is JPEG (default 90); rejected for non-JPEG output\nsupported identify JSON: deterministic schema_version/format/width/height/channels/depth over existing identify metadata\nsupported report JSON: single-input supported/unsupported status with stable diagnostic_code values\nsupported resize: nearest-neighbor exact dimensions and aspect-preserving fit for existing supported formats\nsupported geometry: bounds-checked crop (<width>x<height>+<x>+<y>), clockwise rotate (90/180/270), vertical flip, and horizontal flop, all format-preserving\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, no overwrite or collision renaming\nsupported self-test: offline install confidence check for identify/transcode/resize/resize-fit/batch-convert across supported formats\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:\nunsupported: recursive directory walking, arbitrary-angle rotation, delegates, color management, and formats beyond BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM"
             );
             process::exit(0);
         }
@@ -78,6 +78,9 @@ fn main() {
         [_, command] if command == "self-test" => self_test(),
         [_, command, ..] if command == "self-test" => usage(),
         [_, command, ..] if is_unsupported_command_shape(command) => usage(),
+        [_, flag, quality, input, output] if flag == "--quality" => {
+            transcode_with_quality(quality, input, output)
+        }
         [_, input, output] => transcode(input, output),
         _ => usage(),
     }
@@ -609,6 +612,15 @@ fn try_identify(input_path: &str) -> Result<Identify, Diagnostic> {
 }
 
 fn transcode(input_path: &str, output_path: &str) -> ! {
+    run_transcode(input_path, output_path, None)
+}
+
+fn transcode_with_quality(quality: &str, input_path: &str, output_path: &str) -> ! {
+    let quality = parse_quality(quality).unwrap_or_else(|err| fail(err));
+    run_transcode(input_path, output_path, Some(quality))
+}
+
+fn run_transcode(input_path: &str, output_path: &str, quality: Option<u8>) -> ! {
     let input_path = parse_cli_path(input_path).unwrap_or_else(|err| fail(err));
     let output_path = parse_cli_path(output_path).unwrap_or_else(|err| fail(err));
     reject_same_path(input_path.path, output_path.path);
@@ -616,15 +628,34 @@ fn transcode(input_path: &str, output_path: &str) -> ! {
     let input_format = detect_input_format(&input_path, &input).unwrap_or_else(|err| fail(err));
     let output_format = detect_output_format(&output_path).unwrap_or_else(|err| fail(err));
 
+    if quality.is_some() && output_format != Format::Jpeg {
+        fail(format!(
+            "--quality only applies to JPEG output, not {}",
+            output_format.name()
+        ));
+    }
+
     let image = decode_image(input_format, &input).unwrap_or_else(|err| {
         fail_image_operation(input_format, "decode", "input", &input_path, err)
     });
-    let output = encode_image(output_format, &image).unwrap_or_else(|err| {
+    let output = encode_image_with_quality(output_format, &image, quality).unwrap_or_else(|err| {
         fail_image_operation(output_format, "encode", "output", &output_path, err)
     });
 
-    write_atomic(output_path.path, &output);
+    write_output(output_path.path, &output);
     process::exit(0);
+}
+
+fn parse_quality(value: &str) -> Result<u8, String> {
+    let quality = value
+        .parse::<u8>()
+        .map_err(|_| format!("invalid --quality value: {value}; expected 1..=100"))?;
+    if !(1..=100).contains(&quality) {
+        return Err(format!(
+            "invalid --quality value: {value}; expected 1..=100"
+        ));
+    }
+    Ok(quality)
 }
 
 fn resize(dimensions: &str, input_path: &str, output_path: &str) -> ! {
@@ -648,7 +679,7 @@ fn resize(dimensions: &str, input_path: &str, output_path: &str) -> ! {
         fail_image_operation(output_format, "encode", "output", &output_path, err)
     });
 
-    write_atomic(output_path.path, &output);
+    write_output(output_path.path, &output);
     process::exit(0);
 }
 
@@ -673,7 +704,7 @@ fn resize_fit(dimensions: &str, input_path: &str, output_path: &str) -> ! {
         fail_image_operation(output_format, "encode", "output", &output_path, err)
     });
 
-    write_atomic(output_path.path, &output);
+    write_output(output_path.path, &output);
     process::exit(0);
 }
 
@@ -850,6 +881,17 @@ fn decode_image(format: Format, input: &[u8]) -> Result<imx_core::Image, ImageEr
     }
 }
 
+fn encode_image_with_quality(
+    format: Format,
+    image: &imx_core::Image,
+    quality: Option<u8>,
+) -> Result<Vec<u8>, ImageError> {
+    match (format, quality) {
+        (Format::Jpeg, Some(quality)) => imx_codec_jpeg::encode_with_quality(image, quality),
+        _ => encode_image(format, image),
+    }
+}
+
 fn encode_image(format: Format, image: &imx_core::Image) -> Result<Vec<u8>, ImageError> {
     match format {
         Format::Bmp => imx_codec_bmp::encode(image),
@@ -864,6 +906,9 @@ fn encode_image(format: Format, image: &imx_core::Image) -> Result<Vec<u8>, Imag
 }
 
 fn read(path: &str) -> Vec<u8> {
+    if path == "-" {
+        return read_stdin();
+    }
     let mut file = fs::File::open(path).unwrap_or_else(|err| {
         if err.kind() == std::io::ErrorKind::NotFound {
             fail(format!("missing input: {path}"));
@@ -894,6 +939,21 @@ fn read(path: &str) -> Vec<u8> {
     input
 }
 
+fn read_stdin() -> Vec<u8> {
+    let mut input = Vec::new();
+    std::io::stdin()
+        .lock()
+        .take(MAX_INPUT_BYTES + 1)
+        .read_to_end(&mut input)
+        .unwrap_or_else(|err| fail(format!("failed to read stdin: {err}")));
+    if input.len() as u64 > MAX_INPUT_BYTES {
+        fail(format!(
+            "input too large: stdin exceeds {MAX_INPUT_BYTES} byte limit"
+        ));
+    }
+    input
+}
+
 #[derive(Debug)]
 struct Diagnostic {
     code: &'static str,
@@ -910,6 +970,23 @@ impl Diagnostic {
 }
 
 fn read_diagnostic(path: &str) -> Result<Vec<u8>, Diagnostic> {
+    if path == "-" {
+        let mut input = Vec::new();
+        std::io::stdin()
+            .lock()
+            .take(MAX_INPUT_BYTES + 1)
+            .read_to_end(&mut input)
+            .map_err(|err| {
+                Diagnostic::new("input.read_failed", format!("failed to read stdin: {err}"))
+            })?;
+        if input.len() as u64 > MAX_INPUT_BYTES {
+            return Err(Diagnostic::new(
+                "input.too_large",
+                format!("input too large: stdin exceeds {MAX_INPUT_BYTES} byte limit"),
+            ));
+        }
+        return Ok(input);
+    }
     let mut file = fs::File::open(path).map_err(|err| {
         if err.kind() == std::io::ErrorKind::NotFound {
             Diagnostic::new("input.missing", format!("missing input: {path}"))
@@ -1008,12 +1085,33 @@ fn json_string(value: &str) -> String {
 }
 
 fn reject_same_path(input_path: &str, output_path: &str) {
+    if input_path == "-" || output_path == "-" {
+        return;
+    }
     if let (Ok(input), Ok(output)) = (fs::canonicalize(input_path), fs::canonicalize(output_path)) {
         if input == output {
             fail(format!(
                 "input and output paths must be different: {input_path} and {output_path}"
             ));
         }
+    }
+}
+
+fn write_output(output_path: &str, bytes: &[u8]) {
+    if output_path == "-" {
+        write_stdout(bytes);
+        return;
+    }
+    write_atomic(output_path, bytes);
+}
+
+fn write_stdout(bytes: &[u8]) {
+    let mut stdout = std::io::stdout().lock();
+    if let Err(err) = stdout.write_all(bytes) {
+        fail(format!("failed to write stdout: {err}"));
+    }
+    if let Err(err) = stdout.flush() {
+        fail(format!("failed to write stdout: {err}"));
     }
 }
 
@@ -1551,6 +1649,11 @@ fn image_diagnostic_code(format: Format, operation: &str, err: &ImageError) -> &
 }
 
 fn detect_output_format(path: &CliPath<'_>) -> Result<Format, String> {
+    if path.path == "-" {
+        return path
+            .prefix
+            .ok_or_else(|| "stdout output (-) requires a format prefix, e.g. PNG:-".to_string());
+    }
     let detected = detect_path_format(path.path)?;
     enforce_prefix(path, detected, "path format")
 }
