@@ -824,7 +824,7 @@ run_resize_case() {
     raw_format="RGB"
   fi
 
-  if ! "$imx" "$command" 17x11 "$imx_input" "$imx_output_arg" >"$out_dir/$case_id.imx.stdout" 2>"$out_dir/$case_id.imx.stderr"; then
+  if ! "$imx" --filter point "$command" 17x11 "$imx_input" "$imx_output_arg" >"$out_dir/$case_id.imx.stdout" 2>"$out_dir/$case_id.imx.stderr"; then
     record "$case_id" failed "IMX $command failed"
     failures=$((failures + 1))
     return
