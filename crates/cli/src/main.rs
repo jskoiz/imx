@@ -622,10 +622,8 @@ fn load_compare_operand(arg: &str, role: &str) -> imx_core::Image {
 }
 
 fn compare(a_arg: &str, b_arg: &str, metric: Option<&str>) -> ! {
-    let metric = match metric {
-        Some(value) => Some(parse_compare_metric(value).unwrap_or_else(|err| fail_usage(err))),
-        None => None,
-    };
+    let metric =
+        metric.map(|value| parse_compare_metric(value).unwrap_or_else(|err| fail_usage(err)));
 
     // At most one operand may be stdin.
     let a_path = parse_cli_path(a_arg).unwrap_or_else(|err| fail(err));
