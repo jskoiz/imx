@@ -893,6 +893,154 @@ fn round_scaled_dimension(numerator: u128, denominator: u128) -> u32 {
     ((numerator * 2 + denominator) / (denominator * 2)) as u32
 }
 
+/// A parsed `imx resize` geometry specification.
+///
+/// This mirrors the subset of ImageMagick geometry syntax that `imx resize`
+/// accepts. Concrete target dimensions are resolved against source dimensions
+/// by [`ResizeGeometry::resolve`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResizeGeometry {
+    /// `<width>x<height>` — both axes given as exact pixel counts.
+    Exact { width: u32, height: u32 },
+    /// `<width>x` — width given, height derived from the source aspect ratio.
+    Width(u32),
+    /// `x<height>` — height given, width derived from the source aspect ratio.
+    Height(u32),
+    /// `<percent>%` — scale both axes uniformly by an integer percentage.
+    Percent(u32),
+}
+
+/// Error returned when a resize geometry string cannot be parsed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GeometryError {
+    geometry: String,
+}
+
+impl GeometryError {
+    pub fn diagnostic_code(&self) -> &'static str {
+        "image.invalid_geometry"
+    }
+}
+
+impl fmt::Display for GeometryError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "invalid resize geometry: {}; expected <width>x<height>, <width>x, x<height>, or <percent>%",
+            self.geometry
+        )
+    }
+}
+
+impl std::error::Error for GeometryError {}
+
+fn parse_geometry_uint(value: &str) -> Option<u32> {
+    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    value.parse::<u32>().ok()
+}
+
+impl ResizeGeometry {
+    /// Parse a resize geometry string into a [`ResizeGeometry`].
+    ///
+    /// Supported forms: `<width>x<height>`, `<width>x`, `x<height>`, and
+    /// `<percent>%`. All accepted numbers are non-negative decimal integers;
+    /// zero is rejected here so callers do not need to special-case it.
+    pub fn parse(geometry: &str) -> Result<Self, GeometryError> {
+        let err = || GeometryError {
+            geometry: geometry.to_string(),
+        };
+
+        if let Some(percent) = geometry.strip_suffix('%') {
+            let percent = parse_geometry_uint(percent).ok_or_else(err)?;
+            if percent == 0 {
+                return Err(err());
+            }
+            return Ok(Self::Percent(percent));
+        }
+
+        let Some((width, height)) = geometry.split_once('x') else {
+            return Err(err());
+        };
+
+        match (width.is_empty(), height.is_empty()) {
+            (false, false) => {
+                let width = parse_geometry_uint(width).ok_or_else(err)?;
+                let height = parse_geometry_uint(height).ok_or_else(err)?;
+                if width == 0 || height == 0 {
+                    return Err(err());
+                }
+                Ok(Self::Exact { width, height })
+            }
+            (false, true) => {
+                let width = parse_geometry_uint(width).ok_or_else(err)?;
+                if width == 0 {
+                    return Err(err());
+                }
+                Ok(Self::Width(width))
+            }
+            (true, false) => {
+                let height = parse_geometry_uint(height).ok_or_else(err)?;
+                if height == 0 {
+                    return Err(err());
+                }
+                Ok(Self::Height(height))
+            }
+            (true, true) => Err(err()),
+        }
+    }
+
+    /// Resolve this geometry against the source dimensions into exact target
+    /// `(width, height)` pixel counts.
+    ///
+    /// Derived axes use ImageMagick's round-half-up integer rule and are
+    /// clamped to a minimum of one pixel, matching `magick -resize`.
+    pub fn resolve(self, source_width: u32, source_height: u32) -> Result<(u32, u32), ImageError> {
+        if source_width == 0 || source_height == 0 {
+            return Err(ImageError::InvalidDimensions);
+        }
+        match self {
+            Self::Exact { width, height } => Ok((width, height)),
+            Self::Width(width) => {
+                let height = scale_axis(source_height, width, source_width)?;
+                Ok((width, height))
+            }
+            Self::Height(height) => {
+                let width = scale_axis(source_width, height, source_height)?;
+                Ok((width, height))
+            }
+            Self::Percent(percent) => {
+                let width = scale_percent(source_width, percent)?;
+                let height = scale_percent(source_height, percent)?;
+                Ok((width, height))
+            }
+        }
+    }
+}
+
+/// Scale `value` by `percent` using ImageMagick's round-half-up rule, with a
+/// minimum result of one. Returns [`ImageError::LengthOverflow`] if the scaled
+/// dimension would not fit in a `u32`.
+pub fn scale_percent(value: u32, percent: u32) -> Result<u32, ImageError> {
+    scaled_dimension(u128::from(value) * u128::from(percent), 100)
+}
+
+/// Compute a dimension that preserves the source aspect ratio for a fixed
+/// opposite axis, using ImageMagick's round-half-up rule with a minimum of one.
+fn scale_axis(source_value: u32, target_other: u32, source_other: u32) -> Result<u32, ImageError> {
+    scaled_dimension(
+        u128::from(source_value) * u128::from(target_other),
+        u128::from(source_other),
+    )
+}
+
+fn scaled_dimension(numerator: u128, denominator: u128) -> Result<u32, ImageError> {
+    let scaled = (numerator * 2 + denominator) / (denominator * 2);
+    let scaled = u32::try_from(scaled).map_err(|_| ImageError::LengthOverflow)?;
+    Ok(scaled.max(1))
+}
+
 pub fn try_vec_with_capacity(capacity: usize) -> Result<Vec<u8>, ImageError> {
     let mut out = Vec::new();
     out.try_reserve_exact(capacity)
@@ -1143,6 +1291,131 @@ mod tests {
         assert_eq!(fit_dimensions(1, 5, 17, 11).unwrap(), (2, 11));
         assert_eq!(fit_dimensions(64, 32, 1, 100).unwrap(), (1, 1));
         assert_eq!(fit_dimensions(32, 64, 100, 1).unwrap(), (1, 1));
+    }
+
+    #[test]
+    fn parse_resize_geometry_accepts_supported_forms() {
+        assert_eq!(
+            ResizeGeometry::parse("100x40").unwrap(),
+            ResizeGeometry::Exact {
+                width: 100,
+                height: 40
+            }
+        );
+        assert_eq!(
+            ResizeGeometry::parse("200x").unwrap(),
+            ResizeGeometry::Width(200)
+        );
+        assert_eq!(
+            ResizeGeometry::parse("x600").unwrap(),
+            ResizeGeometry::Height(600)
+        );
+        assert_eq!(
+            ResizeGeometry::parse("50%").unwrap(),
+            ResizeGeometry::Percent(50)
+        );
+        assert_eq!(
+            ResizeGeometry::parse("1%").unwrap(),
+            ResizeGeometry::Percent(1)
+        );
+    }
+
+    #[test]
+    fn parse_resize_geometry_rejects_malformed_input() {
+        for garbage in [
+            "", "x", "abc", "50%%", "%50", "-5x10", "10x-5", "0x10", "10x0", "0%", "x0", "0x",
+            "1.5x2", "50.0%", "10x10x10", "10 x10", " 10x10", "10x10 ", "1e3%", "+5x5", "xx",
+        ] {
+            assert!(
+                ResizeGeometry::parse(garbage).is_err(),
+                "expected {garbage:?} to be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn resize_geometry_resolves_exact_dimensions_verbatim() {
+        assert_eq!(
+            ResizeGeometry::Exact {
+                width: 5,
+                height: 3
+            }
+            .resolve(9, 7)
+            .unwrap(),
+            (5, 3)
+        );
+    }
+
+    #[test]
+    fn resize_geometry_percent_matches_imagemagick_round_half_up() {
+        assert_eq!(
+            ResizeGeometry::Percent(50).resolve(100, 40).unwrap(),
+            (50, 20)
+        );
+        assert_eq!(
+            ResizeGeometry::Percent(50).resolve(101, 41).unwrap(),
+            (51, 21)
+        );
+        assert_eq!(
+            ResizeGeometry::Percent(33).resolve(100, 100).unwrap(),
+            (33, 33)
+        );
+        assert_eq!(ResizeGeometry::Percent(25).resolve(10, 10).unwrap(), (3, 3));
+        assert_eq!(ResizeGeometry::Percent(200).resolve(7, 3).unwrap(), (14, 6));
+        assert_eq!(ResizeGeometry::Percent(10).resolve(5, 5).unwrap(), (1, 1));
+        assert_eq!(ResizeGeometry::Percent(1).resolve(1, 1).unwrap(), (1, 1));
+    }
+
+    #[test]
+    fn resize_geometry_single_axis_matches_imagemagick_round_half_up() {
+        assert_eq!(
+            ResizeGeometry::Width(200).resolve(100, 40).unwrap(),
+            (200, 80)
+        );
+        assert_eq!(
+            ResizeGeometry::Width(50).resolve(100, 40).unwrap(),
+            (50, 20)
+        );
+        assert_eq!(
+            ResizeGeometry::Height(10).resolve(100, 40).unwrap(),
+            (25, 10)
+        );
+        assert_eq!(ResizeGeometry::Width(3).resolve(9, 7).unwrap(), (3, 2));
+        assert_eq!(ResizeGeometry::Height(3).resolve(9, 7).unwrap(), (4, 3));
+        assert_eq!(ResizeGeometry::Width(1).resolve(100, 1).unwrap(), (1, 1));
+        assert_eq!(ResizeGeometry::Height(1).resolve(1, 100).unwrap(), (1, 1));
+    }
+
+    #[test]
+    fn resize_geometry_rejects_zero_source_dimensions() {
+        assert_eq!(
+            ResizeGeometry::Percent(50).resolve(0, 10),
+            Err(ImageError::InvalidDimensions)
+        );
+        assert_eq!(
+            ResizeGeometry::Width(10).resolve(10, 0),
+            Err(ImageError::InvalidDimensions)
+        );
+    }
+
+    #[test]
+    fn scale_percent_clamps_to_one() {
+        assert_eq!(scale_percent(1, 10).unwrap(), 1);
+        assert_eq!(scale_percent(100, 50).unwrap(), 50);
+        assert_eq!(scale_percent(3, 50).unwrap(), 2);
+        assert_eq!(scale_percent(0, 50).unwrap(), 1);
+    }
+
+    #[test]
+    fn resize_geometry_rejects_dimensions_overflowing_u32() {
+        assert_eq!(
+            ResizeGeometry::Percent(u32::MAX).resolve(1000, 1000),
+            Err(ImageError::LengthOverflow)
+        );
+        assert_eq!(
+            ResizeGeometry::Width(u32::MAX).resolve(1, 1000),
+            Err(ImageError::LengthOverflow)
+        );
     }
 
     #[test]

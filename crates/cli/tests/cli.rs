@@ -1017,6 +1017,48 @@ fn resize_uses_center_sampled_nearest_neighbor_pixels() {
 }
 
 #[test]
+fn resize_geometry_shorthands_produce_expected_dimensions() {
+    let dir = temp_dir("resize_geometry_shorthands");
+    let input = dir.join("input.ppm");
+    let mut pixels = Vec::with_capacity(100 * 40 * 3);
+    for y in 0..40u32 {
+        for x in 0..100u32 {
+            pixels.push((x * 255 / 99) as u8);
+            pixels.push((y * 255 / 39) as u8);
+            pixels.push(128);
+        }
+    }
+    let image = Image::new(100, 40, PixelFormat::Rgb8, pixels).unwrap();
+    fs::write(&input, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
+
+    for (geometry, expected_width, expected_height) in [
+        ("50%", 50, 20),
+        ("200x", 200, 80),
+        ("x10", 25, 10),
+        ("100x40", 100, 40),
+    ] {
+        let output_path = dir.join(format!("out_{expected_width}x{expected_height}.ppm"));
+        let output = Command::new(imx())
+            .args([
+                "resize",
+                geometry,
+                prefixed("PPM", &input).as_str(),
+                prefixed("PPM", &output_path).as_str(),
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "resize {geometry} failed with stderr={}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let resized = imx_codec_pnm::decode_ppm(&fs::read(&output_path).unwrap()).unwrap();
+        assert_eq!(resized.width(), expected_width, "geometry {geometry}");
+        assert_eq!(resized.height(), expected_height, "geometry {geometry}");
+    }
+}
+
+#[test]
 fn malformed_resize_arguments_are_rejected() {
     let dir = temp_dir("resize_malformed_args");
     let input = dir.join("input.ppm");
@@ -1024,16 +1066,25 @@ fn malformed_resize_arguments_are_rejected() {
     let image = Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap();
     fs::write(&input, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
 
-    for (dimensions, expected_error) in [
-        ("", "invalid resize dimensions"),
-        ("2", "invalid resize dimensions"),
-        ("x2", "invalid resize dimensions"),
-        ("2x", "invalid resize dimensions"),
-        ("2X2", "invalid resize dimensions"),
-        ("0x2", "resize dimensions must be non-zero"),
-        ("2x0", "resize dimensions must be non-zero"),
-        ("4294967296x2", "invalid resize width"),
-        ("2x4294967296", "invalid resize height"),
+    let expected_error = "invalid resize geometry";
+    for dimensions in [
+        "",
+        "2",
+        "2X2",
+        "0x2",
+        "2x0",
+        "0%",
+        "50%%",
+        "%50",
+        "abc",
+        "x0",
+        "0x",
+        "1.5x2",
+        "50.0%",
+        "10x10x10",
+        "4294967296x2",
+        "2x4294967296",
+        "4294967296%",
     ] {
         let output = Command::new(imx())
             .args([
@@ -1044,9 +1095,11 @@ fn malformed_resize_arguments_are_rejected() {
             ])
             .output()
             .unwrap();
-        assert!(
-            !output.status.success(),
-            "malformed resize dimensions unexpectedly succeeded: {dimensions:?}"
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "malformed resize geometry should exit 2: {dimensions:?}; stderr={:?}",
+            String::from_utf8_lossy(&output.stderr)
         );
         assert!(
             String::from_utf8_lossy(&output.stderr).contains(expected_error),
@@ -2430,7 +2483,9 @@ fn help_and_version_are_available() {
             assert!(stdout.contains("imx batch-convert --to <FORMAT> --output-dir <dir>"));
             assert!(stdout.contains("imx self-test"));
             assert!(stdout.contains("offline install confidence check"));
-            assert!(stdout.contains("nearest-neighbor exact dimensions and aspect-preserving fit"));
+            assert!(stdout.contains("nearest-neighbor exact dimensions (<width>x<height>)"));
+            assert!(stdout.contains("<width>x or x<height>"));
+            assert!(stdout.contains("uniform percent (<percent>%)"));
             assert!(stdout.contains("no overwrite or collision renaming"));
             assert!(stdout.contains(".bmp"));
             assert!(stdout.contains(".farbfeld"));
@@ -3027,8 +3082,8 @@ fn diagnostic_failures_have_stable_exit_codes_and_context() {
                 prefixed("PPM", &ppm),
                 prefixed("PPM", &resized),
             ],
-            1,
-            "resize dimensions must be non-zero",
+            2,
+            "invalid resize geometry",
         ),
         (
             vec![prefixed("PPM", &ppm), prefixed("PPM", &ppm)],

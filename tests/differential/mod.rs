@@ -1690,6 +1690,99 @@ fn standalone_resize_fit_matches_imagemagick_point_resize_for_decoded_pixels() {
     assert_eq!(fs::read(imx_rgb).unwrap(), fs::read(oracle_rgb).unwrap());
 }
 
+fn assert_resize_geometry_matches_oracle(label: &str, imx_geometry: &str, oracle_geometry: &str) {
+    let Some(magick) = require_or_skip(magick_command(), "ImageMagick oracle") else {
+        return;
+    };
+    let Some(standalone) = require_or_skip(standalone_imx_command(), "standalone imx binary")
+    else {
+        return;
+    };
+    let dir = temp_dir(&format!("resize_geometry_{label}"));
+    let input = dir.join("source.ppm");
+    let imx_ppm = dir.join("imx.ppm");
+    let oracle_ppm = dir.join("oracle.ppm");
+    let imx_rgb = dir.join("imx.rgb");
+    let oracle_rgb = dir.join("oracle.rgb");
+    fs::write(
+        &input,
+        imx_codec_pnm::encode_ppm(&rgb8_gradient(100, 40)).unwrap(),
+    )
+    .unwrap();
+
+    let imx_resize = run_magick(
+        &standalone,
+        &[
+            "resize".to_string(),
+            imx_geometry.to_string(),
+            format!("PPM:{}", input.display()),
+            format!("PPM:{}", imx_ppm.display()),
+        ],
+    );
+    assert!(
+        imx_resize.status.success(),
+        "standalone resize {imx_geometry} failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&imx_resize.stdout),
+        String::from_utf8_lossy(&imx_resize.stderr)
+    );
+
+    let oracle_resize = run_magick(
+        &magick,
+        &[
+            format!("PPM:{}", input.display()),
+            "-filter".to_string(),
+            "Point".to_string(),
+            "-resize".to_string(),
+            oracle_geometry.to_string(),
+            format!("PPM:{}", oracle_ppm.display()),
+        ],
+    );
+    if !assert_success_or_skip(&oracle_resize, "ImageMagick point resize geometry") {
+        return;
+    }
+
+    let imx_decode = run_magick(
+        &magick,
+        &[
+            format!("PPM:{}", imx_ppm.display()),
+            "-depth".to_string(),
+            "8".to_string(),
+            format!("RGB:{}", imx_rgb.display()),
+        ],
+    );
+    let oracle_decode = run_magick(
+        &magick,
+        &[
+            format!("PPM:{}", oracle_ppm.display()),
+            "-depth".to_string(),
+            "8".to_string(),
+            format!("RGB:{}", oracle_rgb.display()),
+        ],
+    );
+    if !assert_success_or_skip(&imx_decode, "ImageMagick decode IMX resized PPM")
+        || !assert_success_or_skip(&oracle_decode, "ImageMagick decode oracle resized PPM")
+    {
+        return;
+    }
+
+    assert_eq!(fs::read(imx_rgb).unwrap(), fs::read(oracle_rgb).unwrap());
+}
+
+#[test]
+fn standalone_resize_percent_matches_imagemagick_decoded_pixels() {
+    assert_resize_geometry_matches_oracle("percent", "50%", "50%");
+}
+
+#[test]
+fn standalone_resize_width_only_matches_imagemagick_decoded_pixels() {
+    assert_resize_geometry_matches_oracle("width_only", "800x", "800x");
+}
+
+#[test]
+fn standalone_resize_height_only_matches_imagemagick_decoded_pixels() {
+    assert_resize_geometry_matches_oracle("height_only", "x600", "x600");
+}
+
 #[test]
 fn standalone_batch_convert_resize_fit_matches_imagemagick_decoded_pixels() {
     let Some(magick) = require_or_skip(magick_command(), "ImageMagick oracle") else {
