@@ -79,7 +79,7 @@ fn parse_resize_filter(value: &str) -> Result<ResizeFilter, String> {
 
 fn usage() -> ! {
     eprintln!(
-        "usage:\n  imx --help\n  imx --version\n  imx [--no-auto-orient] identify [--frame <N>] [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.tif|input.tiff|input.webp|FORMAT:->\n  imx [--no-auto-orient] identify --json [--frame <N>] [FORMAT:]<input|FORMAT:->\n  imx [--no-auto-orient] report --json [--frame <N>] [FORMAT:]<input|FORMAT:->\n  imx [--no-auto-orient] compare [--metric <ae|mae|psnr>] [FORMAT:]<a|FORMAT:-> [FORMAT:]<b>\n  imx [--no-auto-orient] [--strip] [--filter <point|box|triangle|catmull-rom|lanczos3>] resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx [--no-auto-orient] [--strip] [--filter <point|box|triangle|catmull-rom|lanczos3>] resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx [--no-auto-orient] [--strip] crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] [--strip] rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] [--strip] flip [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] [--strip] flop [FORMAT:]<input> [FORMAT:]<output>\n  imx [--strip] pipeline [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:-> --op <op> [--op <op> ...]\n  imx [--no-auto-orient] [--strip] batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx completions <bash|zsh|fish>\n  imx self-test\n  imx [--no-auto-orient] [--strip] [--frame <N>] [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported formats: bmp (.bmp), farbfeld (.ff, .farbfeld), gif (.gif), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm), tiff (.tif, .tiff), webp (.webp)\nsupported prefixes: BMP:, FARBFELD:, GIF:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, TIFF:, WEBP:\nframe selection: --frame <N> (0-based, default 0) selects which frame to decode; animated GIF/WEBP can be enumerated via report --json (\"frames\" field) and a single frame extracted; non-animated inputs accept only --frame 0\nsupported orientation: EXIF/TIFF Orientation is auto-applied on decode for JPEG and TIFF so images are upright; pass --no-auto-orient to keep raw stored pixels and dimensions\nsupported resize: --filter <point|box|triangle|catmull-rom|lanczos3> selects the resampling kernel (default lanczos3); --filter point is byte-exact nearest-neighbor\nsupported ICC: embedded ICC color profiles are preserved on decode and written back on encode for PNG, JPEG, and TIFF; geometry transforms keep the profile while colorspace conversions drop it; pass --strip to drop the profile before encoding\nstdin/stdout: use - as a path with a FORMAT: prefix (e.g. PNG:-); --quality applies only to JPEG output"
+        "usage:\n  imx --help\n  imx --version\n  imx [--no-auto-orient] identify [--frame <N>] [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.tif|input.tiff|input.webp|FORMAT:->\n  imx [--no-auto-orient] identify --json [--frame <N>] [FORMAT:]<input|FORMAT:->\n  imx [--no-auto-orient] report --json [--frame <N>] [FORMAT:]<input|FORMAT:->\n  imx [--no-auto-orient] compare [--metric <ae|mae|psnr>] [FORMAT:]<a|FORMAT:-> [FORMAT:]<b>\n  imx [--no-auto-orient] [--strip] [--filter <point|box|triangle|catmull-rom|lanczos3>] resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx [--no-auto-orient] [--strip] [--filter <point|box|triangle|catmull-rom|lanczos3>] resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx [--no-auto-orient] [--strip] crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] [--strip] rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] [--strip] flip [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] [--strip] flop [FORMAT:]<input> [FORMAT:]<output>\n  imx [--strip] pipeline [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:-> --op <op> [--op <op> ...]\n  imx [--no-auto-orient] [--strip] batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx [--no-auto-orient] assemble --delay <centiseconds> [--loop <n>] <output.gif|GIF:-> <frame0> <frame1> ...\n  imx completions <bash|zsh|fish>\n  imx self-test\n  imx [--no-auto-orient] [--strip] [--frame <N>] [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported formats: bmp (.bmp), farbfeld (.ff, .farbfeld), gif (.gif), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm), tiff (.tif, .tiff), webp (.webp)\nsupported prefixes: BMP:, FARBFELD:, GIF:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, TIFF:, WEBP:\nframe selection: --frame <N> (0-based, default 0) selects which frame to decode; animated GIF/WEBP can be enumerated via report --json (\"frames\" field) and a single frame extracted; non-animated inputs accept only --frame 0\nsupported orientation: EXIF/TIFF Orientation is auto-applied on decode for JPEG and TIFF so images are upright; pass --no-auto-orient to keep raw stored pixels and dimensions\nsupported resize: --filter <point|box|triangle|catmull-rom|lanczos3> selects the resampling kernel (default lanczos3); --filter point is byte-exact nearest-neighbor\nsupported animation: imx assemble writes an animated GIF from same-size input frames with a per-frame --delay (centiseconds) and --loop count (0 = infinite)\nsupported ICC: embedded ICC color profiles are preserved on decode and written back on encode for PNG, JPEG, and TIFF; geometry transforms keep the profile while colorspace conversions drop it; pass --strip to drop the profile before encoding\nstdin/stdout: use - as a path with a FORMAT: prefix (e.g. PNG:-); --quality applies only to JPEG output"
     );
     process::exit(2);
 }
@@ -114,7 +114,7 @@ fn main() {
     match args.as_slice() {
         [_, flag] if flag == "--help" || flag == "-h" || flag == "help" => {
             println!(
-                "IMX Developer Preview\n\nusage:\n  imx [--no-auto-orient] identify [--frame <N>] [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.tif|input.tiff|input.webp|FORMAT:->\n  imx [--no-auto-orient] identify --json [--frame <N>] [FORMAT:]<input|FORMAT:->\n  imx [--no-auto-orient] report --json [--frame <N>] [FORMAT:]<input|FORMAT:->\n  imx [--no-auto-orient] compare [--metric <ae|mae|psnr>] [FORMAT:]<a|FORMAT:-> [FORMAT:]<b>\n  imx [--no-auto-orient] [--strip] [--filter <point|box|triangle|catmull-rom|lanczos3>] resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx [--no-auto-orient] [--strip] [--filter <point|box|triangle|catmull-rom|lanczos3>] resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx [--no-auto-orient] [--strip] crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] [--strip] rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] [--strip] flip [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] [--strip] flop [FORMAT:]<input> [FORMAT:]<output>\n  imx [--strip] pipeline [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:-> --op <op> [--op <op> ...]\n  imx [--no-auto-orient] [--strip] batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx completions <bash|zsh|fish>\n  imx self-test\n  imx [--no-auto-orient] [--strip] [--frame <N>] [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported transcodes: BMP/FARBFELD/GIF/JPEG/QOI/PBM/PGM/PNG/PPM/TIFF/WEBP, including deterministic same-format rewrites except lossy JPEG re-encoding; WEBP output is lossless; GIF output is a single still frame with a deterministic palette of at most 256 colors\nsupported frame selection: --frame <N> (0-based, default 0) selects which frame to decode for identify, report --json, and the single-input transcode; animated GIF/WEBP frames are composited (GIF disposal Keep/Background/Previous honored) so frame N is the displayed canvas; non-animated inputs accept only --frame 0 and reject any N>0\nsupported orientation: EXIF/TIFF Orientation (values 1-8) is auto-applied on decode for JPEG and TIFF so portrait photos come out upright; rotated orientations (5-8) swap reported width and height; pass --no-auto-orient to disable and keep the raw stored pixels and dimensions; missing or malformed orientation metadata is treated as orientation 1 (no-op)\nsupported ICC: embedded ICC color profiles are preserved on decode and written back on encode for PNG (iCCP chunk), JPEG (APP2 ICC_PROFILE segments), and TIFF (tag 34675); the profile bytes survive geometry transforms (resize, resize-fit, crop, rotate, flip, flop) but are dropped by colorspace conversions since they no longer describe the re-encoded samples; pass --strip to drop the profile before encoding\nsupported streaming: read input from stdin and/or write output to stdout via - with a FORMAT: prefix (e.g. PNG:-); only image bytes go to stdout\nsupported JPEG quality: --quality <1..=100> on the single transcode and batch-convert when the output format is JPEG (default 90); rejected for non-JPEG output\nsupported identify JSON: deterministic schema_version/format/width/height/channels/depth over existing identify metadata\nsupported report JSON: single-input supported/unsupported status with stable diagnostic_code values; adds a \"frames\" count (animated GIF/WEBP frame count, 1 otherwise) and uses schema_version 2\nsupported compare: decode two inputs and diff them deterministically; differing dimensions or channels print a single differ: line and exit 1, matching images normalize to RGBA8 and report differing-pixel count, peak per-channel difference (AE), and mean absolute error (MAE); identical inputs print identical and exit 0, otherwise exit 1; --metric <ae|mae|psnr> prints only that single value (psnr is inf for identical inputs); usage errors exit 2\nsupported resize: exact dimensions (<width>x<height>), single-axis aspect-preserving (<width>x or x<height>), and uniform percent (<percent>%) geometries, plus aspect-preserving fit (resize-fit) for existing supported formats; --filter <point|box|triangle|catmull-rom|lanczos3> selects the resampling kernel (default lanczos3, a high-quality windowed-sinc filter), and --filter point is byte-exact center-sampled nearest-neighbor\nsupported geometry: bounds-checked crop (<width>x<height>+<x>+<y>), clockwise rotate (90/180/270), vertical flip, and horizontal flop, all format-preserving\nsupported pipeline: imx pipeline chains ordered --op values in a single decode/encode pass; supported ops are resize:<geometry>, resize-fit:<width>x<height>, crop:<width>x<height>+<x>+<y>, rotate:<90|180|270>, flip, flop, grayscale, invert, brightness:<-255..=255>, contrast:<factor>, gamma:<value>, threshold:<0..=255>, and levels:<black>,<white>,<gamma>; ops apply left-to-right so order matters and at least one --op is required; output is byte-deterministic and equivalent to running the same ops as sequential subcommands\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, optional --quality for JPEG output, no overwrite or collision renaming\nsupported completions: imx completions <bash|zsh|fish> prints a shell completion script to stdout; a roff man page is bundled at man/imx.1\nsupported self-test: offline install confidence check for identify/transcode/resize/resize-fit/batch-convert across supported formats\nsupported prefixes: BMP:, FARBFELD:, GIF:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, TIFF:, WEBP:\nunsupported: GIF/WEBP animation OUTPUT (encode) unsupported; only frame extraction on decode, recursive directory walking, arbitrary-angle rotation, delegates, and formats beyond BMP/FARBFELD/GIF/JPEG/QOI/PBM/PGM/PNG/PPM/TIFF/WEBP"
+                "IMX Developer Preview\n\nusage:\n  imx [--no-auto-orient] identify [--frame <N>] [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.tif|input.tiff|input.webp|FORMAT:->\n  imx [--no-auto-orient] identify --json [--frame <N>] [FORMAT:]<input|FORMAT:->\n  imx [--no-auto-orient] report --json [--frame <N>] [FORMAT:]<input|FORMAT:->\n  imx [--no-auto-orient] compare [--metric <ae|mae|psnr>] [FORMAT:]<a|FORMAT:-> [FORMAT:]<b>\n  imx [--no-auto-orient] [--strip] [--filter <point|box|triangle|catmull-rom|lanczos3>] resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx [--no-auto-orient] [--strip] [--filter <point|box|triangle|catmull-rom|lanczos3>] resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx [--no-auto-orient] [--strip] crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] [--strip] rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] [--strip] flip [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] [--strip] flop [FORMAT:]<input> [FORMAT:]<output>\n  imx [--strip] pipeline [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:-> --op <op> [--op <op> ...]\n  imx [--no-auto-orient] [--strip] batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx [--no-auto-orient] assemble --delay <centiseconds> [--loop <n>] <output.gif|GIF:-> <frame0> <frame1> ...\n  imx completions <bash|zsh|fish>\n  imx self-test\n  imx [--no-auto-orient] [--strip] [--frame <N>] [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported transcodes: BMP/FARBFELD/GIF/JPEG/QOI/PBM/PGM/PNG/PPM/TIFF/WEBP, including deterministic same-format rewrites except lossy JPEG re-encoding; WEBP output is lossless; GIF output is a single still frame with a deterministic palette of at most 256 colors\nsupported frame selection: --frame <N> (0-based, default 0) selects which frame to decode for identify, report --json, and the single-input transcode; animated GIF/WEBP frames are composited (GIF disposal Keep/Background/Previous honored) so frame N is the displayed canvas; non-animated inputs accept only --frame 0 and reject any N>0\nsupported orientation: EXIF/TIFF Orientation (values 1-8) is auto-applied on decode for JPEG and TIFF so portrait photos come out upright; rotated orientations (5-8) swap reported width and height; pass --no-auto-orient to disable and keep the raw stored pixels and dimensions; missing or malformed orientation metadata is treated as orientation 1 (no-op)\nsupported ICC: embedded ICC color profiles are preserved on decode and written back on encode for PNG (iCCP chunk), JPEG (APP2 ICC_PROFILE segments), and TIFF (tag 34675); the profile bytes survive geometry transforms (resize, resize-fit, crop, rotate, flip, flop) but are dropped by colorspace conversions since they no longer describe the re-encoded samples; pass --strip to drop the profile before encoding\nsupported streaming: read input from stdin and/or write output to stdout via - with a FORMAT: prefix (e.g. PNG:-); only image bytes go to stdout\nsupported JPEG quality: --quality <1..=100> on the single transcode and batch-convert when the output format is JPEG (default 90); rejected for non-JPEG output\nsupported identify JSON: deterministic schema_version/format/width/height/channels/depth over existing identify metadata\nsupported report JSON: single-input supported/unsupported status with stable diagnostic_code values; adds a \"frames\" count (animated GIF/WEBP frame count, 1 otherwise) and uses schema_version 2\nsupported compare: decode two inputs and diff them deterministically; differing dimensions or channels print a single differ: line and exit 1, matching images normalize to RGBA8 and report differing-pixel count, peak per-channel difference (AE), and mean absolute error (MAE); identical inputs print identical and exit 0, otherwise exit 1; --metric <ae|mae|psnr> prints only that single value (psnr is inf for identical inputs); usage errors exit 2\nsupported resize: exact dimensions (<width>x<height>), single-axis aspect-preserving (<width>x or x<height>), and uniform percent (<percent>%) geometries, plus aspect-preserving fit (resize-fit) for existing supported formats; --filter <point|box|triangle|catmull-rom|lanczos3> selects the resampling kernel (default lanczos3, a high-quality windowed-sinc filter), and --filter point is byte-exact center-sampled nearest-neighbor\nsupported geometry: bounds-checked crop (<width>x<height>+<x>+<y>), clockwise rotate (90/180/270), vertical flip, and horizontal flop, all format-preserving\nsupported pipeline: imx pipeline chains ordered --op values in a single decode/encode pass; supported ops are resize:<geometry>, resize-fit:<width>x<height>, crop:<width>x<height>+<x>+<y>, rotate:<90|180|270>, flip, flop, grayscale, invert, brightness:<-255..=255>, contrast:<factor>, gamma:<value>, threshold:<0..=255>, and levels:<black>,<white>,<gamma>; ops apply left-to-right so order matters and at least one --op is required; output is byte-deterministic and equivalent to running the same ops as sequential subcommands\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, optional --quality for JPEG output, no overwrite or collision renaming\nsupported completions: imx completions <bash|zsh|fish> prints a shell completion script to stdout; a roff man page is bundled at man/imx.1\nsupported self-test: offline install confidence check for identify/transcode/resize/resize-fit/batch-convert across supported formats\nsupported animation: imx assemble --delay <centiseconds> [--loop <n>] <output.gif|GIF:-> <frame0> <frame1> ... decodes each input frame (any supported format), then writes an animated GIF with one image block per frame; every frame is quantized independently to its own deterministic local palette of at most 256 colors, all frames must share identical dimensions, --delay sets a uniform inter-frame delay in centiseconds, --loop <n> writes a Netscape looping extension (0 = infinite, the default), and the output is byte-deterministic\nsupported prefixes: BMP:, FARBFELD:, GIF:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, TIFF:, WEBP:\nunsupported: animated WEBP OUTPUT (encode) unsupported; WEBP frame extraction on decode is supported, animated GIF output is supported via assemble while GIF frame extraction on decode remains, recursive directory walking, arbitrary-angle rotation, delegates, and formats beyond BMP/FARBFELD/GIF/JPEG/QOI/PBM/PGM/PNG/PPM/TIFF/WEBP"
             );
             process::exit(0);
         }
@@ -174,6 +174,7 @@ fn main() {
         [_, command, ..] if command == "flip" => usage(),
         [_, command, input, output] if command == "flop" => flop(input, output),
         [_, command, ..] if command == "flop" => usage(),
+        [_, command, rest @ ..] if command == "assemble" => assemble(rest),
         [_, command, rest @ ..] if command == "batch-convert" => batch_convert(rest),
         [_, command, rest @ ..] if command == "pipeline" => pipeline(rest),
         [_, command] if command == "self-test" => self_test(),
@@ -1411,6 +1412,106 @@ fn pipeline(args: &[String]) -> ! {
     let output = encode_image(output_format, &image).unwrap_or_else(|err| {
         fail_image_operation(output_format, "encode", "output", &output_path, err)
     });
+
+    write_output(output_path.path, &output);
+    process::exit(0);
+}
+
+/// Options parsed for the `assemble` subcommand: a required inter-frame delay,
+/// an optional loop count, the GIF output path, and the ordered frame inputs.
+struct AssembleOptions<'a> {
+    delay_cs: u16,
+    loop_count: u16,
+    output: &'a str,
+    frames: Vec<&'a str>,
+}
+
+/// Parse `assemble` flags (`--delay`, optional `--loop`) followed by the output
+/// path and the trailing variadic frame list. Returns a usage-style error string
+/// on any malformed or missing argument.
+fn parse_assemble_options(args: &[String]) -> Result<AssembleOptions<'_>, String> {
+    let mut delay_cs: Option<u16> = None;
+    let mut loop_count: u16 = 0;
+    let mut index = 0;
+
+    // Leading flags. Both flags must precede the positional output/frames.
+    while index < args.len() {
+        match args[index].as_str() {
+            "--delay" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| "--delay requires a value in centiseconds".to_string())?;
+                delay_cs = Some(parse_u16_arg("--delay", value)?);
+                index += 2;
+            }
+            "--loop" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| "--loop requires a value".to_string())?;
+                loop_count = parse_u16_arg("--loop", value)?;
+                index += 2;
+            }
+            // First non-flag argument: the positional output path begins here.
+            _ => break,
+        }
+    }
+
+    let delay_cs =
+        delay_cs.ok_or_else(|| "assemble requires --delay <centiseconds>".to_string())?;
+
+    let output = args
+        .get(index)
+        .map(String::as_str)
+        .ok_or_else(|| "assemble requires an output path and at least one frame".to_string())?;
+    index += 1;
+
+    let frames: Vec<&str> = args[index..].iter().map(String::as_str).collect();
+    if frames.is_empty() {
+        return Err("assemble requires at least one frame".to_string());
+    }
+
+    Ok(AssembleOptions {
+        delay_cs,
+        loop_count,
+        output,
+        frames,
+    })
+}
+
+fn parse_u16_arg(flag: &str, value: &str) -> Result<u16, String> {
+    value
+        .parse::<u16>()
+        .map_err(|_| format!("invalid {flag} value: {value}; expected 0..=65535"))
+}
+
+/// Decode each input frame and encode them as a single animated GIF.
+fn assemble(args: &[String]) -> ! {
+    let options = parse_assemble_options(args).unwrap_or_else(|err| fail_usage(err));
+
+    let output_path = parse_cli_path(options.output).unwrap_or_else(|err| fail(err));
+    let output_format = detect_output_format(&output_path).unwrap_or_else(|err| fail(err));
+    if output_format != Format::Gif {
+        fail(format!(
+            "assemble only writes GIF output, not {}",
+            output_format.name()
+        ));
+    }
+
+    let mut images = Vec::with_capacity(options.frames.len());
+    for frame in &options.frames {
+        let input_path = parse_cli_path(frame).unwrap_or_else(|err| fail(err));
+        let input = read(input_path.path);
+        let input_format = detect_input_format(&input_path, &input).unwrap_or_else(|err| fail(err));
+        let image = decode_image(input_format, &input).unwrap_or_else(|err| {
+            fail_image_operation(input_format, "decode", "input", &input_path, err)
+        });
+        images.push(image);
+    }
+
+    let output = imx_codec_gif::encode_animation(&images, options.delay_cs, options.loop_count)
+        .unwrap_or_else(|err| {
+            fail_image_operation(Format::Gif, "encode", "output", &output_path, err)
+        });
 
     write_output(output_path.path, &output);
     process::exit(0);
