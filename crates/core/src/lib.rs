@@ -167,6 +167,113 @@ impl Image {
         self.resize_nearest(width, height)
     }
 
+    pub fn crop(&self, x: u32, y: u32, width: u32, height: u32) -> Result<Self, ImageError> {
+        if width == 0 || height == 0 {
+            return Err(ImageError::CropOutOfBounds {
+                x,
+                y,
+                width,
+                height,
+                source_width: self.width,
+                source_height: self.height,
+            });
+        }
+        let right = u64::from(x)
+            .checked_add(u64::from(width))
+            .ok_or(ImageError::LengthOverflow)?;
+        let bottom = u64::from(y)
+            .checked_add(u64::from(height))
+            .ok_or(ImageError::LengthOverflow)?;
+        if right > u64::from(self.width) || bottom > u64::from(self.height) {
+            return Err(ImageError::CropOutOfBounds {
+                x,
+                y,
+                width,
+                height,
+                source_width: self.width,
+                source_height: self.height,
+            });
+        }
+
+        let bytes_per_pixel = self.pixel_format.bytes_per_pixel();
+        let output_len = pixel_len(width, height, bytes_per_pixel)?;
+        let mut out = try_vec_with_capacity(output_len)?;
+        let source_stride = self.width as usize * bytes_per_pixel;
+        let row_bytes = width as usize * bytes_per_pixel;
+        let x_offset = x as usize * bytes_per_pixel;
+        for row in 0..height {
+            let row_start = (y as usize + row as usize) * source_stride + x_offset;
+            out.extend_from_slice(&self.pixels[row_start..row_start + row_bytes]);
+        }
+
+        Self::new(width, height, self.pixel_format, out)
+    }
+
+    pub fn rotate_90(&self) -> Result<Self, ImageError> {
+        let bytes_per_pixel = self.pixel_format.bytes_per_pixel();
+        let output_len = pixel_len(self.height, self.width, bytes_per_pixel)?;
+        let mut out = try_vec_with_capacity(output_len)?;
+        let source_stride = self.width as usize * bytes_per_pixel;
+        for x in 0..self.width {
+            for y in (0..self.height).rev() {
+                let source_offset = y as usize * source_stride + x as usize * bytes_per_pixel;
+                out.extend_from_slice(&self.pixels[source_offset..source_offset + bytes_per_pixel]);
+            }
+        }
+        Self::new(self.height, self.width, self.pixel_format, out)
+    }
+
+    pub fn rotate_180(&self) -> Result<Self, ImageError> {
+        let bytes_per_pixel = self.pixel_format.bytes_per_pixel();
+        let output_len = pixel_len(self.width, self.height, bytes_per_pixel)?;
+        let mut out = try_vec_with_capacity(output_len)?;
+        for pixel in self.pixels.chunks_exact(bytes_per_pixel).rev() {
+            out.extend_from_slice(pixel);
+        }
+        Self::new(self.width, self.height, self.pixel_format, out)
+    }
+
+    pub fn rotate_270(&self) -> Result<Self, ImageError> {
+        let bytes_per_pixel = self.pixel_format.bytes_per_pixel();
+        let output_len = pixel_len(self.height, self.width, bytes_per_pixel)?;
+        let mut out = try_vec_with_capacity(output_len)?;
+        let source_stride = self.width as usize * bytes_per_pixel;
+        for x in (0..self.width).rev() {
+            for y in 0..self.height {
+                let source_offset = y as usize * source_stride + x as usize * bytes_per_pixel;
+                out.extend_from_slice(&self.pixels[source_offset..source_offset + bytes_per_pixel]);
+            }
+        }
+        Self::new(self.height, self.width, self.pixel_format, out)
+    }
+
+    pub fn flip_vertical(&self) -> Result<Self, ImageError> {
+        let bytes_per_pixel = self.pixel_format.bytes_per_pixel();
+        let output_len = pixel_len(self.width, self.height, bytes_per_pixel)?;
+        let mut out = try_vec_with_capacity(output_len)?;
+        let source_stride = self.width as usize * bytes_per_pixel;
+        for y in (0..self.height).rev() {
+            let row_start = y as usize * source_stride;
+            out.extend_from_slice(&self.pixels[row_start..row_start + source_stride]);
+        }
+        Self::new(self.width, self.height, self.pixel_format, out)
+    }
+
+    pub fn flop_horizontal(&self) -> Result<Self, ImageError> {
+        let bytes_per_pixel = self.pixel_format.bytes_per_pixel();
+        let output_len = pixel_len(self.width, self.height, bytes_per_pixel)?;
+        let mut out = try_vec_with_capacity(output_len)?;
+        let source_stride = self.width as usize * bytes_per_pixel;
+        for y in 0..self.height {
+            let row_start = y as usize * source_stride;
+            let row = &self.pixels[row_start..row_start + source_stride];
+            for pixel in row.chunks_exact(bytes_per_pixel).rev() {
+                out.extend_from_slice(pixel);
+            }
+        }
+        Self::new(self.width, self.height, self.pixel_format, out)
+    }
+
     pub fn to_rgba16be(&self) -> Result<Self, ImageError> {
         match self.pixel_format {
             PixelFormat::Rgba16Be => Ok(self.clone()),
@@ -584,6 +691,14 @@ pub enum ImageError {
     InvalidPbmSample {
         byte: u8,
     },
+    CropOutOfBounds {
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+        source_width: u32,
+        source_height: u32,
+    },
     UnsupportedFormat(String),
 }
 
@@ -602,6 +717,7 @@ impl ImageError {
             Self::InvalidMaxValue { .. } => "pnm.invalid_max_value",
             Self::InvalidSampleValue { .. } => "pnm.invalid_sample_value",
             Self::InvalidPbmSample { .. } => "pbm.invalid_sample",
+            Self::CropOutOfBounds { .. } => "image.crop_out_of_bounds",
             Self::UnsupportedFormat(_) => "image.unsupported_format",
         }
     }
@@ -662,6 +778,19 @@ impl fmt::Display for ImageError {
             }
             Self::InvalidPbmSample { byte } => {
                 write!(f, "PBM samples must be ASCII 0 or 1, got 0x{byte:02x}")
+            }
+            Self::CropOutOfBounds {
+                x,
+                y,
+                width,
+                height,
+                source_width,
+                source_height,
+            } => {
+                write!(
+                    f,
+                    "crop region {width}x{height}+{x}+{y} exceeds {source_width}x{source_height} source bounds"
+                )
             }
             Self::UnsupportedFormat(format) => write!(f, "unsupported format: {format}"),
         }
@@ -1012,5 +1141,161 @@ mod tests {
             image.resize_nearest_fit(u32::MAX, u32::MAX),
             Err(ImageError::LengthOverflow | ImageError::ImageTooLarge { .. })
         ));
+    }
+
+    fn rgb8_3x2() -> Image {
+        Image::new(
+            3,
+            2,
+            PixelFormat::Rgb8,
+            vec![1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6],
+        )
+        .unwrap()
+    }
+
+    fn gray8_2x3() -> Image {
+        Image::new(2, 3, PixelFormat::Gray8, vec![1, 2, 3, 4, 5, 6]).unwrap()
+    }
+
+    #[test]
+    fn crop_extracts_subregion_and_preserves_format() {
+        let image = rgb8_3x2();
+        let cropped = image.crop(1, 0, 2, 2).unwrap();
+        assert_eq!(cropped.width(), 2);
+        assert_eq!(cropped.height(), 2);
+        assert_eq!(cropped.pixel_format(), PixelFormat::Rgb8);
+        assert_eq!(cropped.pixels(), &[2, 2, 2, 3, 3, 3, 5, 5, 5, 6, 6, 6]);
+    }
+
+    #[test]
+    fn crop_single_pixel_picks_exact_offset() {
+        let image = gray8_2x3();
+        assert_eq!(image.crop(1, 2, 1, 1).unwrap().pixels(), &[6]);
+        assert_eq!(image.crop(0, 0, 1, 1).unwrap().pixels(), &[1]);
+    }
+
+    #[test]
+    fn crop_rejects_zero_and_out_of_bounds_regions() {
+        let image = rgb8_3x2();
+        assert!(matches!(
+            image.crop(0, 0, 0, 1),
+            Err(ImageError::CropOutOfBounds { .. })
+        ));
+        assert!(matches!(
+            image.crop(0, 0, 1, 0),
+            Err(ImageError::CropOutOfBounds { .. })
+        ));
+        assert!(matches!(
+            image.crop(2, 0, 2, 1),
+            Err(ImageError::CropOutOfBounds { .. })
+        ));
+        assert!(matches!(
+            image.crop(0, 1, 1, 2),
+            Err(ImageError::CropOutOfBounds { .. })
+        ));
+        assert_eq!(
+            image.crop(u32::MAX, 0, u32::MAX, 1).unwrap_err(),
+            ImageError::CropOutOfBounds {
+                x: u32::MAX,
+                y: 0,
+                width: u32::MAX,
+                height: 1,
+                source_width: 3,
+                source_height: 2,
+            }
+        );
+    }
+
+    #[test]
+    fn rotate_90_swaps_dimensions_and_places_pixels_clockwise() {
+        let image = rgb8_3x2();
+        let rotated = image.rotate_90().unwrap();
+        assert_eq!(rotated.width(), 2);
+        assert_eq!(rotated.height(), 3);
+        assert_eq!(rotated.pixel_format(), PixelFormat::Rgb8);
+        assert_eq!(
+            rotated.pixels(),
+            &[4, 4, 4, 1, 1, 1, 5, 5, 5, 2, 2, 2, 6, 6, 6, 3, 3, 3]
+        );
+    }
+
+    #[test]
+    fn rotate_270_swaps_dimensions_and_places_pixels_counterclockwise() {
+        let image = rgb8_3x2();
+        let rotated = image.rotate_270().unwrap();
+        assert_eq!(rotated.width(), 2);
+        assert_eq!(rotated.height(), 3);
+        assert_eq!(
+            rotated.pixels(),
+            &[3, 3, 3, 6, 6, 6, 2, 2, 2, 5, 5, 5, 1, 1, 1, 4, 4, 4]
+        );
+    }
+
+    #[test]
+    fn rotate_180_reverses_pixels_and_keeps_dimensions() {
+        let image = gray8_2x3();
+        let rotated = image.rotate_180().unwrap();
+        assert_eq!(rotated.width(), 2);
+        assert_eq!(rotated.height(), 3);
+        assert_eq!(rotated.pixels(), &[6, 5, 4, 3, 2, 1]);
+    }
+
+    #[test]
+    fn rotate_90_then_270_round_trips() {
+        let image = gray8_2x3();
+        assert_eq!(image.rotate_90().unwrap().rotate_270().unwrap(), image);
+    }
+
+    #[test]
+    fn flip_vertical_mirrors_rows() {
+        let image = gray8_2x3();
+        let flipped = image.flip_vertical().unwrap();
+        assert_eq!(flipped.width(), 2);
+        assert_eq!(flipped.height(), 3);
+        assert_eq!(flipped.pixels(), &[5, 6, 3, 4, 1, 2]);
+    }
+
+    #[test]
+    fn flop_horizontal_mirrors_columns() {
+        let image = rgb8_3x2();
+        let flopped = image.flop_horizontal().unwrap();
+        assert_eq!(flopped.width(), 3);
+        assert_eq!(flopped.height(), 2);
+        assert_eq!(
+            flopped.pixels(),
+            &[3, 3, 3, 2, 2, 2, 1, 1, 1, 6, 6, 6, 5, 5, 5, 4, 4, 4]
+        );
+    }
+
+    #[test]
+    fn geometry_operations_preserve_wide_pixel_formats() {
+        let image = Image::new(
+            2,
+            1,
+            PixelFormat::Rgba16Be,
+            vec![
+                0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee,
+                0xff, 0x00,
+            ],
+        )
+        .unwrap();
+        let rotated = image.rotate_90().unwrap();
+        assert_eq!(rotated.width(), 1);
+        assert_eq!(rotated.height(), 2);
+        assert_eq!(
+            rotated.pixels(),
+            &[
+                0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee,
+                0xff, 0x00
+            ]
+        );
+        let flopped = image.flop_horizontal().unwrap();
+        assert_eq!(
+            flopped.pixels(),
+            &[
+                0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66,
+                0x77, 0x88
+            ]
+        );
     }
 }

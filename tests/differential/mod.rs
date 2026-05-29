@@ -2173,3 +2173,119 @@ fn supported_identify_fields_match_imagemagick_oracle_when_available() {
         "format=JPEG width=8 height=8 channels=RGB depth=8"
     );
 }
+
+fn assert_geometry_matches_oracle(name: &str, imx_args: &[String], oracle_args: &[String]) {
+    let Some(magick) = require_or_skip(magick_command(), "ImageMagick oracle") else {
+        return;
+    };
+    let Some(standalone) = require_or_skip(standalone_imx_command(), "standalone imx binary")
+    else {
+        return;
+    };
+    let dir = temp_dir(name);
+    let input = dir.join("source.ppm");
+    let imx_ppm = dir.join("imx.ppm");
+    let oracle_ppm = dir.join("oracle.ppm");
+    let imx_rgb = dir.join("imx.rgb");
+    let oracle_rgb = dir.join("oracle.rgb");
+    fs::write(
+        &input,
+        imx_codec_pnm::encode_ppm(&rgb8_gradient(9, 7)).unwrap(),
+    )
+    .unwrap();
+
+    let mut imx = imx_args.to_vec();
+    imx.push(format!("PPM:{}", input.display()));
+    imx.push(format!("PPM:{}", imx_ppm.display()));
+    let imx_result = run_magick(&standalone, &imx);
+    assert!(
+        imx_result.status.success(),
+        "standalone {name} failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&imx_result.stdout),
+        String::from_utf8_lossy(&imx_result.stderr)
+    );
+
+    let mut oracle = vec![format!("PPM:{}", input.display())];
+    oracle.extend(oracle_args.iter().cloned());
+    oracle.push(format!("PPM:{}", oracle_ppm.display()));
+    let oracle_result = run_magick(&magick, &oracle);
+    if !assert_success_or_skip(&oracle_result, &format!("ImageMagick {name}")) {
+        return;
+    }
+
+    let imx_decode = run_magick(
+        &magick,
+        &[
+            format!("PPM:{}", imx_ppm.display()),
+            "-depth".to_string(),
+            "8".to_string(),
+            format!("RGB:{}", imx_rgb.display()),
+        ],
+    );
+    let oracle_decode = run_magick(
+        &magick,
+        &[
+            format!("PPM:{}", oracle_ppm.display()),
+            "-depth".to_string(),
+            "8".to_string(),
+            format!("RGB:{}", oracle_rgb.display()),
+        ],
+    );
+    if !assert_success_or_skip(&imx_decode, &format!("ImageMagick decode IMX {name}"))
+        || !assert_success_or_skip(&oracle_decode, &format!("ImageMagick decode oracle {name}"))
+    {
+        return;
+    }
+
+    assert_eq!(fs::read(imx_rgb).unwrap(), fs::read(oracle_rgb).unwrap());
+}
+
+#[test]
+fn standalone_crop_matches_imagemagick_decoded_pixels() {
+    assert_geometry_matches_oracle(
+        "crop_oracle",
+        &["crop".to_string(), "4x3+2+1".to_string()],
+        &[
+            "-crop".to_string(),
+            "4x3+2+1".to_string(),
+            "+repage".to_string(),
+        ],
+    );
+}
+
+#[test]
+fn standalone_rotate_90_matches_imagemagick_decoded_pixels() {
+    assert_geometry_matches_oracle(
+        "rotate90_oracle",
+        &["rotate".to_string(), "90".to_string()],
+        &["-rotate".to_string(), "90".to_string()],
+    );
+}
+
+#[test]
+fn standalone_rotate_180_matches_imagemagick_decoded_pixels() {
+    assert_geometry_matches_oracle(
+        "rotate180_oracle",
+        &["rotate".to_string(), "180".to_string()],
+        &["-rotate".to_string(), "180".to_string()],
+    );
+}
+
+#[test]
+fn standalone_rotate_270_matches_imagemagick_decoded_pixels() {
+    assert_geometry_matches_oracle(
+        "rotate270_oracle",
+        &["rotate".to_string(), "270".to_string()],
+        &["-rotate".to_string(), "270".to_string()],
+    );
+}
+
+#[test]
+fn standalone_flip_matches_imagemagick_decoded_pixels() {
+    assert_geometry_matches_oracle("flip_oracle", &["flip".to_string()], &["-flip".to_string()]);
+}
+
+#[test]
+fn standalone_flop_matches_imagemagick_decoded_pixels() {
+    assert_geometry_matches_oracle("flop_oracle", &["flop".to_string()], &["-flop".to_string()]);
+}

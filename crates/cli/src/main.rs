@@ -11,7 +11,7 @@ const MAX_INPUT_BYTES: u64 = MAX_PIXEL_BYTES as u64 + 1024 * 1024;
 
 fn usage() -> ! {
     eprintln!(
-        "usage:\n  imx --help\n  imx --version\n  imx identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx identify --json [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx report --json [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\n  imx self-test\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported formats: bmp (.bmp), farbfeld (.ff, .farbfeld), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm)\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:"
+        "usage:\n  imx --help\n  imx --version\n  imx identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx identify --json [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx report --json [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\n  imx self-test\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported formats: bmp (.bmp), farbfeld (.ff, .farbfeld), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm)\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:"
     );
     process::exit(2);
 }
@@ -19,6 +19,11 @@ fn usage() -> ! {
 fn fail(message: impl std::fmt::Display) -> ! {
     eprintln!("error: {message}");
     process::exit(1);
+}
+
+fn fail_usage(message: impl std::fmt::Display) -> ! {
+    eprintln!("error: {message}");
+    process::exit(2);
 }
 
 fn fail_image_operation(
@@ -40,7 +45,7 @@ fn main() {
     match args.as_slice() {
         [_, flag] if flag == "--help" || flag == "-h" || flag == "help" => {
             println!(
-                "IMX Developer Preview\n\nusage:\n  imx identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx identify --json [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx report --json [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\n  imx self-test\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported transcodes: BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM, including deterministic same-format rewrites except lossy JPEG re-encoding\nsupported identify JSON: deterministic schema_version/format/width/height/channels/depth over existing identify metadata\nsupported report JSON: single-input supported/unsupported status with stable diagnostic_code values\nsupported resize: nearest-neighbor exact dimensions and aspect-preserving fit for existing supported formats\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, no overwrite or collision renaming\nsupported self-test: offline install confidence check for identify/transcode/resize/resize-fit/batch-convert across supported formats\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:\nunsupported: stdin/stdout, recursive directory walking, crop/rotate, delegates, color management, and formats beyond BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM"
+                "IMX Developer Preview\n\nusage:\n  imx identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx identify --json [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx report --json [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm>\n  imx resize <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\n  imx self-test\n  imx [FORMAT:]<input> [FORMAT:]<output>\n\nsupported transcodes: BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM, including deterministic same-format rewrites except lossy JPEG re-encoding\nsupported identify JSON: deterministic schema_version/format/width/height/channels/depth over existing identify metadata\nsupported report JSON: single-input supported/unsupported status with stable diagnostic_code values\nsupported resize: nearest-neighbor exact dimensions and aspect-preserving fit for existing supported formats\nsupported geometry: bounds-checked crop (<width>x<height>+<x>+<y>), clockwise rotate (90/180/270), vertical flip, and horizontal flop, all format-preserving\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, no overwrite or collision renaming\nsupported self-test: offline install confidence check for identify/transcode/resize/resize-fit/batch-convert across supported formats\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:\nunsupported: stdin/stdout, recursive directory walking, arbitrary-angle rotation, delegates, color management, and formats beyond BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM"
             );
             process::exit(0);
         }
@@ -61,6 +66,14 @@ fn main() {
         [_, command, dimensions, input, output] if command == "resize-fit" => {
             resize_fit(dimensions, input, output)
         }
+        [_, command, geometry, input, output] if command == "crop" => crop(geometry, input, output),
+        [_, command, ..] if command == "crop" => usage(),
+        [_, command, angle, input, output] if command == "rotate" => rotate(angle, input, output),
+        [_, command, ..] if command == "rotate" => usage(),
+        [_, command, input, output] if command == "flip" => flip(input, output),
+        [_, command, ..] if command == "flip" => usage(),
+        [_, command, input, output] if command == "flop" => flop(input, output),
+        [_, command, ..] if command == "flop" => usage(),
         [_, command, rest @ ..] if command == "batch-convert" => batch_convert(rest),
         [_, command] if command == "self-test" => self_test(),
         [_, command, ..] if command == "self-test" => usage(),
@@ -656,6 +669,101 @@ fn resize_fit(dimensions: &str, input_path: &str, output_path: &str) -> ! {
         .unwrap_or_else(|err| {
             fail_image_operation(input_format, "resize-fit", "input", &input_path, err)
         });
+    let output = encode_image(output_format, &image).unwrap_or_else(|err| {
+        fail_image_operation(output_format, "encode", "output", &output_path, err)
+    });
+
+    write_atomic(output_path.path, &output);
+    process::exit(0);
+}
+
+fn crop(geometry: &str, input_path: &str, output_path: &str) -> ! {
+    let geometry = parse_crop_geometry(geometry).unwrap_or_else(|err| fail_usage(err));
+    let input_path = parse_cli_path(input_path).unwrap_or_else(|err| fail(err));
+    let output_path = parse_cli_path(output_path).unwrap_or_else(|err| fail(err));
+    reject_same_path(input_path.path, output_path.path);
+    let input = read(input_path.path);
+    let input_format = detect_input_format(&input_path, &input).unwrap_or_else(|err| fail(err));
+    let output_format = detect_output_format(&output_path).unwrap_or_else(|err| fail(err));
+
+    let image = decode_image(input_format, &input).unwrap_or_else(|err| {
+        fail_image_operation(input_format, "decode", "input", &input_path, err)
+    });
+    let image = image
+        .crop(geometry.x, geometry.y, geometry.width, geometry.height)
+        .unwrap_or_else(|err| {
+            fail_image_operation(input_format, "crop", "input", &input_path, err)
+        });
+    let output = encode_image(output_format, &image).unwrap_or_else(|err| {
+        fail_image_operation(output_format, "encode", "output", &output_path, err)
+    });
+
+    write_atomic(output_path.path, &output);
+    process::exit(0);
+}
+
+fn rotate(angle: &str, input_path: &str, output_path: &str) -> ! {
+    let angle = parse_rotate_angle(angle).unwrap_or_else(|err| fail_usage(err));
+    let input_path = parse_cli_path(input_path).unwrap_or_else(|err| fail(err));
+    let output_path = parse_cli_path(output_path).unwrap_or_else(|err| fail(err));
+    reject_same_path(input_path.path, output_path.path);
+    let input = read(input_path.path);
+    let input_format = detect_input_format(&input_path, &input).unwrap_or_else(|err| fail(err));
+    let output_format = detect_output_format(&output_path).unwrap_or_else(|err| fail(err));
+
+    let image = decode_image(input_format, &input).unwrap_or_else(|err| {
+        fail_image_operation(input_format, "decode", "input", &input_path, err)
+    });
+    let image = match angle {
+        RotateAngle::Ninety => image.rotate_90(),
+        RotateAngle::OneEighty => image.rotate_180(),
+        RotateAngle::TwoSeventy => image.rotate_270(),
+    }
+    .unwrap_or_else(|err| fail_image_operation(input_format, "rotate", "input", &input_path, err));
+    let output = encode_image(output_format, &image).unwrap_or_else(|err| {
+        fail_image_operation(output_format, "encode", "output", &output_path, err)
+    });
+
+    write_atomic(output_path.path, &output);
+    process::exit(0);
+}
+
+fn flip(input_path: &str, output_path: &str) -> ! {
+    let input_path = parse_cli_path(input_path).unwrap_or_else(|err| fail(err));
+    let output_path = parse_cli_path(output_path).unwrap_or_else(|err| fail(err));
+    reject_same_path(input_path.path, output_path.path);
+    let input = read(input_path.path);
+    let input_format = detect_input_format(&input_path, &input).unwrap_or_else(|err| fail(err));
+    let output_format = detect_output_format(&output_path).unwrap_or_else(|err| fail(err));
+
+    let image = decode_image(input_format, &input).unwrap_or_else(|err| {
+        fail_image_operation(input_format, "decode", "input", &input_path, err)
+    });
+    let image = image.flip_vertical().unwrap_or_else(|err| {
+        fail_image_operation(input_format, "flip", "input", &input_path, err)
+    });
+    let output = encode_image(output_format, &image).unwrap_or_else(|err| {
+        fail_image_operation(output_format, "encode", "output", &output_path, err)
+    });
+
+    write_atomic(output_path.path, &output);
+    process::exit(0);
+}
+
+fn flop(input_path: &str, output_path: &str) -> ! {
+    let input_path = parse_cli_path(input_path).unwrap_or_else(|err| fail(err));
+    let output_path = parse_cli_path(output_path).unwrap_or_else(|err| fail(err));
+    reject_same_path(input_path.path, output_path.path);
+    let input = read(input_path.path);
+    let input_format = detect_input_format(&input_path, &input).unwrap_or_else(|err| fail(err));
+    let output_format = detect_output_format(&output_path).unwrap_or_else(|err| fail(err));
+
+    let image = decode_image(input_format, &input).unwrap_or_else(|err| {
+        fail_image_operation(input_format, "decode", "input", &input_path, err)
+    });
+    let image = image.flop_horizontal().unwrap_or_else(|err| {
+        fail_image_operation(input_format, "flop", "input", &input_path, err)
+    });
     let output = encode_image(output_format, &image).unwrap_or_else(|err| {
         fail_image_operation(output_format, "encode", "output", &output_path, err)
     });
@@ -1299,6 +1407,59 @@ fn parse_resize_dimensions(value: &str) -> Result<ResizeDimensions, String> {
         return Err("resize dimensions must be non-zero".to_string());
     }
     Ok(ResizeDimensions { width, height })
+}
+
+#[derive(Debug, Clone, Copy)]
+struct CropGeometry {
+    width: u32,
+    height: u32,
+    x: u32,
+    y: u32,
+}
+
+fn parse_crop_geometry(value: &str) -> Result<CropGeometry, String> {
+    let invalid = || format!("invalid crop geometry: {value}; expected <width>x<height>+<x>+<y>");
+    let (size, offsets) = value.split_once('+').ok_or_else(invalid)?;
+    let (x, y) = offsets.split_once('+').ok_or_else(invalid)?;
+    let (width, height) = size.split_once('x').ok_or_else(invalid)?;
+    let width = parse_geometry_u32(width).ok_or_else(invalid)?;
+    let height = parse_geometry_u32(height).ok_or_else(invalid)?;
+    let x = parse_geometry_u32(x).ok_or_else(invalid)?;
+    let y = parse_geometry_u32(y).ok_or_else(invalid)?;
+    if width == 0 || height == 0 {
+        return Err("crop dimensions must be non-zero".to_string());
+    }
+    Ok(CropGeometry {
+        width,
+        height,
+        x,
+        y,
+    })
+}
+
+fn parse_geometry_u32(value: &str) -> Option<u32> {
+    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    value.parse::<u32>().ok()
+}
+
+#[derive(Debug, Clone, Copy)]
+enum RotateAngle {
+    Ninety,
+    OneEighty,
+    TwoSeventy,
+}
+
+fn parse_rotate_angle(value: &str) -> Result<RotateAngle, String> {
+    match value {
+        "90" => Ok(RotateAngle::Ninety),
+        "180" => Ok(RotateAngle::OneEighty),
+        "270" => Ok(RotateAngle::TwoSeventy),
+        _ => Err(format!(
+            "invalid rotation angle: {value}; expected 90, 180, or 270"
+        )),
+    }
 }
 
 fn detect_input_format(path: &CliPath<'_>, bytes: &[u8]) -> Result<Format, String> {
