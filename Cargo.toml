@@ -21,20 +21,23 @@ members = [
 resolver = "2"
 
 [workspace.package]
+version = "0.19.0"
 edition = "2021"
 license = "ImageMagick"
-publish = false
+repository = "https://github.com/jskoiz/imx"
+homepage = "https://github.com/jskoiz/imx"
+publish = true
 
 [workspace.dependencies]
-imx-core = { path = "crates/core" }
-imx-codec-bmp = { path = "crates/codecs/bmp" }
-imx-codec-farbfeld = { path = "crates/codecs/farbfeld" }
-imx-codec-gif = { path = "crates/codecs/gif" }
-imx-codec-jpeg = { path = "crates/codecs/jpeg" }
-imx-codec-png = { path = "crates/codecs/png" }
-imx-codec-pnm = { path = "crates/codecs/pnm" }
-imx-codec-qoi = { path = "crates/codecs/qoi" }
-imx-codec-webp = { path = "crates/codecs/webp" }
+imx-core = { path = "crates/core", version = "0.19.0" }
+imx-codec-bmp = { path = "crates/codecs/bmp", version = "0.19.0" }
+imx-codec-farbfeld = { path = "crates/codecs/farbfeld", version = "0.19.0" }
+imx-codec-gif = { path = "crates/codecs/gif", version = "0.19.0" }
+imx-codec-jpeg = { path = "crates/codecs/jpeg", version = "0.19.0" }
+imx-codec-png = { path = "crates/codecs/png", version = "0.19.0" }
+imx-codec-pnm = { path = "crates/codecs/pnm", version = "0.19.0" }
+imx-codec-qoi = { path = "crates/codecs/qoi", version = "0.19.0" }
+imx-codec-webp = { path = "crates/codecs/webp", version = "0.19.0" }
 
 [dependencies]
 imx-core = { workspace = true }
