@@ -175,6 +175,7 @@ fn write_supported_fixtures(dir: &Path) -> Vec<(&'static str, PathBuf, &'static 
     let pgm = dir.join("input.pgm");
     let png = dir.join("input.png");
     let ppm = dir.join("input.ppm");
+    let tiff = dir.join("input.tiff");
     let rgba16 = Image::new(
         2,
         1,
@@ -229,6 +230,14 @@ fn write_supported_fixtures(dir: &Path) -> Vec<(&'static str, PathBuf, &'static 
         .unwrap(),
     )
     .unwrap();
+    fs::write(
+        &tiff,
+        imx_codec_tiff::encode(
+            &Image::new(2, 1, PixelFormat::Rgb8, vec![255, 0, 0, 0, 0, 255]).unwrap(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
 
     vec![
         (
@@ -270,6 +279,11 @@ fn write_supported_fixtures(dir: &Path) -> Vec<(&'static str, PathBuf, &'static 
             "PNG",
             png,
             "format=PNG width=2 height=1 channels=RGB depth=8",
+        ),
+        (
+            "TIFF",
+            tiff,
+            "format=TIFF width=2 height=1 channels=RGB depth=8",
         ),
     ]
 }
@@ -905,6 +919,81 @@ fn transcodes_farbfeld_to_qoi_and_back() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert_eq!(fs::read(input_ff).unwrap(), fs::read(roundtrip_ff).unwrap());
+}
+
+#[test]
+fn transcodes_png_to_tiff_and_back() {
+    let dir = temp_dir("png_tiff_transcode");
+    let input_png = dir.join("input.png");
+    let output_tiff = dir.join("output.tiff");
+    let roundtrip_png = dir.join("roundtrip.png");
+    let image = Image::new(
+        3,
+        2,
+        PixelFormat::Rgb8,
+        vec![
+            255, 0, 0, 0, 255, 0, 0, 0, 255, 10, 20, 30, 40, 50, 60, 70, 80, 90,
+        ],
+    )
+    .unwrap();
+    fs::write(&input_png, imx_codec_png::encode(&image).unwrap()).unwrap();
+
+    let output = Command::new(imx())
+        .args([input_png.to_str().unwrap(), output_tiff.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let identify = Command::new(imx())
+        .args(["identify", output_tiff.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(identify.status.success());
+    assert_eq!(
+        String::from_utf8(identify.stdout).unwrap().trim(),
+        "format=TIFF width=3 height=2 channels=RGB depth=8"
+    );
+
+    let output = Command::new(imx())
+        .args([output_tiff.to_str().unwrap(), roundtrip_png.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let decoded = imx_codec_png::decode(&fs::read(&roundtrip_png).unwrap()).unwrap();
+    assert_eq!(decoded.pixels(), image.pixels());
+}
+
+#[test]
+fn transcodes_with_tiff_prefix_and_stdin_extension() {
+    let dir = temp_dir("tiff_prefix_stream");
+    let input_png = dir.join("input.png");
+    let output_tiff = dir.join("output.tif");
+    let image = Image::new(2, 1, PixelFormat::Rgb8, vec![255, 0, 0, 0, 0, 255]).unwrap();
+    fs::write(&input_png, imx_codec_png::encode(&image).unwrap()).unwrap();
+
+    let output = Command::new(imx())
+        .args([
+            prefixed("PNG", &input_png).as_str(),
+            prefixed("TIFF", &output_tiff).as_str(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let decoded = imx_codec_tiff::decode(&fs::read(&output_tiff).unwrap()).unwrap();
+    assert_eq!(decoded.pixel_format(), PixelFormat::Rgb8);
+    assert_eq!(decoded.pixels(), image.pixels());
 }
 
 #[test]
@@ -2500,6 +2589,9 @@ fn help_and_version_are_available() {
             assert!(stdout.contains("JPEG:"));
             assert!(stdout.contains(".png"));
             assert!(stdout.contains("PNG:"));
+            assert!(stdout.contains(".tif"));
+            assert!(stdout.contains(".tiff"));
+            assert!(stdout.contains("TIFF:"));
         }
     }
 }
@@ -3227,7 +3319,7 @@ fn lowercase_mixed_case_and_alias_prefixes_do_not_expand_prefix_surface() {
     let image = Image::new(8, 8, PixelFormat::Rgb8, vec![0x80; 8 * 8 * 3]).unwrap();
     fs::write(&input, imx_codec_jpeg::encode(&image).unwrap()).unwrap();
 
-    for alias in ["BM", "JPG", "FF", "TIFF"] {
+    for alias in ["BM", "JPG", "FF", "TGA"] {
         let output = Command::new(imx())
             .args(["identify", prefixed(alias, &input).as_str()])
             .output()
