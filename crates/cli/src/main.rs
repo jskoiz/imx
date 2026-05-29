@@ -5,13 +5,13 @@ use std::path::{Path, PathBuf};
 use std::process::{self, Command};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use imx_core::{Format, Identify, ImageError, ResizeGeometry, MAX_PIXEL_BYTES};
+use imx_core::{compare_rgba8, Format, Identify, ImageError, ResizeGeometry, MAX_PIXEL_BYTES};
 
 const MAX_INPUT_BYTES: u64 = MAX_PIXEL_BYTES as u64 + 1024 * 1024;
 
 fn usage() -> ! {
     eprintln!(
-        "usage:\n  imx --help\n  imx --version\n  imx identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.webp|FORMAT:->\n  imx identify --json [FORMAT:]<input|FORMAT:->\n  imx report --json [FORMAT:]<input|FORMAT:->\n  imx resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx self-test\n  imx [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported formats: bmp (.bmp), farbfeld (.ff, .farbfeld), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm), webp (.webp)\ninput-only formats: gif (.gif)\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, WEBP:\ninput-only prefixes: GIF:\nstdin/stdout: use - as a path with a FORMAT: prefix (e.g. PNG:-); --quality applies only to JPEG output"
+        "usage:\n  imx --help\n  imx --version\n  imx identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.webp|FORMAT:->\n  imx identify --json [FORMAT:]<input|FORMAT:->\n  imx report --json [FORMAT:]<input|FORMAT:->\n  imx compare [--metric <ae|mae|psnr>] [FORMAT:]<a|FORMAT:-> [FORMAT:]<b>\n  imx resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx self-test\n  imx [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported formats: bmp (.bmp), farbfeld (.ff, .farbfeld), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm), webp (.webp)\ninput-only formats: gif (.gif)\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, WEBP:\ninput-only prefixes: GIF:\nstdin/stdout: use - as a path with a FORMAT: prefix (e.g. PNG:-); --quality applies only to JPEG output"
     );
     process::exit(2);
 }
@@ -45,7 +45,7 @@ fn main() {
     match args.as_slice() {
         [_, flag] if flag == "--help" || flag == "-h" || flag == "help" => {
             println!(
-                "IMX Developer Preview\n\nusage:\n  imx identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.webp|FORMAT:->\n  imx identify --json [FORMAT:]<input|FORMAT:->\n  imx report --json [FORMAT:]<input|FORMAT:->\n  imx resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx self-test\n  imx [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported transcodes: BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM/WEBP, including deterministic same-format rewrites except lossy JPEG re-encoding; WEBP output is lossless\nsupported input-only formats: GIF decode and identify, including transcode into any supported output format; the GIF decoder reads only the first frame and ignores animation\nsupported streaming: read input from stdin and/or write output to stdout via - with a FORMAT: prefix (e.g. PNG:-); only image bytes go to stdout\nsupported JPEG quality: --quality <1..=100> on the single transcode and batch-convert when the output format is JPEG (default 90); rejected for non-JPEG output\nsupported identify JSON: deterministic schema_version/format/width/height/channels/depth over existing identify metadata\nsupported report JSON: single-input supported/unsupported status with stable diagnostic_code values\nsupported resize: nearest-neighbor exact dimensions (<width>x<height>), single-axis aspect-preserving (<width>x or x<height>), and uniform percent (<percent>%) geometries, plus aspect-preserving fit (resize-fit) for existing supported formats\nsupported geometry: bounds-checked crop (<width>x<height>+<x>+<y>), clockwise rotate (90/180/270), vertical flip, and horizontal flop, all format-preserving\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, optional --quality for JPEG output, no overwrite or collision renaming\nsupported self-test: offline install confidence check for identify/transcode/resize/resize-fit/batch-convert across supported formats\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, WEBP:\ninput-only prefixes: GIF:\nunsupported: GIF as output target, GIF animation/multi-frame decoding, recursive directory walking, arbitrary-angle rotation, delegates, color management, and formats beyond BMP/FARBFELD/GIF/JPEG/QOI/PBM/PGM/PNG/PPM/WEBP"
+                "IMX Developer Preview\n\nusage:\n  imx identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.webp|FORMAT:->\n  imx identify --json [FORMAT:]<input|FORMAT:->\n  imx report --json [FORMAT:]<input|FORMAT:->\n  imx resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx self-test\n  imx [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported transcodes: BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM/WEBP, including deterministic same-format rewrites except lossy JPEG re-encoding; WEBP output is lossless\nsupported input-only formats: GIF decode and identify, including transcode into any supported output format; the GIF decoder reads only the first frame and ignores animation\nsupported streaming: read input from stdin and/or write output to stdout via - with a FORMAT: prefix (e.g. PNG:-); only image bytes go to stdout\nsupported JPEG quality: --quality <1..=100> on the single transcode and batch-convert when the output format is JPEG (default 90); rejected for non-JPEG output\nsupported identify JSON: deterministic schema_version/format/width/height/channels/depth over existing identify metadata\nsupported report JSON: single-input supported/unsupported status with stable diagnostic_code values\nsupported compare: decode two inputs and diff them deterministically; differing dimensions or channels print a single differ: line and exit 1, matching images normalize to RGBA8 and report differing-pixel count, peak per-channel difference (AE), and mean absolute error (MAE); identical inputs print identical and exit 0, otherwise exit 1; --metric <ae|mae|psnr> prints only that single value (psnr is inf for identical inputs); usage errors exit 2\nsupported resize: nearest-neighbor exact dimensions (<width>x<height>), single-axis aspect-preserving (<width>x or x<height>), and uniform percent (<percent>%) geometries, plus aspect-preserving fit (resize-fit) for existing supported formats\nsupported geometry: bounds-checked crop (<width>x<height>+<x>+<y>), clockwise rotate (90/180/270), vertical flip, and horizontal flop, all format-preserving\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, optional --quality for JPEG output, no overwrite or collision renaming\nsupported self-test: offline install confidence check for identify/transcode/resize/resize-fit/batch-convert across supported formats\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, WEBP:\ninput-only prefixes: GIF:\nunsupported: GIF as output target, GIF animation/multi-frame decoding, recursive directory walking, arbitrary-angle rotation, delegates, color management, and formats beyond BMP/FARBFELD/GIF/JPEG/QOI/PBM/PGM/PNG/PPM/WEBP"
             );
             process::exit(0);
         }
@@ -58,6 +58,11 @@ fn main() {
             identify_json(input)
         }
         [_, command, input] if command == "identify" => identify(input),
+        [_, command, flag, metric, a, b] if command == "compare" && flag == "--metric" => {
+            compare(a, b, Some(metric))
+        }
+        [_, command, a, b] if command == "compare" => compare(a, b, None),
+        [_, command, ..] if command == "compare" => usage(),
         [_, command, flag, input] if command == "report" && flag == "--json" => report_json(input),
         [_, command, ..] if command == "report" => usage(),
         [_, command, dimensions, input, output] if command == "resize" => {
@@ -559,6 +564,105 @@ fn path_string(path: &Path) -> Result<String, String> {
     path.to_str()
         .map(str::to_string)
         .ok_or_else(|| format!("path is not valid UTF-8: {}", path.display()))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CompareMetric {
+    Ae,
+    Mae,
+    Psnr,
+}
+
+fn parse_compare_metric(value: &str) -> Result<CompareMetric, String> {
+    match value {
+        "ae" => Ok(CompareMetric::Ae),
+        "mae" => Ok(CompareMetric::Mae),
+        "psnr" => Ok(CompareMetric::Psnr),
+        other => Err(format!(
+            "invalid --metric value: {other}; expected ae, mae, or psnr"
+        )),
+    }
+}
+
+fn load_compare_operand(arg: &str, role: &str) -> imx_core::Image {
+    let path = parse_cli_path(arg).unwrap_or_else(|err| fail(err));
+    let input = read(path.path);
+    let format = detect_input_format(&path, &input).unwrap_or_else(|err| fail(err));
+    decode_image(format, &input)
+        .unwrap_or_else(|err| fail_image_operation(format, "decode", role, &path, err))
+}
+
+fn compare(a_arg: &str, b_arg: &str, metric: Option<&str>) -> ! {
+    let metric = match metric {
+        Some(value) => Some(parse_compare_metric(value).unwrap_or_else(|err| fail_usage(err))),
+        None => None,
+    };
+
+    // At most one operand may be stdin.
+    let a_path = parse_cli_path(a_arg).unwrap_or_else(|err| fail(err));
+    let b_path = parse_cli_path(b_arg).unwrap_or_else(|err| fail(err));
+    if a_path.path == "-" && b_path.path == "-" {
+        fail_usage("at most one compare operand may be read from stdin");
+    }
+
+    let a = load_compare_operand(a_arg, "first input");
+    let b = load_compare_operand(b_arg, "second input");
+
+    // Dimension mismatch: deterministic differ line, exit 1, no pixel diff.
+    if a.width() != b.width() || a.height() != b.height() {
+        println!(
+            "differ: dimensions {}x{} vs {}x{}",
+            a.width(),
+            a.height(),
+            b.width(),
+            b.height()
+        );
+        process::exit(1);
+    }
+
+    // Channel/pixel-format mismatch in the comparable representation: report it
+    // and exit 1 without attempting a pixel diff.
+    let a_channels = a.pixel_format().channels();
+    let b_channels = b.pixel_format().channels();
+    if a_channels != b_channels {
+        println!("differ: channels {a_channels} vs {b_channels}");
+        process::exit(1);
+    }
+
+    let cmp = compare_rgba8(&a, &b).unwrap_or_else(|err| fail(format!("failed to compare: {err}")));
+
+    if let Some(metric) = metric {
+        match metric {
+            CompareMetric::Ae => println!("{}", cmp.max_abs_diff),
+            CompareMetric::Mae => println!("{:.6}", cmp.mae()),
+            CompareMetric::Psnr => {
+                let psnr = cmp.psnr();
+                if psnr.is_infinite() {
+                    println!("inf");
+                } else {
+                    println!("{psnr:.6}");
+                }
+            }
+        }
+        if cmp.is_identical() {
+            process::exit(0);
+        }
+        process::exit(1);
+    }
+
+    if cmp.is_identical() {
+        println!("identical");
+        process::exit(0);
+    }
+
+    println!(
+        "differ: {}/{} pixels ae={} mae={:.6}",
+        cmp.differing_pixels,
+        cmp.total_pixels,
+        cmp.max_abs_diff,
+        cmp.mae()
+    );
+    process::exit(1);
 }
 
 fn identify(input_path: &str) -> ! {

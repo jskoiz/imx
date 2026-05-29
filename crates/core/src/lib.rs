@@ -893,6 +893,117 @@ fn round_scaled_dimension(numerator: u128, denominator: u128) -> u32 {
     ((numerator * 2 + denominator) / (denominator * 2)) as u32
 }
 
+/// Pixel-level difference statistics between two images.
+///
+/// Produced by [`compare_rgba8`] after normalizing both operands to the
+/// `Rgba8` pixel format. All fields are computed over the four RGBA channels of
+/// every pixel, so a single-channel-only difference still counts the pixel as
+/// differing and contributes to the mean.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Comparison {
+    /// Number of pixels whose RGBA bytes are not all identical.
+    pub differing_pixels: u64,
+    /// Total number of pixels compared (`width * height`).
+    pub total_pixels: u64,
+    /// Largest absolute per-channel difference (the "AE"-style peak), 0..=255.
+    pub max_abs_diff: u8,
+    /// Sum of absolute per-channel differences across every channel of every
+    /// pixel. Divide by `4 * total_pixels` to obtain the mean absolute error.
+    pub sum_abs_diff: u64,
+    /// Sum of squared per-channel differences across every channel of every
+    /// pixel. Divide by `4 * total_pixels` to obtain the mean squared error
+    /// used by [`Comparison::psnr`].
+    pub sum_squared_diff: u64,
+}
+
+impl Comparison {
+    /// Returns `true` when the two normalized images are byte-identical.
+    pub fn is_identical(&self) -> bool {
+        self.differing_pixels == 0
+    }
+
+    /// Mean absolute error across all RGBA channels of all pixels, in the
+    /// 0.0..=255.0 range. Returns 0.0 when there are no pixels.
+    pub fn mae(&self) -> f64 {
+        let channels = self.total_pixels.saturating_mul(4);
+        if channels == 0 {
+            return 0.0;
+        }
+        self.sum_abs_diff as f64 / channels as f64
+    }
+
+    /// Mean squared error across all RGBA channels of all pixels.
+    fn mse(&self) -> f64 {
+        let channels = self.total_pixels.saturating_mul(4);
+        if channels == 0 {
+            return 0.0;
+        }
+        self.sum_squared_diff as f64 / channels as f64
+    }
+
+    /// Peak signal-to-noise ratio in decibels over 8-bit channels.
+    ///
+    /// Returns `f64::INFINITY` when the images are identical (zero error),
+    /// matching the conventional "infinite PSNR" reported by ImageMagick and
+    /// other tools for an exact match.
+    pub fn psnr(&self) -> f64 {
+        let mse = self.mse();
+        if mse == 0.0 {
+            return f64::INFINITY;
+        }
+        let max = 255.0_f64;
+        10.0 * (max * max / mse).log10()
+    }
+}
+
+/// Compute pixel-level difference statistics between two images.
+///
+/// Both images are normalized to the `Rgba8` representation via
+/// [`Image::to_rgba8`] before comparison, so differences in source pixel
+/// format (e.g. RGB vs RGBA, 8-bit vs 16-bit) are resolved through that common
+/// representation. The caller is responsible for ensuring the two images share
+/// the same dimensions; a dimension mismatch returns
+/// [`ImageError::InvalidDimensions`] rather than attempting a diff.
+pub fn compare_rgba8(a: &Image, b: &Image) -> Result<Comparison, ImageError> {
+    if a.width() != b.width() || a.height() != b.height() {
+        return Err(ImageError::InvalidDimensions);
+    }
+    let a = a.to_rgba8()?;
+    let b = b.to_rgba8()?;
+    let total_pixels = pixel_count(a.width(), a.height())? as u64;
+
+    let mut differing_pixels: u64 = 0;
+    let mut max_abs_diff: u8 = 0;
+    let mut sum_abs_diff: u64 = 0;
+    let mut sum_squared_diff: u64 = 0;
+
+    for (pa, pb) in a.pixels().chunks_exact(4).zip(b.pixels().chunks_exact(4)) {
+        let mut pixel_differs = false;
+        for (&ca, &cb) in pa.iter().zip(pb.iter()) {
+            let diff = ca.abs_diff(cb);
+            if diff != 0 {
+                pixel_differs = true;
+            }
+            if diff > max_abs_diff {
+                max_abs_diff = diff;
+            }
+            sum_abs_diff += u64::from(diff);
+            sum_squared_diff += u64::from(diff) * u64::from(diff);
+        }
+        if pixel_differs {
+            differing_pixels += 1;
+        }
+    }
+
+    Ok(Comparison {
+        differing_pixels,
+        total_pixels,
+        max_abs_diff,
+        sum_abs_diff,
+        sum_squared_diff,
+    })
+}
+
 /// A parsed `imx resize` geometry specification.
 ///
 /// This mirrors the subset of ImageMagick geometry syntax that `imx resize`
@@ -1609,5 +1720,49 @@ mod tests {
                 0x77, 0x88
             ]
         );
+    }
+
+    #[test]
+    fn compare_rgba8_reports_identical_for_equal_pixels() {
+        let a = Image::new(2, 1, PixelFormat::Rgb8, vec![10, 20, 30, 40, 50, 60]).unwrap();
+        let b = Image::new(2, 1, PixelFormat::Rgb8, vec![10, 20, 30, 40, 50, 60]).unwrap();
+        let cmp = compare_rgba8(&a, &b).unwrap();
+        assert!(cmp.is_identical());
+        assert_eq!(cmp.differing_pixels, 0);
+        assert_eq!(cmp.total_pixels, 2);
+        assert_eq!(cmp.max_abs_diff, 0);
+        assert_eq!(cmp.sum_abs_diff, 0);
+        assert_eq!(cmp.mae(), 0.0);
+        assert!(cmp.psnr().is_infinite());
+    }
+
+    #[test]
+    fn compare_rgba8_normalizes_rgb_and_rgba_for_equal_color() {
+        let rgb = Image::new(1, 1, PixelFormat::Rgb8, vec![1, 2, 3]).unwrap();
+        let rgba = Image::new(1, 1, PixelFormat::Rgba8, vec![1, 2, 3, 0xff]).unwrap();
+        let cmp = compare_rgba8(&rgb, &rgba).unwrap();
+        assert!(cmp.is_identical());
+    }
+
+    #[test]
+    fn compare_rgba8_counts_pixels_and_peaks_per_channel() {
+        let a = Image::new(1, 1, PixelFormat::Rgba8, vec![100, 100, 100, 100]).unwrap();
+        let b = Image::new(1, 1, PixelFormat::Rgba8, vec![105, 110, 100, 100]).unwrap();
+        let cmp = compare_rgba8(&a, &b).unwrap();
+        assert!(!cmp.is_identical());
+        assert_eq!(cmp.differing_pixels, 1);
+        assert_eq!(cmp.total_pixels, 1);
+        assert_eq!(cmp.max_abs_diff, 10);
+        assert_eq!(cmp.sum_abs_diff, 15);
+        assert_eq!(cmp.mae(), 3.75);
+        let psnr = cmp.psnr();
+        assert!(psnr.is_finite() && psnr > 0.0);
+    }
+
+    #[test]
+    fn compare_rgba8_rejects_dimension_mismatch() {
+        let a = Image::new(2, 1, PixelFormat::Rgb8, vec![0, 0, 0, 0, 0, 0]).unwrap();
+        let b = Image::new(1, 1, PixelFormat::Rgb8, vec![0, 0, 0]).unwrap();
+        assert_eq!(compare_rgba8(&a, &b), Err(ImageError::InvalidDimensions));
     }
 }
