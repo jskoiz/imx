@@ -2804,6 +2804,13 @@ fn help_and_version_are_available() {
             assert!(stdout.contains("supported pipeline:"));
             assert!(stdout.contains("ops apply left-to-right"));
             assert!(stdout.contains("single decode/encode pass"));
+            assert!(stdout.contains("grayscale"));
+            assert!(stdout.contains("invert"));
+            assert!(stdout.contains("brightness:<-255..=255>"));
+            assert!(stdout.contains("contrast:<factor>"));
+            assert!(stdout.contains("gamma:<value>"));
+            assert!(stdout.contains("threshold:<0..=255>"));
+            assert!(stdout.contains("levels:<black>,<white>,<gamma>"));
             assert!(stdout.contains("supported compare:"));
             assert!(stdout.contains("imx self-test"));
             assert!(stdout.contains("imx completions <bash|zsh|fish>"));
@@ -5074,4 +5081,197 @@ fn pipeline_crop_out_of_bounds_is_operational_error() {
         .unwrap();
     assert_failure(output, 1, "failed to crop");
     assert!(!out.exists(), "no output should be written on a failed op");
+}
+
+#[test]
+fn pipeline_grayscale_matches_core() {
+    let dir = temp_dir("pipeline_grayscale");
+    let input = dir.join("input.png");
+    let out = dir.join("out.png");
+    let image = pipeline_fixture_image();
+    write_png(&input, &image);
+
+    assert!(Command::new(imx())
+        .args([
+            "pipeline",
+            input.to_str().unwrap(),
+            out.to_str().unwrap(),
+            "--op",
+            "grayscale",
+        ])
+        .status()
+        .unwrap()
+        .success());
+
+    let decoded = imx_codec_png::decode(&fs::read(&out).unwrap()).unwrap();
+    assert_eq!(decoded, image.grayscale().unwrap());
+}
+
+#[test]
+fn pipeline_invert_matches_core() {
+    let dir = temp_dir("pipeline_invert");
+    let input = dir.join("input.png");
+    let out = dir.join("out.png");
+    let image = pipeline_fixture_image();
+    write_png(&input, &image);
+
+    assert!(Command::new(imx())
+        .args([
+            "pipeline",
+            input.to_str().unwrap(),
+            out.to_str().unwrap(),
+            "--op",
+            "invert",
+        ])
+        .status()
+        .unwrap()
+        .success());
+
+    let decoded = imx_codec_png::decode(&fs::read(&out).unwrap()).unwrap();
+    assert_eq!(decoded, image.invert().unwrap());
+}
+
+#[test]
+fn pipeline_brightness_matches_core() {
+    let dir = temp_dir("pipeline_brightness");
+    let input = dir.join("input.png");
+    let out = dir.join("out.png");
+    let image = pipeline_fixture_image();
+    write_png(&input, &image);
+
+    assert!(Command::new(imx())
+        .args([
+            "pipeline",
+            input.to_str().unwrap(),
+            out.to_str().unwrap(),
+            "--op",
+            "brightness:40",
+        ])
+        .status()
+        .unwrap()
+        .success());
+
+    let decoded = imx_codec_png::decode(&fs::read(&out).unwrap()).unwrap();
+    assert_eq!(decoded, image.brightness(40).unwrap());
+}
+
+#[test]
+fn pipeline_gamma_matches_core() {
+    let dir = temp_dir("pipeline_gamma");
+    let input = dir.join("input.png");
+    let out = dir.join("out.png");
+    let image = pipeline_fixture_image();
+    write_png(&input, &image);
+
+    assert!(Command::new(imx())
+        .args([
+            "pipeline",
+            input.to_str().unwrap(),
+            out.to_str().unwrap(),
+            "--op",
+            "gamma:2.2",
+        ])
+        .status()
+        .unwrap()
+        .success());
+
+    let decoded = imx_codec_png::decode(&fs::read(&out).unwrap()).unwrap();
+    assert_eq!(decoded, image.gamma(2.2).unwrap());
+}
+
+#[test]
+fn pipeline_color_ops_chain_is_deterministic() {
+    let dir = temp_dir("pipeline_color_determinism");
+    let input = dir.join("input.png");
+    write_png(&input, &pipeline_fixture_image());
+
+    let first = dir.join("first.png");
+    let second = dir.join("second.png");
+    for out in [&first, &second] {
+        assert!(Command::new(imx())
+            .args([
+                "pipeline",
+                input.to_str().unwrap(),
+                out.to_str().unwrap(),
+                "--op",
+                "grayscale",
+                "--op",
+                "invert",
+                "--op",
+                "gamma:2.2",
+            ])
+            .status()
+            .unwrap()
+            .success());
+    }
+    assert_eq!(
+        fs::read(&first).unwrap(),
+        fs::read(&second).unwrap(),
+        "the same color-op pipeline must produce identical output bytes"
+    );
+}
+
+#[test]
+fn pipeline_gamma_zero_is_usage_error() {
+    let dir = temp_dir("pipeline_gamma_zero");
+    let input = dir.join("input.png");
+    let out = dir.join("out.png");
+    write_png(&input, &pipeline_fixture_image());
+
+    let output = Command::new(imx())
+        .args([
+            "pipeline",
+            input.to_str().unwrap(),
+            out.to_str().unwrap(),
+            "--op",
+            "gamma:0",
+        ])
+        .output()
+        .unwrap();
+    assert_failure(output, 2, "gamma value must be a finite number > 0");
+    assert!(!out.exists(), "no output should be written on a bad spec");
+}
+
+#[test]
+fn pipeline_brightness_out_of_range_is_usage_error() {
+    let dir = temp_dir("pipeline_brightness_oor");
+    let input = dir.join("input.png");
+    let out = dir.join("out.png");
+    write_png(&input, &pipeline_fixture_image());
+
+    let output = Command::new(imx())
+        .args([
+            "pipeline",
+            input.to_str().unwrap(),
+            out.to_str().unwrap(),
+            "--op",
+            "brightness:300",
+        ])
+        .output()
+        .unwrap();
+    assert_failure(
+        output,
+        2,
+        "brightness delta must be an integer in -255..=255",
+    );
+}
+
+#[test]
+fn pipeline_levels_bad_endpoints_is_usage_error() {
+    let dir = temp_dir("pipeline_levels_bad");
+    let input = dir.join("input.png");
+    let out = dir.join("out.png");
+    write_png(&input, &pipeline_fixture_image());
+
+    let output = Command::new(imx())
+        .args([
+            "pipeline",
+            input.to_str().unwrap(),
+            out.to_str().unwrap(),
+            "--op",
+            "levels:200,100,1.0",
+        ])
+        .output()
+        .unwrap();
+    assert_failure(output, 2, "must be less than white");
 }

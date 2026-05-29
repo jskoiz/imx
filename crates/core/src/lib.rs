@@ -844,6 +844,222 @@ impl Image {
             }
         }
     }
+
+    /// Apply a per-color-channel transform, leaving alpha (when present)
+    /// untouched and preserving the pixel format and dimensions.
+    ///
+    /// `map8` is applied to every color sample of 8-bit formats and `map16` to
+    /// every color sample of 16-bit (big-endian) formats. `Bilevel` is treated
+    /// as a 1-bit grayscale value stored as `0` or `255`; the closure receives
+    /// that value and the result is re-clamped to `0`/`255` so the buffer stays
+    /// a valid bilevel buffer. The transform never reallocates beyond the input
+    /// length and never panics.
+    fn map_color_channels<F8, F16>(&self, map8: F8, map16: F16) -> Result<Self, ImageError>
+    where
+        F8: Fn(u8) -> u8,
+        F16: Fn(u16) -> u16,
+    {
+        let bytes_per_pixel = self.pixel_format.bytes_per_pixel();
+        let mut out = try_vec_with_capacity(pixel_len(self.width, self.height, bytes_per_pixel)?)?;
+        match self.pixel_format {
+            PixelFormat::Bilevel => {
+                for value in &self.pixels {
+                    // Bilevel stores 0 or 255; keep the result bilevel by
+                    // re-thresholding the transformed value.
+                    out.push(threshold_u8(map8(*value)));
+                }
+            }
+            PixelFormat::Gray8 => {
+                for value in &self.pixels {
+                    out.push(map8(*value));
+                }
+            }
+            PixelFormat::Rgb8 => {
+                for value in &self.pixels {
+                    out.push(map8(*value));
+                }
+            }
+            PixelFormat::Rgba8 => {
+                for px in self.pixels.chunks_exact(4) {
+                    out.push(map8(px[0]));
+                    out.push(map8(px[1]));
+                    out.push(map8(px[2]));
+                    out.push(px[3]);
+                }
+            }
+            PixelFormat::Gray16Be => {
+                for s in self.pixels.chunks_exact(2) {
+                    let mapped = map16(u16::from_be_bytes([s[0], s[1]]));
+                    out.extend_from_slice(&mapped.to_be_bytes());
+                }
+            }
+            PixelFormat::Rgb16Be => {
+                for s in self.pixels.chunks_exact(2) {
+                    let mapped = map16(u16::from_be_bytes([s[0], s[1]]));
+                    out.extend_from_slice(&mapped.to_be_bytes());
+                }
+            }
+            PixelFormat::Rgba16Be => {
+                for px in self.pixels.chunks_exact(8) {
+                    for color in px[..6].chunks_exact(2) {
+                        let mapped = map16(u16::from_be_bytes([color[0], color[1]]));
+                        out.extend_from_slice(&mapped.to_be_bytes());
+                    }
+                    out.extend_from_slice(&px[6..8]);
+                }
+            }
+        }
+        Self::new(self.width, self.height, self.pixel_format, out)
+    }
+
+    /// Desaturate to gray using Rec.709 luma, preserving the pixel format,
+    /// dimensions, and alpha. RGB(A) color channels are all replaced by the
+    /// per-pixel luma; grayscale (`Gray8`/`Gray16Be`) inputs are returned
+    /// unchanged, and `Bilevel` is already grayscale so it is returned as-is.
+    pub fn grayscale(&self) -> Result<Self, ImageError> {
+        let bytes_per_pixel = self.pixel_format.bytes_per_pixel();
+        match self.pixel_format {
+            PixelFormat::Bilevel | PixelFormat::Gray8 | PixelFormat::Gray16Be => Ok(self.clone()),
+            PixelFormat::Rgb8 | PixelFormat::Rgba8 => {
+                let mut out =
+                    try_vec_with_capacity(pixel_len(self.width, self.height, bytes_per_pixel)?)?;
+                for px in self.pixels.chunks_exact(bytes_per_pixel) {
+                    let luma = rec709_luma8(px[0], px[1], px[2]);
+                    out.push(luma);
+                    out.push(luma);
+                    out.push(luma);
+                    if self.pixel_format == PixelFormat::Rgba8 {
+                        out.push(px[3]);
+                    }
+                }
+                Self::new(self.width, self.height, self.pixel_format, out)
+            }
+            PixelFormat::Rgb16Be | PixelFormat::Rgba16Be => {
+                let mut out =
+                    try_vec_with_capacity(pixel_len(self.width, self.height, bytes_per_pixel)?)?;
+                for px in self.pixels.chunks_exact(bytes_per_pixel) {
+                    let luma = rec709_luma16be([px[0], px[1]], [px[2], px[3]], [px[4], px[5]])
+                        .to_be_bytes();
+                    out.extend_from_slice(&luma);
+                    out.extend_from_slice(&luma);
+                    out.extend_from_slice(&luma);
+                    if self.pixel_format == PixelFormat::Rgba16Be {
+                        out.extend_from_slice(&px[6..8]);
+                    }
+                }
+                Self::new(self.width, self.height, self.pixel_format, out)
+            }
+        }
+    }
+
+    /// Invert each color channel (`255 - v` for 8-bit, `65535 - v` for 16-bit),
+    /// leaving alpha untouched and preserving the pixel format and dimensions.
+    pub fn invert(&self) -> Result<Self, ImageError> {
+        self.map_color_channels(|v| 255 - v, |v| 65535 - v)
+    }
+
+    /// Add `delta` to each color channel and clamp to the channel range, leaving
+    /// alpha untouched. For 16-bit formats `delta` is scaled by 257 so the same
+    /// `-255..=255` knob has an equivalent visual effect across bit depths.
+    pub fn brightness(&self, delta: i16) -> Result<Self, ImageError> {
+        let delta16 = i32::from(delta) * 257;
+        self.map_color_channels(
+            |v| (i32::from(v) + i32::from(delta)).clamp(0, 255) as u8,
+            |v| (i32::from(v) + delta16).clamp(0, 65535) as u16,
+        )
+    }
+
+    /// Scale contrast around the channel midpoint (128 for 8-bit, 32768 for
+    /// 16-bit) by `factor`, clamping to the channel range and leaving alpha
+    /// untouched. Rounding is deterministic (round half away from zero). A
+    /// non-finite or negative `factor` is rejected.
+    pub fn contrast(&self, factor: f32) -> Result<Self, ImageError> {
+        if !factor.is_finite() || factor < 0.0 {
+            return Err(ImageError::InvalidOpParameter {
+                reason: format!("contrast factor must be a finite value >= 0, got {factor}"),
+            });
+        }
+        let factor = f64::from(factor);
+        self.map_color_channels(
+            |v| {
+                let out = (f64::from(v) - 128.0) * factor + 128.0;
+                round_clamp(out, 255.0) as u8
+            },
+            |v| {
+                let out = (f64::from(v) - 32768.0) * factor + 32768.0;
+                round_clamp(out, 65535.0) as u16
+            },
+        )
+    }
+
+    /// Apply gamma correction (`out = in^(1/value)` on normalized channels),
+    /// leaving alpha untouched. `value` must be a finite, strictly positive
+    /// number; `value <= 0` or non-finite is rejected. Rounding is deterministic.
+    pub fn gamma(&self, value: f32) -> Result<Self, ImageError> {
+        if !value.is_finite() || value <= 0.0 {
+            return Err(ImageError::InvalidOpParameter {
+                reason: format!("gamma value must be a finite value > 0, got {value}"),
+            });
+        }
+        let exponent = 1.0 / f64::from(value);
+        self.map_color_channels(
+            |v| {
+                let normalized = f64::from(v) / 255.0;
+                round_clamp(normalized.powf(exponent) * 255.0, 255.0) as u8
+            },
+            |v| {
+                let normalized = f64::from(v) / 65535.0;
+                round_clamp(normalized.powf(exponent) * 65535.0, 65535.0) as u16
+            },
+        )
+    }
+
+    /// Per-color-channel binary threshold: each color channel becomes the
+    /// minimum or maximum channel value depending on whether it is below or at/
+    /// above `level`, leaving alpha untouched. For 16-bit formats `level` is
+    /// scaled to 16-bit space (`level * 257`) so the same 8-bit knob applies.
+    pub fn threshold(&self, level: u8) -> Result<Self, ImageError> {
+        let level16 = u16::from(level) * 257;
+        self.map_color_channels(
+            move |v| if v < level { 0 } else { 255 },
+            move |v| if v < level16 { 0 } else { 65535 },
+        )
+    }
+
+    /// Standard levels remap of each color channel: input values are clamped to
+    /// `[black, white]`, linearly rescaled to the full range, then gamma is
+    /// applied. Alpha is left untouched. `black` and `white` are 8-bit input
+    /// endpoints (scaled to 16-bit space for 16-bit formats). Rejects
+    /// `black >= white` and non-finite or non-positive `gamma`.
+    pub fn levels(&self, black: u8, white: u8, gamma: f32) -> Result<Self, ImageError> {
+        if black >= white {
+            return Err(ImageError::InvalidOpParameter {
+                reason: format!("levels black ({black}) must be less than white ({white})"),
+            });
+        }
+        if !gamma.is_finite() || gamma <= 0.0 {
+            return Err(ImageError::InvalidOpParameter {
+                reason: format!("levels gamma must be a finite value > 0, got {gamma}"),
+            });
+        }
+        let exponent = 1.0 / f64::from(gamma);
+        let black8 = f64::from(black);
+        let white8 = f64::from(white);
+        let span8 = white8 - black8;
+        let black16 = f64::from(u16::from(black) * 257);
+        let white16 = f64::from(u16::from(white) * 257);
+        let span16 = white16 - black16;
+        self.map_color_channels(
+            move |v| {
+                let normalized = ((f64::from(v) - black8) / span8).clamp(0.0, 1.0);
+                round_clamp(normalized.powf(exponent) * 255.0, 255.0) as u8
+            },
+            move |v| {
+                let normalized = ((f64::from(v) - black16) / span16).clamp(0.0, 1.0);
+                round_clamp(normalized.powf(exponent) * 65535.0, 65535.0) as u16
+            },
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -968,6 +1184,9 @@ pub enum ImageError {
         index: u32,
         frame_count: u32,
     },
+    InvalidOpParameter {
+        reason: String,
+    },
     UnsupportedFormat(String),
 }
 
@@ -988,6 +1207,7 @@ impl ImageError {
             Self::InvalidPbmSample { .. } => "pbm.invalid_sample",
             Self::CropOutOfBounds { .. } => "image.crop_out_of_bounds",
             Self::FrameIndexOutOfRange { .. } => "image.frame_index_out_of_range",
+            Self::InvalidOpParameter { .. } => "image.invalid_op_parameter",
             Self::UnsupportedFormat(_) => "image.unsupported_format",
         }
     }
@@ -1067,6 +1287,9 @@ impl fmt::Display for ImageError {
                     f,
                     "frame index {index} out of range: image has {frame_count} frame(s)"
                 )
+            }
+            Self::InvalidOpParameter { reason } => {
+                write!(f, "invalid operation parameter: {reason}")
             }
             Self::UnsupportedFormat(format) => write!(f, "unsupported format: {format}"),
         }
@@ -1665,6 +1888,13 @@ fn try_vec_with_capacity_f64(capacity: usize) -> Result<Vec<f64>, ImageError> {
     out.try_reserve_exact(capacity)
         .map_err(|_| ImageError::AllocationFailed { requested: bytes })?;
     Ok(out)
+}
+
+/// Round `value` to the nearest integer (half away from zero) and clamp the
+/// result to `[0.0, max]`. Used by the color/tone ops so their integer output
+/// is deterministic across platforms.
+fn round_clamp(value: f64, max: f64) -> f64 {
+    value.round().clamp(0.0, max)
 }
 
 #[cfg(test)]
@@ -2574,6 +2804,155 @@ mod tests {
         }
         for orientation in 5..=8u16 {
             assert_eq!(exif_oriented_dimensions(orientation, 3, 2), (2, 3));
+        }
+    }
+
+    #[test]
+    fn grayscale_replaces_rgb_with_luma_and_keeps_alpha() {
+        // Pure red -> luma 54, pure green -> luma 182 (Rec.709).
+        let image = Image::new(
+            2,
+            1,
+            PixelFormat::Rgba8,
+            vec![255, 0, 0, 64, 0, 255, 0, 200],
+        )
+        .unwrap();
+        assert_eq!(
+            image.grayscale().unwrap().pixels(),
+            &[54, 54, 54, 64, 182, 182, 182, 200]
+        );
+    }
+
+    #[test]
+    fn grayscale_leaves_gray_and_bilevel_unchanged() {
+        let gray = Image::new(2, 1, PixelFormat::Gray8, vec![10, 200]).unwrap();
+        assert_eq!(gray.grayscale().unwrap(), gray);
+        let bilevel = Image::new(2, 1, PixelFormat::Bilevel, vec![0, 255]).unwrap();
+        assert_eq!(bilevel.grayscale().unwrap(), bilevel);
+    }
+
+    #[test]
+    fn grayscale_16bit_keeps_depth_and_alpha() {
+        // Color channels collapse to a 16-bit luma; alpha preserved.
+        let image = Image::new(
+            1,
+            1,
+            PixelFormat::Rgba16Be,
+            vec![0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x12, 0x34],
+        )
+        .unwrap();
+        let luma = rec709_luma16be([0xff, 0xff], [0x00, 0x00], [0x00, 0x00]).to_be_bytes();
+        let mut expected = Vec::new();
+        expected.extend_from_slice(&luma);
+        expected.extend_from_slice(&luma);
+        expected.extend_from_slice(&luma);
+        expected.extend_from_slice(&[0x12, 0x34]);
+        assert_eq!(image.grayscale().unwrap().pixels(), &expected[..]);
+    }
+
+    #[test]
+    fn invert_flips_color_channels_not_alpha() {
+        let image = Image::new(1, 1, PixelFormat::Rgba8, vec![0, 128, 255, 10]).unwrap();
+        assert_eq!(image.invert().unwrap().pixels(), &[255, 127, 0, 10]);
+    }
+
+    #[test]
+    fn invert_16bit_uses_full_range() {
+        let image = Image::new(1, 1, PixelFormat::Gray16Be, vec![0x00, 0x01]).unwrap();
+        assert_eq!(image.invert().unwrap().pixels(), &[0xff, 0xfe]);
+    }
+
+    #[test]
+    fn brightness_adds_and_clamps_color_channels() {
+        let image = Image::new(1, 1, PixelFormat::Rgba8, vec![10, 200, 255, 50]).unwrap();
+        assert_eq!(image.brightness(40).unwrap().pixels(), &[50, 240, 255, 50]);
+        assert_eq!(image.brightness(-20).unwrap().pixels(), &[0, 180, 235, 50]);
+    }
+
+    #[test]
+    fn brightness_16bit_scales_delta() {
+        let image = Image::new(1, 1, PixelFormat::Gray16Be, vec![0x10, 0x00]).unwrap();
+        // delta 1 -> +257 in 16-bit space: 0x1000 + 0x101 = 0x1101.
+        assert_eq!(image.brightness(1).unwrap().pixels(), &[0x11, 0x01]);
+    }
+
+    #[test]
+    fn contrast_scales_around_midpoint() {
+        let image = Image::new(1, 1, PixelFormat::Rgb8, vec![64, 128, 192]).unwrap();
+        // factor 2.0: (64-128)*2+128=0, (128-128)*2+128=128, (192-128)*2+128=256->255.
+        assert_eq!(image.contrast(2.0).unwrap().pixels(), &[0, 128, 255]);
+    }
+
+    #[test]
+    fn contrast_rejects_negative_factor() {
+        let image = Image::new(1, 1, PixelFormat::Gray8, vec![10]).unwrap();
+        assert!(matches!(
+            image.contrast(-1.0),
+            Err(ImageError::InvalidOpParameter { .. })
+        ));
+    }
+
+    #[test]
+    fn gamma_transforms_normalized_channels() {
+        let image = Image::new(1, 1, PixelFormat::Gray8, vec![64]).unwrap();
+        // (64/255)^(1/2) * 255 = sqrt(0.25098) * 255 ≈ 127.75 -> 128.
+        assert_eq!(image.gamma(2.0).unwrap().pixels(), &[128]);
+        // Endpoints are fixed points.
+        let ends = Image::new(2, 1, PixelFormat::Gray8, vec![0, 255]).unwrap();
+        assert_eq!(ends.gamma(2.2).unwrap().pixels(), &[0, 255]);
+    }
+
+    #[test]
+    fn gamma_rejects_non_positive() {
+        let image = Image::new(1, 1, PixelFormat::Gray8, vec![10]).unwrap();
+        assert!(matches!(
+            image.gamma(0.0),
+            Err(ImageError::InvalidOpParameter { .. })
+        ));
+        assert!(matches!(
+            image.gamma(-2.0),
+            Err(ImageError::InvalidOpParameter { .. })
+        ));
+    }
+
+    #[test]
+    fn threshold_binarizes_color_channels_only() {
+        let image = Image::new(1, 1, PixelFormat::Rgba8, vec![100, 128, 200, 5]).unwrap();
+        assert_eq!(image.threshold(128).unwrap().pixels(), &[0, 255, 255, 5]);
+    }
+
+    #[test]
+    fn levels_remaps_and_rejects_bad_params() {
+        let image = Image::new(3, 1, PixelFormat::Gray8, vec![0, 64, 255]).unwrap();
+        // black=64, white=192, gamma=1.0: values below 64 -> 0, 64 -> 0, 255 -> 255.
+        assert_eq!(image.levels(64, 192, 1.0).unwrap().pixels(), &[0, 0, 255]);
+        assert!(matches!(
+            image.levels(200, 100, 1.0),
+            Err(ImageError::InvalidOpParameter { .. })
+        ));
+        assert!(matches!(
+            image.levels(0, 255, 0.0),
+            Err(ImageError::InvalidOpParameter { .. })
+        ));
+    }
+
+    #[test]
+    fn color_ops_preserve_dimensions_and_format() {
+        let image =
+            Image::new(2, 2, PixelFormat::Rgb8, (0..12).map(|i| i as u8).collect()).unwrap();
+        for out in [
+            image.invert().unwrap(),
+            image.brightness(10).unwrap(),
+            image.contrast(1.5).unwrap(),
+            image.gamma(1.8).unwrap(),
+            image.threshold(100).unwrap(),
+            image.levels(0, 255, 1.2).unwrap(),
+            image.grayscale().unwrap(),
+        ] {
+            assert_eq!(out.width(), 2);
+            assert_eq!(out.height(), 2);
+            assert_eq!(out.pixel_format(), PixelFormat::Rgb8);
+            assert_eq!(out.pixels().len(), 12);
         }
     }
 }
