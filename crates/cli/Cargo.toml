@@ -9,13 +9,17 @@ publish.workspace = true
 imx-core = { workspace = true }
 imx-codec-bmp = { workspace = true }
 imx-codec-farbfeld = { workspace = true }
+imx-codec-gif = { workspace = true }
 imx-codec-jpeg = { workspace = true }
 imx-codec-png = { workspace = true }
 imx-codec-pnm = { workspace = true }
 imx-codec-qoi = { workspace = true }
+imx-codec-webp = { workspace = true }
 
 [dev-dependencies]
 png = "0.18.1"
+image-webp = "0.2.4"
+gif = "0.14.2"
 
 [[bin]]
 name = "imx"

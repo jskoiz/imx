@@ -10,10 +10,12 @@ members = [
   "crates/core",
   "crates/codecs/bmp",
   "crates/codecs/farbfeld",
+  "crates/codecs/gif",
   "crates/codecs/jpeg",
   "crates/codecs/png",
   "crates/codecs/pnm",
   "crates/codecs/qoi",
+  "crates/codecs/webp",
   "crates/cli",
 ]
 resolver = "2"
@@ -27,19 +29,23 @@ publish = false
 imx-core = { path = "crates/core" }
 imx-codec-bmp = { path = "crates/codecs/bmp" }
 imx-codec-farbfeld = { path = "crates/codecs/farbfeld" }
+imx-codec-gif = { path = "crates/codecs/gif" }
 imx-codec-jpeg = { path = "crates/codecs/jpeg" }
 imx-codec-png = { path = "crates/codecs/png" }
 imx-codec-pnm = { path = "crates/codecs/pnm" }
 imx-codec-qoi = { path = "crates/codecs/qoi" }
+imx-codec-webp = { path = "crates/codecs/webp" }
 
 [dependencies]
 imx-core = { workspace = true }
 imx-codec-bmp = { workspace = true }
 imx-codec-farbfeld = { workspace = true }
+imx-codec-gif = { workspace = true }
 imx-codec-jpeg = { workspace = true }
 imx-codec-png = { workspace = true }
 imx-codec-pnm = { workspace = true }
 imx-codec-qoi = { workspace = true }
+imx-codec-webp = { workspace = true }
 
 [dev-dependencies]
 jpeg-encoder = "0.7.0"
