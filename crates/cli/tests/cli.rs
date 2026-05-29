@@ -2578,6 +2578,8 @@ fn help_and_version_are_available() {
             assert!(stdout.contains("imx resize <width>x<height>"));
             assert!(stdout.contains("imx resize-fit <width>x<height>"));
             assert!(stdout.contains("imx batch-convert --to <FORMAT> --output-dir <dir>"));
+            assert!(stdout.contains("imx compare [--metric <ae|mae|psnr>]"));
+            assert!(stdout.contains("supported compare:"));
             assert!(stdout.contains("imx self-test"));
             assert!(stdout.contains("offline install confidence check"));
             assert!(stdout.contains("nearest-neighbor exact dimensions (<width>x<height>)"));
@@ -2597,6 +2599,190 @@ fn help_and_version_are_available() {
             assert!(stdout.contains("TIFF:"));
         }
     }
+}
+
+fn write_png(path: &Path, image: &Image) {
+    fs::write(path, imx_codec_png::encode(image).unwrap()).unwrap();
+}
+
+fn rgb_image(width: u32, height: u32, fill: [u8; 3]) -> Image {
+    let mut pixels = Vec::with_capacity((width * height * 3) as usize);
+    for _ in 0..(width * height) {
+        pixels.extend_from_slice(&fill);
+    }
+    Image::new(width, height, PixelFormat::Rgb8, pixels).unwrap()
+}
+
+#[test]
+fn compare_identical_images_prints_identical_and_exits_zero() {
+    let dir = temp_dir("compare_identical");
+    let a = dir.join("a.png");
+    let b = dir.join("b.png");
+    let image = rgb_image(4, 4, [10, 20, 30]);
+    write_png(&a, &image);
+    write_png(&b, &image);
+
+    let output = Command::new(imx())
+        .args(["compare", a.to_str().unwrap(), b.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap().trim(),
+        "identical"
+    );
+}
+
+#[test]
+fn compare_one_pixel_difference_reports_stats_and_exits_one() {
+    let dir = temp_dir("compare_one_pixel");
+    let a = dir.join("a.png");
+    let b = dir.join("b.png");
+    let base = rgb_image(2, 2, [0, 0, 0]);
+    write_png(&a, &base);
+    // Flip a single channel of one pixel.
+    let mut pixels = base.pixels().to_vec();
+    pixels[0] = 200;
+    let changed = Image::new(2, 2, PixelFormat::Rgb8, pixels).unwrap();
+    write_png(&b, &changed);
+
+    let output = Command::new(imx())
+        .args(["compare", a.to_str().unwrap(), b.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.starts_with("differ: 1/4 pixels"), "got {stdout:?}");
+    assert!(stdout.contains("ae=200"), "got {stdout:?}");
+    assert!(stdout.contains("mae="), "got {stdout:?}");
+}
+
+#[test]
+fn compare_dimension_mismatch_reports_differ_without_stats() {
+    let dir = temp_dir("compare_dim_mismatch");
+    let a = dir.join("a.png");
+    let b = dir.join("b.png");
+    write_png(&a, &rgb_image(4, 4, [1, 2, 3]));
+    write_png(&b, &rgb_image(2, 2, [1, 2, 3]));
+
+    let output = Command::new(imx())
+        .args(["compare", a.to_str().unwrap(), b.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert_eq!(stdout.trim(), "differ: dimensions 4x4 vs 2x2");
+    assert!(!stdout.contains("pixels"), "got {stdout:?}");
+}
+
+#[test]
+fn compare_metric_mae_on_identical_prints_zero() {
+    let dir = temp_dir("compare_metric_mae");
+    let a = dir.join("a.png");
+    let b = dir.join("b.png");
+    let image = rgb_image(3, 3, [7, 7, 7]);
+    write_png(&a, &image);
+    write_png(&b, &image);
+
+    let output = Command::new(imx())
+        .args([
+            "compare",
+            "--metric",
+            "mae",
+            a.to_str().unwrap(),
+            b.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), "0.000000");
+}
+
+#[test]
+fn compare_metric_psnr_on_identical_prints_inf() {
+    let dir = temp_dir("compare_metric_psnr");
+    let a = dir.join("a.png");
+    let b = dir.join("b.png");
+    let image = rgb_image(3, 3, [9, 9, 9]);
+    write_png(&a, &image);
+    write_png(&b, &image);
+
+    let output = Command::new(imx())
+        .args([
+            "compare",
+            "--metric",
+            "psnr",
+            a.to_str().unwrap(),
+            b.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), "inf");
+}
+
+#[test]
+fn compare_is_deterministic_across_runs() {
+    let dir = temp_dir("compare_determinism");
+    let a = dir.join("a.png");
+    let b = dir.join("b.png");
+    write_png(&a, &rgb_image(4, 4, [0, 0, 0]));
+    let mut pixels = rgb_image(4, 4, [0, 0, 0]).pixels().to_vec();
+    pixels[5] = 17;
+    write_png(&b, &Image::new(4, 4, PixelFormat::Rgb8, pixels).unwrap());
+
+    let run = || {
+        Command::new(imx())
+            .args(["compare", a.to_str().unwrap(), b.to_str().unwrap()])
+            .output()
+            .unwrap()
+    };
+    let first = run();
+    let second = run();
+    assert_eq!(first.stdout, second.stdout);
+    assert_eq!(first.status.code(), second.status.code());
+    assert_eq!(first.status.code(), Some(1));
+}
+
+#[test]
+fn compare_missing_operand_is_usage_error() {
+    let dir = temp_dir("compare_missing_operand");
+    let a = dir.join("a.png");
+    write_png(&a, &rgb_image(2, 2, [0, 0, 0]));
+    let output = Command::new(imx())
+        .args(["compare", a.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert_failure(output, 2, "usage:");
+}
+
+#[test]
+fn compare_unknown_metric_is_usage_error() {
+    let dir = temp_dir("compare_unknown_metric");
+    let a = dir.join("a.png");
+    let b = dir.join("b.png");
+    write_png(&a, &rgb_image(2, 2, [0, 0, 0]));
+    write_png(&b, &rgb_image(2, 2, [0, 0, 0]));
+    let output = Command::new(imx())
+        .args([
+            "compare",
+            "--metric",
+            "bogus",
+            a.to_str().unwrap(),
+            b.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert_failure(output, 2, "invalid --metric value");
+}
+
+#[test]
+fn compare_both_stdin_is_usage_error() {
+    let output = Command::new(imx())
+        .args(["compare", "PNG:-", "PNG:-"])
+        .output()
+        .unwrap();
+    assert_failure(output, 2, "at most one compare operand");
 }
 
 #[test]
