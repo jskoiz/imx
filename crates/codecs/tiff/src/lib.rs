@@ -1,11 +1,12 @@
 use std::io::Cursor;
 
 use imx_core::{
-    pixel_len, try_vec_with_capacity, Format, Identify, Image, ImageError, PixelFormat,
-    MAX_PIXEL_BYTES,
+    apply_exif_orientation, exif_oriented_dimensions, pixel_len, try_vec_with_capacity, Format,
+    Identify, Image, ImageError, PixelFormat, MAX_PIXEL_BYTES,
 };
 use tiff::decoder::{Decoder, DecodingResult, Limits};
 use tiff::encoder::{colortype, TiffEncoder};
+use tiff::tags::Tag;
 use tiff::{ColorType, TiffError};
 
 /// Little-endian TIFF magic (`II\x2a\x00`).
@@ -17,8 +18,20 @@ pub const MAGIC_LEN: usize = 4;
 
 /// Identify a TIFF image without fully decoding its pixels.
 ///
+/// Equivalent to [`identify_with_options`] with `auto_orient` set to `true`.
 /// Only the first IFD is inspected; additional pages are ignored.
 pub fn identify(input: &[u8]) -> Result<Identify, ImageError> {
+    identify_with_options(input, true)
+}
+
+/// Identify a TIFF image without fully decoding its pixels.
+///
+/// When `auto_orient` is `true`, the reported dimensions reflect the TIFF
+/// Orientation tag (tag 274; values 5..=8 swap width and height). When it is
+/// `false`, the raw stored dimensions are reported. A missing or malformed
+/// Orientation tag is treated as orientation 1 (no-op). Only the first IFD is
+/// inspected; additional pages are ignored.
+pub fn identify_with_options(input: &[u8], auto_orient: bool) -> Result<Identify, ImageError> {
     let mut decoder = decoder(input, "identify")?;
     let (width, height) = decoder
         .dimensions()
@@ -28,6 +41,11 @@ pub fn identify(input: &[u8]) -> Result<Identify, ImageError> {
         .map_err(|err| tiff_error("identify", err))?;
     let pixel_format = supported_pixel_format(color)?;
     let _ = pixel_len(width, height, pixel_format.bytes_per_pixel())?;
+    let (width, height) = if auto_orient {
+        exif_oriented_dimensions(tiff_orientation(&mut decoder), width, height)
+    } else {
+        (width, height)
+    };
     Ok(Identify {
         format: Format::Tiff,
         width,
@@ -38,9 +56,22 @@ pub fn identify(input: &[u8]) -> Result<Identify, ImageError> {
 
 /// Decode the first image in a TIFF stream into an [`Image`].
 ///
+/// Equivalent to [`decode_with_options`] with `auto_orient` set to `true`.
 /// Only the first IFD is decoded; additional pages are ignored. Malformed
 /// input is rejected with an [`ImageError`]; decoding never panics.
 pub fn decode(input: &[u8]) -> Result<Image, ImageError> {
+    decode_with_options(input, true)
+}
+
+/// Decode the first image in a TIFF stream into an [`Image`].
+///
+/// When `auto_orient` is `true`, the TIFF Orientation tag (tag 274) is applied
+/// so the returned [`Image`] is upright. When it is `false`, the raw stored
+/// pixels are returned. A missing or malformed Orientation tag is treated as
+/// orientation 1 (no-op). Only the first IFD is decoded; additional pages are
+/// ignored. Malformed input is rejected with an [`ImageError`]; decoding never
+/// panics.
+pub fn decode_with_options(input: &[u8], auto_orient: bool) -> Result<Image, ImageError> {
     let mut decoder = decoder(input, "decode")?;
     let (width, height) = decoder
         .dimensions()
@@ -50,6 +81,11 @@ pub fn decode(input: &[u8]) -> Result<Image, ImageError> {
         .map_err(|err| tiff_error("decode", err))?;
     let pixel_format = supported_pixel_format(color)?;
     let expected = pixel_len(width, height, pixel_format.bytes_per_pixel())?;
+    let orientation = if auto_orient {
+        tiff_orientation(&mut decoder)
+    } else {
+        1
+    };
 
     let result = decoder
         .read_image()
@@ -76,7 +112,21 @@ pub fn decode(input: &[u8]) -> Result<Image, ImageError> {
         });
     }
 
-    Image::new(width, height, pixel_format, pixels)
+    let image = Image::new(width, height, pixel_format, pixels)?;
+    apply_exif_orientation(image, orientation)
+}
+
+/// Read the TIFF Orientation tag (274) from the decoder's current IFD.
+///
+/// Any missing tag, unexpected value, or read error is reported as orientation
+/// `1` (no-op), so a non-conforming Orientation tag never fails decoding. The
+/// returned value is clamped to the valid `1..=8` range expected by
+/// [`imx_core::apply_exif_orientation`].
+fn tiff_orientation<R: std::io::Read + std::io::Seek>(decoder: &mut Decoder<R>) -> u16 {
+    match decoder.find_tag_unsigned::<u16>(Tag::Orientation) {
+        Ok(Some(value @ 1..=8)) => value,
+        _ => 1,
+    }
 }
 
 /// Encode an [`Image`] as a deterministic little-endian baseline TIFF.
@@ -361,5 +411,63 @@ mod tests {
         if let ImageError::UnsupportedFormat(message) = err {
             assert!(message.contains("identify"), "{message}");
         }
+    }
+
+    /// Encode an RGB8 image as a TIFF carrying an explicit Orientation tag.
+    fn rgb8_tiff_with_orientation(image: &Image, orientation: u16) -> Vec<u8> {
+        let mut out = Vec::new();
+        {
+            let mut encoder = TiffEncoder::new(Cursor::new(&mut out)).unwrap();
+            let mut image_encoder = encoder
+                .new_image::<colortype::RGB8>(image.width(), image.height())
+                .unwrap();
+            image_encoder
+                .encoder()
+                .write_tag(Tag::Orientation, orientation)
+                .unwrap();
+            image_encoder.write_data(image.pixels()).unwrap();
+        }
+        out
+    }
+
+    #[test]
+    fn auto_orient_option_toggles_tiff_orientation() {
+        let image = Image::new(
+            3,
+            2,
+            PixelFormat::Rgb8,
+            vec![
+                10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180,
+            ],
+        )
+        .unwrap();
+        let tiff = rgb8_tiff_with_orientation(&image, 6);
+
+        // Raw decode: stored dimensions and pixels, orientation ignored.
+        assert_eq!(
+            identify_with_options(&tiff, false).unwrap().stable_line(),
+            "format=TIFF width=3 height=2 channels=RGB depth=8"
+        );
+        assert_eq!(decode_with_options(&tiff, false).unwrap(), image);
+
+        // Auto-orient (default): rotate 90 CW swaps dimensions and normalizes.
+        assert_eq!(
+            identify(&tiff).unwrap().stable_line(),
+            "format=TIFF width=2 height=3 channels=RGB depth=8"
+        );
+        let expected = imx_core::apply_exif_orientation(image, 6).unwrap();
+        assert_eq!(decode(&tiff).unwrap(), expected);
+    }
+
+    #[test]
+    fn tiff_without_orientation_tag_is_unchanged() {
+        let image = Image::new(3, 2, PixelFormat::Rgb8, vec![0x80; 3 * 2 * 3]).unwrap();
+        let tiff = encode(&image).unwrap();
+        // No Orientation tag means orientation 1, so default decode equals raw.
+        assert_eq!(decode(&tiff).unwrap(), image);
+        assert_eq!(
+            identify(&tiff).unwrap().stable_line(),
+            "format=TIFF width=3 height=2 channels=RGB depth=8"
+        );
     }
 }

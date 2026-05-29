@@ -415,23 +415,29 @@ fn jpeg_rejects_malformed_and_unsupported_inputs() {
         .to_string()
         .contains("JPEG CMYK is not supported"));
 
+    // Out-of-range, malformed, and bad-offset EXIF Orientation metadata must
+    // never fail the decode: each is tolerated as orientation 1 (no-op), so
+    // identify/decode succeed and report the raw stored 8x8 dimensions.
+    let expected_line = "format=JPEG width=8 height=8 channels=RGB depth=8";
     let invalid_orientation = jpeg_with_exif_orientation(&jpeg, 9);
-    assert!(imx_codec_jpeg::identify(&invalid_orientation)
-        .unwrap_err()
-        .to_string()
-        .contains("JPEG EXIF Orientation value 9 is not supported"));
+    assert_eq!(
+        imx_codec_jpeg::identify(&invalid_orientation)
+            .unwrap()
+            .stable_line(),
+        expected_line
+    );
 
     let bad_endian = jpeg_with_exif_app1(&jpeg, b"Exif\0\0ZZ\0*\0\0\0\x08");
-    assert!(imx_codec_jpeg::identify(&bad_endian)
-        .unwrap_err()
-        .to_string()
-        .contains("JPEG EXIF Orientation metadata is malformed"));
+    assert_eq!(
+        imx_codec_jpeg::identify(&bad_endian).unwrap().stable_line(),
+        expected_line
+    );
 
     let bad_offset = jpeg_with_exif_app1(&jpeg, b"Exif\0\0MM\0*\xff\xff\xff\xf0");
-    assert!(imx_codec_jpeg::decode(&bad_offset)
-        .unwrap_err()
-        .to_string()
-        .contains("JPEG EXIF Orientation metadata is malformed"));
+    assert_eq!(
+        imx_codec_jpeg::decode(&bad_offset).unwrap(),
+        imx_codec_jpeg::decode(&jpeg).unwrap()
+    );
 
     let rgba = Image::new(1, 1, PixelFormat::Rgba8, vec![255, 0, 0, 128]).unwrap();
     assert!(imx_codec_jpeg::encode(&rgba)

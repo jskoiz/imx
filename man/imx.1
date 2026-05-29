@@ -156,6 +156,14 @@ Aspect-preserving fit applied to each input during
 .B \-\-quality <1..=100>
 JPEG output quality (default 90). Applies only when the output format is JPEG;
 rejected for non-JPEG output.
+.TP
+.B \-\-no\-auto\-orient
+Disable EXIF/TIFF Orientation auto-rotation on decode. By default the
+Orientation tag (values 1\(en8) is applied so JPEG and TIFF images decode
+upright, swapping reported width and height for the rotated orientations
+(5\(en8). This global flag keeps the raw stored pixels and dimensions instead.
+Missing or malformed orientation metadata is always treated as orientation 1
+(no-op).
 .SH FORMATS
 Supported formats (read and write):
 .B bmp

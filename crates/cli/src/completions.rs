@@ -17,7 +17,7 @@ _imx() {
     }
 
     local subcommands="identify report resize resize-fit crop rotate flip flop batch-convert self-test completions"
-    local global_flags="--help -h --version -V"
+    local global_flags="--help -h --version -V --no-auto-orient"
 
     # Complete the subcommand in the first position.
     if [ "${COMP_CWORD}" -eq 1 ]; then
@@ -100,6 +100,7 @@ _imx() {
     _arguments -C \
         '(- *)'{-h,--help}'[Show help]' \
         '(- *)'{-V,--version}'[Show version]' \
+        '--no-auto-orient[Disable EXIF/TIFF orientation auto-rotation]' \
         '1: :->command' \
         '*:: :->args' \
         && return 0
@@ -155,6 +156,7 @@ end
 # Top-level flags.
 complete -c imx -n '__fish_imx_no_subcommand' -s h -l help -d 'Show help'
 complete -c imx -n '__fish_imx_no_subcommand' -s V -l version -d 'Show version'
+complete -c imx -n '__fish_imx_no_subcommand' -l no-auto-orient -d 'Disable EXIF/TIFF orientation auto-rotation'
 
 # Subcommands.
 complete -c imx -f -n '__fish_imx_no_subcommand' -a identify -d 'Print stable image metadata'

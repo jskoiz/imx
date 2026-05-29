@@ -3,6 +3,7 @@ use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use imx_core::{compare_rgba8, Format, Identify, ImageError, ResizeGeometry, MAX_PIXEL_BYTES};
@@ -11,9 +12,18 @@ mod completions;
 
 const MAX_INPUT_BYTES: u64 = MAX_PIXEL_BYTES as u64 + 1024 * 1024;
 
+/// Whether EXIF/TIFF Orientation is auto-applied on decode. On by default;
+/// cleared by the global `--no-auto-orient` flag. Read by [`decode_image`] and
+/// [`identify_bytes`] so every decode path honors the same setting.
+static AUTO_ORIENT: AtomicBool = AtomicBool::new(true);
+
+fn auto_orient() -> bool {
+    AUTO_ORIENT.load(Ordering::Relaxed)
+}
+
 fn usage() -> ! {
     eprintln!(
-        "usage:\n  imx --help\n  imx --version\n  imx identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.tif|input.tiff|input.webp|FORMAT:->\n  imx identify --json [FORMAT:]<input|FORMAT:->\n  imx report --json [FORMAT:]<input|FORMAT:->\n  imx compare [--metric <ae|mae|psnr>] [FORMAT:]<a|FORMAT:-> [FORMAT:]<b>\n  imx resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx completions <bash|zsh|fish>\n  imx self-test\n  imx [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported formats: bmp (.bmp), farbfeld (.ff, .farbfeld), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm), tiff (.tif, .tiff), webp (.webp)\ninput-only formats: gif (.gif)\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, TIFF:, WEBP:\ninput-only prefixes: GIF:\nstdin/stdout: use - as a path with a FORMAT: prefix (e.g. PNG:-); --quality applies only to JPEG output"
+        "usage:\n  imx --help\n  imx --version\n  imx [--no-auto-orient] identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.tif|input.tiff|input.webp|FORMAT:->\n  imx [--no-auto-orient] identify --json [FORMAT:]<input|FORMAT:->\n  imx [--no-auto-orient] report --json [FORMAT:]<input|FORMAT:->\n  imx [--no-auto-orient] compare [--metric <ae|mae|psnr>] [FORMAT:]<a|FORMAT:-> [FORMAT:]<b>\n  imx [--no-auto-orient] resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx [--no-auto-orient] resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx [--no-auto-orient] crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] flip [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] flop [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx completions <bash|zsh|fish>\n  imx self-test\n  imx [--no-auto-orient] [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported formats: bmp (.bmp), farbfeld (.ff, .farbfeld), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm), tiff (.tif, .tiff), webp (.webp)\ninput-only formats: gif (.gif)\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, TIFF:, WEBP:\ninput-only prefixes: GIF:\nsupported orientation: EXIF/TIFF Orientation is auto-applied on decode for JPEG and TIFF so images are upright; pass --no-auto-orient to keep raw stored pixels and dimensions\nstdin/stdout: use - as a path with a FORMAT: prefix (e.g. PNG:-); --quality applies only to JPEG output"
     );
     process::exit(2);
 }
@@ -43,11 +53,11 @@ fn fail_image_operation(
 }
 
 fn main() {
-    let args = env::args().collect::<Vec<_>>();
+    let args = strip_auto_orient_flag(env::args().collect::<Vec<_>>());
     match args.as_slice() {
         [_, flag] if flag == "--help" || flag == "-h" || flag == "help" => {
             println!(
-                "IMX Developer Preview\n\nusage:\n  imx identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.tif|input.tiff|input.webp|FORMAT:->\n  imx identify --json [FORMAT:]<input|FORMAT:->\n  imx report --json [FORMAT:]<input|FORMAT:->\n  imx compare [--metric <ae|mae|psnr>] [FORMAT:]<a|FORMAT:-> [FORMAT:]<b>\n  imx resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx completions <bash|zsh|fish>\n  imx self-test\n  imx [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported transcodes: BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM/TIFF/WEBP, including deterministic same-format rewrites except lossy JPEG re-encoding; WEBP output is lossless\nsupported input-only formats: GIF decode and identify, including transcode into any supported output format; the GIF decoder reads only the first frame and ignores animation\nsupported streaming: read input from stdin and/or write output to stdout via - with a FORMAT: prefix (e.g. PNG:-); only image bytes go to stdout\nsupported JPEG quality: --quality <1..=100> on the single transcode and batch-convert when the output format is JPEG (default 90); rejected for non-JPEG output\nsupported identify JSON: deterministic schema_version/format/width/height/channels/depth over existing identify metadata\nsupported report JSON: single-input supported/unsupported status with stable diagnostic_code values\nsupported compare: decode two inputs and diff them deterministically; differing dimensions or channels print a single differ: line and exit 1, matching images normalize to RGBA8 and report differing-pixel count, peak per-channel difference (AE), and mean absolute error (MAE); identical inputs print identical and exit 0, otherwise exit 1; --metric <ae|mae|psnr> prints only that single value (psnr is inf for identical inputs); usage errors exit 2\nsupported resize: nearest-neighbor exact dimensions (<width>x<height>), single-axis aspect-preserving (<width>x or x<height>), and uniform percent (<percent>%) geometries, plus aspect-preserving fit (resize-fit) for existing supported formats\nsupported geometry: bounds-checked crop (<width>x<height>+<x>+<y>), clockwise rotate (90/180/270), vertical flip, and horizontal flop, all format-preserving\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, optional --quality for JPEG output, no overwrite or collision renaming\nsupported completions: imx completions <bash|zsh|fish> prints a shell completion script to stdout; a roff man page is bundled at man/imx.1\nsupported self-test: offline install confidence check for identify/transcode/resize/resize-fit/batch-convert across supported formats\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, TIFF:, WEBP:\ninput-only prefixes: GIF:\nunsupported: GIF as output target, GIF animation/multi-frame decoding, recursive directory walking, arbitrary-angle rotation, delegates, color management, and formats beyond BMP/FARBFELD/GIF/JPEG/QOI/PBM/PGM/PNG/PPM/TIFF/WEBP"
+                "IMX Developer Preview\n\nusage:\n  imx [--no-auto-orient] identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.tif|input.tiff|input.webp|FORMAT:->\n  imx [--no-auto-orient] identify --json [FORMAT:]<input|FORMAT:->\n  imx [--no-auto-orient] report --json [FORMAT:]<input|FORMAT:->\n  imx [--no-auto-orient] compare [--metric <ae|mae|psnr>] [FORMAT:]<a|FORMAT:-> [FORMAT:]<b>\n  imx [--no-auto-orient] resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx [--no-auto-orient] resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx [--no-auto-orient] crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] flip [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] flop [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx completions <bash|zsh|fish>\n  imx self-test\n  imx [--no-auto-orient] [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported transcodes: BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM/TIFF/WEBP, including deterministic same-format rewrites except lossy JPEG re-encoding; WEBP output is lossless\nsupported input-only formats: GIF decode and identify, including transcode into any supported output format; the GIF decoder reads only the first frame and ignores animation\nsupported orientation: EXIF/TIFF Orientation (values 1-8) is auto-applied on decode for JPEG and TIFF so portrait photos come out upright; rotated orientations (5-8) swap reported width and height; pass --no-auto-orient to disable and keep the raw stored pixels and dimensions; missing or malformed orientation metadata is treated as orientation 1 (no-op)\nsupported streaming: read input from stdin and/or write output to stdout via - with a FORMAT: prefix (e.g. PNG:-); only image bytes go to stdout\nsupported JPEG quality: --quality <1..=100> on the single transcode and batch-convert when the output format is JPEG (default 90); rejected for non-JPEG output\nsupported identify JSON: deterministic schema_version/format/width/height/channels/depth over existing identify metadata\nsupported report JSON: single-input supported/unsupported status with stable diagnostic_code values\nsupported compare: decode two inputs and diff them deterministically; differing dimensions or channels print a single differ: line and exit 1, matching images normalize to RGBA8 and report differing-pixel count, peak per-channel difference (AE), and mean absolute error (MAE); identical inputs print identical and exit 0, otherwise exit 1; --metric <ae|mae|psnr> prints only that single value (psnr is inf for identical inputs); usage errors exit 2\nsupported resize: nearest-neighbor exact dimensions (<width>x<height>), single-axis aspect-preserving (<width>x or x<height>), and uniform percent (<percent>%) geometries, plus aspect-preserving fit (resize-fit) for existing supported formats\nsupported geometry: bounds-checked crop (<width>x<height>+<x>+<y>), clockwise rotate (90/180/270), vertical flip, and horizontal flop, all format-preserving\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, optional --quality for JPEG output, no overwrite or collision renaming\nsupported completions: imx completions <bash|zsh|fish> prints a shell completion script to stdout; a roff man page is bundled at man/imx.1\nsupported self-test: offline install confidence check for identify/transcode/resize/resize-fit/batch-convert across supported formats\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, TIFF:, WEBP:\ninput-only prefixes: GIF:\nunsupported: GIF as output target, GIF animation/multi-frame decoding, recursive directory walking, arbitrary-angle rotation, delegates, color management, and formats beyond BMP/FARBFELD/GIF/JPEG/QOI/PBM/PGM/PNG/PPM/TIFF/WEBP"
             );
             process::exit(0);
         }
@@ -97,6 +107,24 @@ fn main() {
 
 fn is_unsupported_command_shape(command: &str) -> bool {
     matches!(command, "convert" | "magick" | "mogrify")
+}
+
+/// Remove every `--no-auto-orient` occurrence from the argument vector,
+/// recording whether it was present in [`AUTO_ORIENT`].
+///
+/// The flag is global and position-independent: it disables EXIF/TIFF
+/// Orientation auto-application on decode for whichever subcommand runs.
+/// Stripping it here keeps the positional subcommand matching in [`main`]
+/// unchanged. The program name (`args[0]`) is always preserved.
+fn strip_auto_orient_flag(args: Vec<String>) -> Vec<String> {
+    if args.iter().any(|arg| arg == "--no-auto-orient") {
+        AUTO_ORIENT.store(false, Ordering::Relaxed);
+    }
+    args.into_iter()
+        .enumerate()
+        .filter(|(index, arg)| *index == 0 || arg != "--no-auto-orient")
+        .map(|(_, arg)| arg)
+        .collect()
 }
 
 #[derive(Clone, Debug)]
@@ -728,13 +756,13 @@ fn identify_bytes(format: Format, input: &[u8]) -> Result<Identify, ImageError> 
         Format::Bmp => imx_codec_bmp::identify(input),
         Format::Farbfeld => imx_codec_farbfeld::identify(input),
         Format::Gif => imx_codec_gif::identify(input),
-        Format::Jpeg => imx_codec_jpeg::identify(input),
+        Format::Jpeg => imx_codec_jpeg::identify_with_options(input, auto_orient()),
         Format::Pbm => imx_codec_pnm::identify_pbm(input),
         Format::Pgm => imx_codec_pnm::identify_pgm(input),
         Format::Png => imx_codec_png::identify(input),
         Format::Ppm => imx_codec_pnm::identify_ppm(input),
         Format::Qoi => imx_codec_qoi::identify(input),
-        Format::Tiff => imx_codec_tiff::identify(input),
+        Format::Tiff => imx_codec_tiff::identify_with_options(input, auto_orient()),
         Format::Webp => imx_codec_webp::identify(input),
     }
 }
@@ -1017,13 +1045,13 @@ fn decode_image(format: Format, input: &[u8]) -> Result<imx_core::Image, ImageEr
         Format::Bmp => imx_codec_bmp::decode(input),
         Format::Farbfeld => imx_codec_farbfeld::decode(input),
         Format::Gif => imx_codec_gif::decode(input),
-        Format::Jpeg => imx_codec_jpeg::decode(input),
+        Format::Jpeg => imx_codec_jpeg::decode_with_options(input, auto_orient()),
         Format::Pbm => imx_codec_pnm::decode_pbm(input),
         Format::Pgm => imx_codec_pnm::decode_pgm(input),
         Format::Png => imx_codec_png::decode(input),
         Format::Ppm => imx_codec_pnm::decode_ppm(input),
         Format::Qoi => imx_codec_qoi::decode(input).and_then(|decoded| decoded.into_core_image()),
-        Format::Tiff => imx_codec_tiff::decode(input),
+        Format::Tiff => imx_codec_tiff::decode_with_options(input, auto_orient()),
         Format::Webp => imx_codec_webp::decode(input),
     }
 }

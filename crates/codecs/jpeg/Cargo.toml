@@ -16,6 +16,7 @@ readme = "README.md"
 imx-core = { workspace = true }
 jpeg-decoder = { version = "0.3.2", default-features = false, features = ["platform_independent"] }
 jpeg-encoder = "0.7.0"
+kamadak-exif = { workspace = true }
 
 [lib]
 path = "src/lib.rs"
