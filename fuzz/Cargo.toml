@@ -17,6 +17,7 @@ imx-codec-jpeg = { path = "../crates/codecs/jpeg" }
 imx-codec-png = { path = "../crates/codecs/png" }
 imx-codec-pnm = { path = "../crates/codecs/pnm" }
 imx-codec-qoi = { path = "../crates/codecs/qoi" }
+imx-codec-tiff = { path = "../crates/codecs/tiff" }
 imx-codec-webp = { path = "../crates/codecs/webp" }
 libfuzzer-sys = "0.4"
 
@@ -65,5 +66,11 @@ doc = false
 [[bin]]
 name = "gif_decode"
 path = "fuzz_targets/gif_decode.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "tiff_decode"
+path = "fuzz_targets/tiff_decode.rs"
 test = false
 doc = false

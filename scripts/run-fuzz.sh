@@ -54,7 +54,7 @@ copy_artifacts() {
 } >"$out_dir/summary.json"
 
 first=1
-for target in farbfeld_decode qoi_decode pnm_decode png_decode bmp_decode jpeg_decode webp_decode gif_decode; do
+for target in farbfeld_decode qoi_decode pnm_decode png_decode bmp_decode jpeg_decode webp_decode gif_decode tiff_decode; do
   log="$out_dir/$target.log"
   artifact_dir="$out_dir/artifacts/$target"
   mkdir -p "$artifact_dir"
