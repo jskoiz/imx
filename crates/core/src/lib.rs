@@ -740,6 +740,10 @@ pub enum ImageError {
         source_width: u32,
         source_height: u32,
     },
+    FrameIndexOutOfRange {
+        index: u32,
+        frame_count: u32,
+    },
     UnsupportedFormat(String),
 }
 
@@ -759,6 +763,7 @@ impl ImageError {
             Self::InvalidSampleValue { .. } => "pnm.invalid_sample_value",
             Self::InvalidPbmSample { .. } => "pbm.invalid_sample",
             Self::CropOutOfBounds { .. } => "image.crop_out_of_bounds",
+            Self::FrameIndexOutOfRange { .. } => "image.frame_index_out_of_range",
             Self::UnsupportedFormat(_) => "image.unsupported_format",
         }
     }
@@ -831,6 +836,12 @@ impl fmt::Display for ImageError {
                 write!(
                     f,
                     "crop region {width}x{height}+{x}+{y} exceeds {source_width}x{source_height} source bounds"
+                )
+            }
+            Self::FrameIndexOutOfRange { index, frame_count } => {
+                write!(
+                    f,
+                    "frame index {index} out of range: image has {frame_count} frame(s)"
                 )
             }
             Self::UnsupportedFormat(format) => write!(f, "unsupported format: {format}"),

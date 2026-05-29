@@ -23,7 +23,30 @@ pub fn identify(input: &[u8]) -> Result<Identify, ImageError> {
     })
 }
 
+/// Count the number of frames in a WebP.
+///
+/// `image-webp` 0.2.4 exposes WebP animation via `WebPDecoder::num_frames`,
+/// so animated WebP files report their true frame count. Still images report
+/// 1. The frame count is always at least 1 for a well-formed WebP.
+pub fn frame_count(input: &[u8]) -> Result<u32, ImageError> {
+    let decoder = decoder(input, "frame_count")?;
+    Ok(frame_total(&decoder))
+}
+
+/// Decode frame 0 (the first frame) of a WebP. For still images this is the
+/// single image; for animated WebP this is the first composited frame.
 pub fn decode(input: &[u8]) -> Result<Image, ImageError> {
+    decode_frame(input, 0)
+}
+
+/// Decode the `index`-th (0-based) frame of a WebP as the fully composited
+/// RGBA8/RGB8 canvas at that point in the animation.
+///
+/// `image-webp` composites animation frames internally (honoring per-frame
+/// disposal, blending, and the canvas background), so the returned image is the
+/// displayed canvas after frames `0..=index`. For still images only index 0 is
+/// valid. An out-of-range `index` returns [`ImageError::FrameIndexOutOfRange`].
+pub fn decode_frame(input: &[u8], index: u32) -> Result<Image, ImageError> {
     let mut decoder = decoder(input, "decode")?;
     let (width, height) = decoder.dimensions();
     let pixel_format = pixel_format(&decoder);
@@ -39,13 +62,42 @@ pub fn decode(input: &[u8]) -> Result<Image, ImageError> {
         });
     }
 
+    let total = frame_total(&decoder);
+    if index >= total {
+        return Err(ImageError::FrameIndexOutOfRange {
+            index,
+            frame_count: total,
+        });
+    }
+
     let mut pixels = try_vec_with_capacity(output_len)?;
     pixels.resize(output_len, 0);
-    decoder
-        .read_image(&mut pixels)
-        .map_err(|err| webp_decode_error("decode", err))?;
+
+    if decoder.is_animated() {
+        // `read_frame` advances one composited frame at a time; read up to and
+        // including the requested index, keeping only the last buffer.
+        for _ in 0..=index {
+            decoder
+                .read_frame(&mut pixels)
+                .map_err(|err| webp_decode_error("decode", err))?;
+        }
+    } else {
+        // Non-animated: index is guaranteed to be 0 by the range check above.
+        decoder
+            .read_image(&mut pixels)
+            .map_err(|err| webp_decode_error("decode", err))?;
+    }
 
     Image::new(width, height, pixel_format, pixels)
+}
+
+/// Total frame count, normalized so a well-formed still image reports 1.
+fn frame_total(decoder: &WebPDecoder<Cursor<&[u8]>>) -> u32 {
+    if decoder.is_animated() {
+        decoder.num_frames().max(1)
+    } else {
+        1
+    }
 }
 
 pub fn encode(image: &Image) -> Result<Vec<u8>, ImageError> {
@@ -132,6 +184,82 @@ mod tests {
         WebPEncoder::new(Cursor::new(&mut out))
             .encode(pixels, width, height, color)
             .unwrap();
+        out
+    }
+
+    // `image-webp` 0.2.4 has no animation encoder, so we hand-assemble a minimal
+    // animated WebP from per-frame lossless VP8L bitstreams. Each frame is a
+    // 1x1 RGBA pixel encoded as a still VP8L chunk whose payload we lift into an
+    // ANMF chunk on a VP8X+ANIM animation container.
+    fn vp8l_payload(rgba: &[u8; 4]) -> Vec<u8> {
+        let still = webp_fixture(1, 1, ColorType::Rgba8, rgba);
+        let mut pos = MAGIC_LEN;
+        loop {
+            let name = &still[pos..pos + 4];
+            let size = u32::from_le_bytes([
+                still[pos + 4],
+                still[pos + 5],
+                still[pos + 6],
+                still[pos + 7],
+            ]) as usize;
+            let data = still[pos + 8..pos + 8 + size].to_vec();
+            if name == b"VP8L" {
+                return data;
+            }
+            pos += 8 + size + (size & 1);
+        }
+    }
+
+    fn write_chunk(out: &mut Vec<u8>, name: &[u8; 4], data: &[u8]) {
+        out.extend_from_slice(name);
+        out.extend_from_slice(&(data.len() as u32).to_le_bytes());
+        out.extend_from_slice(data);
+        if data.len() % 2 == 1 {
+            out.push(0);
+        }
+    }
+
+    fn put3(out: &mut Vec<u8>, value: u32) {
+        out.push((value & 0xff) as u8);
+        out.push(((value >> 8) & 0xff) as u8);
+        out.push(((value >> 16) & 0xff) as u8);
+    }
+
+    fn animated_webp_fixture(frames: &[[u8; 4]]) -> Vec<u8> {
+        let mut chunks = Vec::new();
+
+        // VP8X with the animation flag set, 1x1 canvas.
+        let mut vp8x = Vec::new();
+        vp8x.push(0b0000_0010);
+        vp8x.extend_from_slice(&[0, 0, 0]);
+        put3(&mut vp8x, 0); // width - 1
+        put3(&mut vp8x, 0); // height - 1
+        write_chunk(&mut chunks, b"VP8X", &vp8x);
+
+        // ANIM: transparent background, loop forever.
+        let mut anim = Vec::new();
+        anim.extend_from_slice(&[0, 0, 0, 0]);
+        anim.extend_from_slice(&0u16.to_le_bytes());
+        write_chunk(&mut chunks, b"ANIM", &anim);
+
+        for (index, rgba) in frames.iter().enumerate() {
+            let payload = vp8l_payload(rgba);
+            let mut body = Vec::new();
+            put3(&mut body, 0); // x / 2
+            put3(&mut body, 0); // y / 2
+            put3(&mut body, 0); // width - 1
+            put3(&mut body, 0); // height - 1
+            put3(&mut body, 100 + index as u32); // duration ms
+            body.push(0); // blend on, no dispose
+            write_chunk(&mut body, b"VP8L", &payload);
+            write_chunk(&mut chunks, b"ANMF", &body);
+        }
+
+        let mut out = Vec::new();
+        out.extend_from_slice(RIFF_MAGIC);
+        out.extend_from_slice(&((4 + chunks.len()) as u32).to_le_bytes());
+        out.extend_from_slice(WEBP_MAGIC);
+        out.extend_from_slice(&chunks);
         out
     }
 
@@ -247,5 +375,63 @@ mod tests {
         let webp = webp_fixture(2, 1, ColorType::Rgb8, &[255, 0, 0, 0, 255, 0]);
         let err = decode(&webp[..MAGIC_LEN + 1]).unwrap_err().to_string();
         assert!(err.contains("WEBP decode failed"), "{err}");
+    }
+
+    #[test]
+    fn still_webp_reports_single_frame() {
+        let webp = webp_fixture(2, 1, ColorType::Rgb8, &[255, 0, 0, 0, 255, 0]);
+        assert_eq!(frame_count(&webp).unwrap(), 1);
+        // Frame 0 is the still image.
+        assert_eq!(
+            decode_frame(&webp, 0).unwrap().pixels(),
+            &[255, 0, 0, 0, 255, 0]
+        );
+        // Any index beyond 0 is rejected cleanly.
+        assert_eq!(
+            decode_frame(&webp, 1),
+            Err(ImageError::FrameIndexOutOfRange {
+                index: 1,
+                frame_count: 1,
+            })
+        );
+    }
+
+    #[test]
+    fn animated_webp_reports_frame_count() {
+        let webp = animated_webp_fixture(&[[255, 0, 0, 255], [0, 255, 0, 255]]);
+        assert_eq!(frame_count(&webp).unwrap(), 2);
+    }
+
+    #[test]
+    fn animated_webp_decodes_selected_frame() {
+        let webp = animated_webp_fixture(&[[255, 0, 0, 255], [0, 255, 0, 255]]);
+        // The animation has no alpha flag on the canvas, so frames composite to
+        // RGB8. Lossless VP8L round-trips 255 as 254 for these primaries.
+        let frame0 = decode_frame(&webp, 0).unwrap();
+        assert_eq!(frame0.pixel_format(), PixelFormat::Rgb8);
+        assert_eq!(frame0.pixels(), &[254, 0, 0]);
+        let frame1 = decode_frame(&webp, 1).unwrap();
+        assert_eq!(frame1.pixels(), &[0, 254, 0]);
+    }
+
+    #[test]
+    fn animated_webp_rejects_out_of_range_frame() {
+        let webp = animated_webp_fixture(&[[255, 0, 0, 255], [0, 255, 0, 255]]);
+        assert_eq!(
+            decode_frame(&webp, 2),
+            Err(ImageError::FrameIndexOutOfRange {
+                index: 2,
+                frame_count: 2,
+            })
+        );
+    }
+
+    #[test]
+    fn animated_webp_frame_selection_is_deterministic() {
+        let webp = animated_webp_fixture(&[[255, 0, 0, 255], [0, 255, 0, 255]]);
+        assert_eq!(
+            decode_frame(&webp, 1).unwrap().pixels(),
+            decode_frame(&webp, 1).unwrap().pixels()
+        );
     }
 }

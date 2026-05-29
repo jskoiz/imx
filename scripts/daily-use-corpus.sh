@@ -78,8 +78,9 @@ expected_report_json() {
   local height="$3"
   local channels="$4"
   local depth="$5"
-  printf '{"schema_version":1,"status":"supported","diagnostic_code":null,"format":"%s","width":%s,"height":%s,"channels":"%s","depth":%s}' \
-    "$format" "$width" "$height" "$channels" "$depth"
+  local frames="${6:-1}"
+  printf '{"schema_version":2,"status":"supported","diagnostic_code":null,"format":"%s","width":%s,"height":%s,"channels":"%s","depth":%s,"frames":%s}' \
+    "$format" "$width" "$height" "$channels" "$depth" "$frames"
 }
 
 assert_file_exact() {
@@ -99,13 +100,14 @@ assert_diagnostic_json() {
   local path="$1"
   local expected_status="$2"
   local expected_code="$3"
-  python3 - "$path" "$expected_status" "$expected_code" <<'PY'
+  local expected_schema="${4:-1}"
+  python3 - "$path" "$expected_status" "$expected_code" "$expected_schema" <<'PY'
 import json
 import sys
 
-path, expected_status, expected_code = sys.argv[1:4]
+path, expected_status, expected_code, expected_schema = sys.argv[1:5]
 payload = json.loads(open(path, encoding="utf-8").read())
-if payload.get("schema_version") != 1:
+if payload.get("schema_version") != int(expected_schema):
     raise SystemExit(f"{path}: schema_version mismatch: {payload!r}")
 if payload.get("status") != expected_status:
     raise SystemExit(f"{path}: status mismatch: {payload!r}")
@@ -132,6 +134,7 @@ run_supported_case() {
   local height="$6"
   local channels="$7"
   local depth="$8"
+  local frames="${9:-1}"
   local input="$fixture_dir/$file_name"
   local arg="$prefix:$input"
   local identify_json="$out_dir/$case_id.identify.json"
@@ -139,7 +142,7 @@ run_supported_case() {
   local expected_identify expected_report
   supported_cases=$((supported_cases + 1))
   expected_identify="$(expected_json "$format" "$width" "$height" "$channels" "$depth")"
-  expected_report="$(expected_report_json "$format" "$width" "$height" "$channels" "$depth")"
+  expected_report="$(expected_report_json "$format" "$width" "$height" "$channels" "$depth" "$frames")"
   if run_imx identify --json "$arg" >"$identify_json" 2>"$out_dir/$case_id.identify.stderr" &&
     assert_file_exact "$identify_json" "$expected_identify" &&
     run_imx report --json "$arg" >"$report_json" 2>"$out_dir/$case_id.report.stderr" &&
@@ -187,7 +190,7 @@ run_report_diagnostic_case() {
   local report_json="$out_dir/$case_id.report.json"
   diagnostic_cases=$((diagnostic_cases + 1))
   if run_imx report --json "$arg" >"$report_json" 2>"$out_dir/$case_id.report.stderr" &&
-    assert_diagnostic_json "$report_json" unsupported "$expected_code"; then
+    assert_diagnostic_json "$report_json" unsupported "$expected_code" 2; then
     record "diagnostic.$case_id" passed "report --json returned $expected_code"
     passes=$((passes + 1))
   else
@@ -269,6 +272,7 @@ run_supported_case intake-ppm-binary-comments PPM intake-ppm-binary-comments-crl
 run_supported_case intake-webp-rgb WEBP intake-webp-rgb-2x1.webp WEBP 2 1 RGB 8
 run_supported_case intake-webp-rgba WEBP intake-webp-rgba-2x1.webp WEBP 2 1 RGBA 8
 run_supported_case intake-gif-rgba GIF intake-gif-rgba-2x1.gif GIF 2 1 RGBA 8
+run_supported_case intake-gif-animated GIF intake-gif-animated-2x2-3frames.gif GIF 2 2 RGBA 8 3
 
 run_transcode_case bmp-to-ppm BMP gradient-64.bmp PPM bmp-to-ppm.ppm PPM 64 64 RGB 8
 run_transcode_case farbfeld-to-qoi FARBFELD gradient-64.ff QOI farbfeld-to-qoi.qoi QOI 64 64 RGBA 8

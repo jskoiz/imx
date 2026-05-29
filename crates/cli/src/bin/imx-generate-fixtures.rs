@@ -210,6 +210,24 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         &[10, 20, 30, 255, 40, 50, 60, 128],
     )?;
     let gif_rgba = encode_gif(2, 1, &[255, 0, 0, 255, 0, 255, 0, 255])?;
+    // Deterministic 3-frame animated GIF: a 2x2 canvas where each frame is a
+    // distinct full-canvas solid color with the default Keep disposal, so frame
+    // N composites to that frame's color across the whole canvas.
+    let gif_animated = encode_multiframe_gif(
+        2,
+        2,
+        &[
+            vec![
+                255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255,
+            ],
+            vec![
+                0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255,
+            ],
+            vec![
+                0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255,
+            ],
+        ],
+    )?;
 
     let files = [
         ("gradient-64.ff", gradient_ff),
@@ -276,6 +294,7 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         ("intake-webp-rgb-2x1.webp", webp_rgb),
         ("intake-webp-rgba-2x1.webp", webp_rgba),
         ("intake-gif-rgba-2x1.gif", gif_rgba),
+        ("intake-gif-animated-2x2-3frames.gif", gif_animated),
     ];
 
     let mut manifest = String::from("# IMX generated fixtures\n");
@@ -412,6 +431,23 @@ fn encode_gif(width: u16, height: u16, rgba: &[u8]) -> Result<Vec<u8>, Box<dyn s
         let mut pixels = rgba.to_vec();
         let frame = gif::Frame::from_rgba_speed(width, height, &mut pixels, 10);
         encoder.write_frame(&frame)?;
+    }
+    Ok(out)
+}
+
+fn encode_multiframe_gif(
+    width: u16,
+    height: u16,
+    frames: &[Vec<u8>],
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let mut out = Vec::new();
+    {
+        let mut encoder = gif::Encoder::new(&mut out, width, height, &[])?;
+        for rgba in frames {
+            let mut pixels = rgba.clone();
+            let frame = gif::Frame::from_rgba_speed(width, height, &mut pixels, 10);
+            encoder.write_frame(&frame)?;
+        }
     }
     Ok(out)
 }

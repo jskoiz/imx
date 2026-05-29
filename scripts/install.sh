@@ -126,7 +126,7 @@ if [ "$run_smoke" != "0" ] && [ "$run_smoke" != "false" ]; then
   printf 'P2\n2 1\n255\n0 255\n' >"$smoke_dir/fit-input.pgm"
   printf 'P1\n2 1\n0 1\n' >"$smoke_dir/fit-input.pbm"
   json_expected='{"schema_version":1,"format":"PPM","width":2,"height":1,"channels":"RGB","depth":8}'
-  report_expected='{"schema_version":1,"status":"supported","diagnostic_code":null,"format":"PPM","width":2,"height":1,"channels":"RGB","depth":8}'
+  report_expected='{"schema_version":2,"status":"supported","diagnostic_code":null,"format":"PPM","width":2,"height":1,"channels":"RGB","depth":8,"frames":1}'
   [ "$("$install_dir/imx" identify --json "PPM:$smoke_dir/fit-input.ppm")" = "$json_expected" ]
   [ "$("$install_dir/imx" report --json "PPM:$smoke_dir/fit-input.ppm")" = "$report_expected" ]
   "$install_dir/imx" identify "$smoke_dir/input.ppm" >/dev/null

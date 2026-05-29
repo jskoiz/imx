@@ -293,10 +293,11 @@ if identify != expected:
     raise SystemExit(f"{case_id}: identify JSON {identify!r} != expected {expected!r}")
 report = json.loads(open(report_path, encoding="utf-8").read())
 report_expected = {
-    "schema_version": 1,
+    "schema_version": 2,
     "status": "supported",
     "diagnostic_code": None,
     **{key: expected[key] for key in ("format", "width", "height", "channels", "depth")},
+    "frames": 1,
 }
 if report != report_expected:
     raise SystemExit(f"{case_id}: report JSON {report!r} != expected {report_expected!r}")
