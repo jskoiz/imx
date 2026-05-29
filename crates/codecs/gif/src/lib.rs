@@ -324,7 +324,10 @@ mod tests {
     use super::*;
     use gif::{Encoder, Frame};
 
-    fn gif_fixture(width: u16, height: u16, frames: &[(u16, u16, u16, u16, Vec<u8>)]) -> Vec<u8> {
+    type RgbaFrameSpec = (u16, u16, u16, u16, Vec<u8>);
+    type DisposingFrameSpec = (u16, u16, u16, u16, DisposalMethod, Vec<u8>);
+
+    fn gif_fixture(width: u16, height: u16, frames: &[RgbaFrameSpec]) -> Vec<u8> {
         let mut out = Vec::new();
         {
             let mut encoder = Encoder::new(&mut out, width, height, &[]).unwrap();
@@ -339,11 +342,7 @@ mod tests {
         out
     }
 
-    fn gif_fixture_with_dispose(
-        width: u16,
-        height: u16,
-        frames: &[(u16, u16, u16, u16, DisposalMethod, Vec<u8>)],
-    ) -> Vec<u8> {
+    fn gif_fixture_with_dispose(width: u16, height: u16, frames: &[DisposingFrameSpec]) -> Vec<u8> {
         let mut out = Vec::new();
         {
             let mut encoder = Encoder::new(&mut out, width, height, &[]).unwrap();
