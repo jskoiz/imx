@@ -2,10 +2,10 @@
 
 This change closes two output-side asymmetries.
 
-## WebP output (lossless)
+## WebP output (lossless still frames)
 
-WEBP is now a fully supported format: identify, decode, encode, and transcode.
-Previously it was input-only.
+WEBP is now supported for identify, decode, lossless still-frame encode, and
+transcode. Previously it was input-only.
 
 `imx_codec_webp::encode(&Image)` wraps `image-webp`'s `WebPEncoder`, which emits
 the lossless VP8L container. The `imx-core` `Image` is converted to the layout
@@ -46,9 +46,9 @@ imx batch-convert --to JPEG --output-dir /tmp/out --quality 95 in.png
 # the q40 output is smaller than the q95 output
 ```
 
-## Out of scope: GIF output
+## Out of scope: animated WebP output
 
-GIF remains input-only. GIF output requires palette color quantization, which is
-a separate, determinism-sensitive task. The GIF input-only rejection is
-unchanged, and attempting GIF as an output target (single transcode or
-`batch-convert --to GIF`) still fails with the input-only error.
+Animated WebP output remains unsupported because the pinned encoder only writes
+lossless still frames. GIF output is covered separately in
+[`docs/gif-output.md`](gif-output.md) and animated GIF assembly in
+[`docs/animation-output.md`](animation-output.md).

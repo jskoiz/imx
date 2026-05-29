@@ -1133,60 +1133,108 @@ pub fn exif_oriented_dimensions(orientation: u16, width: u32, height: u32) -> (u
     }
 }
 
+/// Error returned by `imx-core` and codec operations.
+///
+/// Each variant maps to a stable machine-readable diagnostic code through
+/// [`ImageError::diagnostic_code`]. The enum is non-exhaustive so 1.x releases
+/// can add more precise failure categories without breaking downstream
+/// callers; match it with a wildcard arm outside this crate.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ImageError {
+    /// The input bytes did not start with the expected container magic/header.
     InvalidHeader(&'static str),
+    /// Width or height was zero where a real raster dimension is required.
     InvalidDimensions,
+    /// A byte or pixel count overflowed while computing an allocation size.
     LengthOverflow,
+    /// A decoded or intermediate image would exceed [`MAX_PIXEL_BYTES`].
     ImageTooLarge {
+        /// Required byte count for the requested operation.
         required: usize,
+        /// Configured byte budget.
         limit: usize,
     },
+    /// The input ended before the declared payload size was available.
     UnexpectedEof {
+        /// Number of bytes the decoder expected.
         expected: usize,
+        /// Number of bytes actually present.
         actual: usize,
     },
+    /// The caller provided a pixel buffer whose length does not match metadata.
     InvalidPixelBuffer {
+        /// Required byte length for the image metadata.
         expected: usize,
+        /// Actual byte length supplied.
         actual: usize,
     },
+    /// A fallible reservation failed before pixels were written.
     AllocationFailed {
+        /// Requested allocation size in bytes.
         requested: usize,
     },
+    /// A QOI header declared an unsupported channel count.
     InvalidChannels {
+        /// Channel count from the source header.
         channels: u8,
     },
+    /// A QOI header declared an unsupported colorspace value.
     InvalidColorspace {
+        /// Colorspace value from the source header.
         colorspace: u8,
     },
+    /// A Netpbm maxval was outside the supported range for that format.
     InvalidMaxValue {
+        /// Format being decoded.
         format: &'static str,
+        /// Maxval found in the source header.
         max_value: u32,
+        /// Maximum maxval supported by this decoder path.
         max_supported: u32,
     },
+    /// A Netpbm sample exceeded the declared maxval.
     InvalidSampleValue {
+        /// Format being decoded.
         format: &'static str,
+        /// Sample value found in the source payload.
         sample_value: u32,
+        /// Declared maxval from the source header.
         max_value: u32,
     },
+    /// A plain PBM sample was neither ASCII `0` nor ASCII `1`.
     InvalidPbmSample {
+        /// Offending byte.
         byte: u8,
     },
+    /// A requested crop rectangle was empty or outside source bounds.
     CropOutOfBounds {
+        /// Left edge of the requested crop.
         x: u32,
+        /// Top edge of the requested crop.
         y: u32,
+        /// Requested crop width.
         width: u32,
+        /// Requested crop height.
         height: u32,
+        /// Source image width.
         source_width: u32,
+        /// Source image height.
         source_height: u32,
     },
+    /// The requested animation frame does not exist.
     FrameIndexOutOfRange {
+        /// Requested zero-based frame index.
         index: u32,
+        /// Number of frames available in the source.
         frame_count: u32,
     },
+    /// A parsed operation parameter was outside the accepted range.
     InvalidOpParameter {
+        /// Human-readable explanation of the invalid parameter.
         reason: String,
     },
+    /// The requested format or format variant is intentionally unsupported.
     UnsupportedFormat(String),
 }
 

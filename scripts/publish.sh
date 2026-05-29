@@ -18,6 +18,11 @@
 #   --yes        Confirm a real --execute run without an interactive prompt.
 #   -h|--help    Show usage.
 #
+#   IMX_PUBLISH_ALLOW_DIRTY_DRY_RUN=1
+#                Local PR-readiness only: pass --allow-dirty to dry-run publish
+#                commands so uncommitted changes can be packaged before a
+#                release commit exists. Real --execute publishes never use this.
+#
 # IMPORTANT about dry-run of dependents:
 #   Until imx-core (and the codec crates) actually exist on crates.io, a
 #   `cargo publish --dry-run` of any DEPENDENT crate fails while resolving the
@@ -131,6 +136,9 @@ echo
 if (( EXECUTE == 0 )); then
   echo "MODE: dry-run (cargo publish --dry-run). No crate will be published."
   echo "Pass --execute --yes to perform a real publish."
+  if [[ "${IMX_PUBLISH_ALLOW_DIRTY_DRY_RUN:-0}" == "1" ]]; then
+    echo "IMX_PUBLISH_ALLOW_DIRTY_DRY_RUN=1: dry-run publish will include uncommitted changes."
+  fi
   echo
 
   declare -a results=()
@@ -141,7 +149,11 @@ if (( EXECUTE == 0 )); then
   for crate in "${CRATES[@]}"; do
     echo ">>> dry-run: $crate"
     log="$(mktemp)"
-    if cargo publish --dry-run -p "$crate" >"$log" 2>&1; then
+    publish_args=(publish --dry-run -p "$crate")
+    if [[ "${IMX_PUBLISH_ALLOW_DIRTY_DRY_RUN:-0}" == "1" ]]; then
+      publish_args+=(--allow-dirty)
+    fi
+    if cargo "${publish_args[@]}" >"$log" 2>&1; then
       results+=("PASS    $crate")
       echo "    PASS"
     elif grep -qiE "no matching package named|failed to select a version for the requirement|not found in registry" "$log" && ! is_root_crate "$crate"; then

@@ -1,7 +1,7 @@
 use std::hint::black_box;
 use std::time::Instant;
 
-use imx_core::{Image, PixelFormat};
+use imx_core::{Image, PixelFormat, ResizeFilter};
 
 fn fixture(width: u32, height: u32) -> Image {
     let mut pixels = Vec::with_capacity(width as usize * height as usize * 8);
@@ -188,6 +188,39 @@ fn main() {
     });
     time("resize_nearest", image.pixels().len(), iterations, || {
         black_box(black_box(&image).resize_nearest(128, 96).unwrap());
+    });
+    time("resize_box", image.pixels().len(), iterations, || {
+        black_box(
+            black_box(&image)
+                .resize_filtered(128, 96, ResizeFilter::Box)
+                .unwrap(),
+        );
+    });
+    time("resize_triangle", image.pixels().len(), iterations, || {
+        black_box(
+            black_box(&image)
+                .resize_filtered(128, 96, ResizeFilter::Triangle)
+                .unwrap(),
+        );
+    });
+    time(
+        "resize_catmull_rom",
+        image.pixels().len(),
+        iterations,
+        || {
+            black_box(
+                black_box(&image)
+                    .resize_filtered(128, 96, ResizeFilter::CatmullRom)
+                    .unwrap(),
+            );
+        },
+    );
+    time("resize_lanczos3", image.pixels().len(), iterations, || {
+        black_box(
+            black_box(&image)
+                .resize_filtered(128, 96, ResizeFilter::Lanczos3)
+                .unwrap(),
+        );
     });
     time(
         "resize_nearest_fit",

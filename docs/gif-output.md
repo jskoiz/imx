@@ -5,12 +5,16 @@ encoder added in `imx-codec-gif` and how it is wired into the CLI.
 
 ## Scope
 
-- **Single still frame only.** The encoder writes one frame. Animation,
-  multi-frame output, frame delays, disposal methods, and loop counts are out of
-  scope. (The decoder already reads only the first frame and ignores animation.)
-- GIF is a valid output target for `imx <input> <output>`, the geometry
-  operations (`resize`, `resize-fit`, `crop`, `rotate`, `flip`, `flop`), and
+- **Single still frame through normal transcodes.** `imx <input> <output.gif>`
+  writes one frame with a deterministic palette.
+- **Animated GIF through `assemble`.** `imx assemble --delay <centiseconds>
+  [--loop <n>] <output.gif|GIF:-> <frame0> <frame1> ...` writes a deterministic
+  animated GIF from same-size input frames.
+- GIF is a valid output target for `imx <input> <output>`, geometry operations
+  (`resize`, `resize-fit`, `crop`, `rotate`, `flip`, `flop`), `pipeline`, and
   `batch-convert --to GIF`.
+- GIF decode supports composited frame selection through `--frame`; animation
+  playback timing is not interpreted on decode.
 
 ## Pipeline
 

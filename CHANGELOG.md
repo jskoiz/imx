@@ -28,9 +28,9 @@ ICC handling, and release-engineering polish ahead of a 1.0 tag.
   global/local palette, complementing the existing first-frame/composited GIF
   decode.
 - **Color and tone pipeline operations.** `imx pipeline` gains color/tone ops
-  (e.g. grayscale, brightness/contrast, gamma, channel swaps) alongside the
-  existing geometry ops, chained left-to-right in a single deterministic
-  decode/encode pass.
+  (grayscale, invert, brightness/contrast, gamma, threshold, and levels)
+  alongside the existing geometry ops, chained left-to-right in a single
+  deterministic decode/encode pass.
 - **ICC profile passthrough and `--strip`.** Embedded ICC profiles are carried
   through transcodes where the output format supports them; `--strip` drops ICC
   and other ancillary metadata for a minimal, reproducible output.
@@ -40,6 +40,11 @@ ICC handling, and release-engineering polish ahead of a 1.0 tag.
 - **`tiff_decode` fuzz target.** A coverage-guided fuzz target for the TIFF
   decode/identify entrypoint joins the existing BMP, FARBFELD, GIF, JPEG, PNG,
   PNM, QOI, and WebP fuzz targets, with seeded corpora.
+- **1.0 hardening gates.** The workspace now declares Rust MSRV 1.85, adds an
+  Ubuntu MSRV CI check, documents the API-freeze review, and locks resize,
+  color/tone, and geometry output behind fixed golden-pixel regression tests.
+  The throughput bench now records filtered resize cases for the current
+  Lanczos3-default surface.
 
 ### Already present in this batch
 
@@ -75,8 +80,10 @@ ICC handling, and release-engineering polish ahead of a 1.0 tag.
   (clockwise), `flip` (vertical), and `flop` (horizontal) — all format-preserving.
 - **Resize.** `resize` supports exact dimensions (`<width>x<height>`),
   single-axis aspect-preserving (`<width>x` or `x<height>`), and uniform percent
-  (`<percent>%`) using nearest-neighbor sampling; `resize-fit <width>x<height>`
-  does aspect-preserving fit within a bounding box.
+  (`<percent>%`) using `--filter <point|box|triangle|catmull-rom|lanczos3>`;
+  `resize-fit <width>x<height>` does aspect-preserving fit within a bounding
+  box. `lanczos3` is the default filter and `point` preserves the byte-exact
+  nearest-neighbor path.
 - **Batch conversion.** `batch-convert --to <FORMAT> --output-dir <dir>` over
   shell-expanded input paths, with optional `--resize`/`--resize-fit` and
   `--quality` (JPEG output only); refuses to overwrite or rename on collision.
@@ -107,6 +114,13 @@ ICC handling, and release-engineering polish ahead of a 1.0 tag.
 - **Release engineering.** `scripts/publish.sh` (dry-run by default, gated
   `--execute`), `scripts/verify-publishable.sh`, and the release runbook in
   `docs/releasing.md`.
+- **PR-time publish dry-run.** `scripts/publish.sh` keeps clean-tree release
+  dry-runs as the default and adds
+  `IMX_PUBLISH_ALLOW_DIRTY_DRY_RUN=1` for local packageability proof before a
+  release commit exists.
+- **API stability.** `imx_core::ImageError` is non-exhaustive while
+  `ImageError::diagnostic_code()` remains the stable machine-readable error
+  contract for 1.x callers.
 
 ### Notes
 

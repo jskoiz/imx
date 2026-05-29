@@ -33,6 +33,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  msrv:
+    name: MSRV check
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Check hosted Apple Actions guard
+        run: |
+          set -euo pipefail
+          bash scripts/check-no-hosted-apple-actions.sh
+
+      - name: Prepare Rust MSRV toolchain
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.85.0 --profile minimal
+
+      - name: Check workspace on MSRV
+        run: |
+          set -euo pipefail
+          IMX_MSRV_TOOLCHAIN=1.85.0 bash scripts/check-msrv.sh
+
   preview:
     name: Developer preview gates
     runs-on: ubuntu-22.04

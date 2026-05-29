@@ -134,7 +134,14 @@ root `Cargo.toml`. To cut a new release:
 3. Move the `## [Unreleased]` section in `CHANGELOG.md` to a dated, versioned
    heading and start a fresh `## [Unreleased]`.
 4. Run the dry run (`scripts/publish.sh`) and the full test suite
-   (`scripts/ci.sh`) before tagging.
+   (`scripts/ci.sh`) before tagging. During PR review, before a release commit
+   exists, `IMX_PUBLISH_ALLOW_DIRTY_DRY_RUN=1 scripts/publish.sh` may be used
+   to prove packageability with uncommitted changes; final release dry-runs
+   should stay clean and omit that env var.
+5. Run the MSRV gate:
+   `IMX_MSRV_TOOLCHAIN=1.85.0 bash scripts/check-msrv.sh`.
+6. Capture and review the `imx-core` public API snapshot described in
+   [`api-freeze.md`](api-freeze.md).
 
 ## Tagging triggers the release CI
 
@@ -153,7 +160,7 @@ git push origin vX.Y.Z
 On that tag push the CI will:
 
 1. Re-run the full preview gates (differential corpus, fuzz smoke, benchmark
-   regression, install verification).
+   regression, MSRV, install verification).
 2. Package `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu` archives
    with deterministic tar/gzip metadata and an aggregate `SHA256SUMS`.
 3. Publish a GitHub release for the tag with the archives and conformance
