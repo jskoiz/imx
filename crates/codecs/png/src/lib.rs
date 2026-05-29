@@ -4,8 +4,10 @@ use imx_core::{
     pixel_len, try_vec_with_capacity, Format, Identify, Image, ImageError, PixelFormat,
     MAX_PIXEL_BYTES,
 };
+use std::borrow::Cow;
+
 use png::{
-    BitDepth, ColorType, Compression, Decoder, DecodingError, Encoder, EncodingError, Filter,
+    BitDepth, ColorType, Compression, Decoder, DecodingError, Encoder, EncodingError, Filter, Info,
     Limits, Transformations,
 };
 
@@ -46,7 +48,14 @@ pub fn decode(input: &[u8]) -> Result<Image, ImageError> {
         pixels = expand_gray_alpha(output.bit_depth, &pixels)?;
     }
 
-    Image::new(output.width, output.height, pixel_format, pixels)
+    // Preserve the embedded ICC profile (iCCP chunk) verbatim, if present.
+    let icc = reader
+        .info()
+        .icc_profile
+        .as_ref()
+        .map(|profile| profile.to_vec());
+
+    Ok(Image::new(output.width, output.height, pixel_format, pixels)?.with_icc(icc))
 }
 
 pub fn encode(image: &Image) -> Result<Vec<u8>, ImageError> {
@@ -63,9 +72,14 @@ pub fn encode(image: &Image) -> Result<Vec<u8>, ImageError> {
     };
 
     let mut out = Vec::new();
-    let mut encoder = Encoder::new(&mut out, encoded.width(), encoded.height());
-    encoder.set_color(color_type);
-    encoder.set_depth(bit_depth);
+    // Build the header through `Info` so the embedded ICC profile (if any) can
+    // be written back as an `iCCP` chunk; the `png` 0.18 `Encoder` exposes no
+    // direct `set_icc_profile` setter, so the profile must travel via `Info`.
+    let mut info = Info::with_size(encoded.width(), encoded.height());
+    info.color_type = color_type;
+    info.bit_depth = bit_depth;
+    info.icc_profile = image.icc().map(|profile| Cow::Owned(profile.to_vec()));
+    let mut encoder = Encoder::with_info(&mut out, info).map_err(png_encode_error)?;
     encoder.set_compression(Compression::Fast);
     encoder.set_filter(Filter::NoFilter);
     encoder
@@ -304,6 +318,26 @@ mod tests {
             )
             .unwrap()
         );
+    }
+
+    #[test]
+    fn round_trips_icc_profile() {
+        // A non-trivial blob so chunking/compression has something to do.
+        let profile: Vec<u8> = (0..512u32).map(|i| (i % 251) as u8).collect();
+        let image = Image::new(2, 1, PixelFormat::Rgb8, vec![255, 0, 0, 0, 128, 255])
+            .unwrap()
+            .with_icc(Some(profile.clone()));
+        let png = encode(&image).unwrap();
+        let decoded = decode(&png).unwrap();
+        assert_eq!(decoded.icc(), Some(profile.as_slice()));
+        assert_eq!(decoded.pixels(), image.pixels());
+    }
+
+    #[test]
+    fn encodes_without_icc_when_absent() {
+        let image = Image::new(2, 1, PixelFormat::Rgb8, vec![255, 0, 0, 0, 128, 255]).unwrap();
+        let png = encode(&image).unwrap();
+        assert_eq!(decode(&png).unwrap().icc(), None);
     }
 
     #[test]

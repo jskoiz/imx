@@ -4,8 +4,11 @@ use imx_core::{
     apply_exif_orientation, exif_oriented_dimensions, pixel_len, try_vec_with_capacity, Format,
     Identify, Image, ImageError, PixelFormat, MAX_PIXEL_BYTES,
 };
+use std::io::{Seek, Write};
+
 use tiff::decoder::{Decoder, DecodingResult, Limits};
-use tiff::encoder::{colortype, TiffEncoder};
+use tiff::encoder::colortype::ColorType as EncoderColorType;
+use tiff::encoder::{colortype, TiffEncoder, TiffValue};
 use tiff::tags::Tag;
 use tiff::{ColorType, TiffError};
 
@@ -86,6 +89,10 @@ pub fn decode_with_options(input: &[u8], auto_orient: bool) -> Result<Image, Ima
     } else {
         1
     };
+    // Preserve the embedded ICC profile (tag 34675) verbatim, if present. Read
+    // it before `read_image` consumes the decoder. A missing tag or unexpected
+    // value type yields no profile rather than failing the decode.
+    let icc = tiff_icc_profile(&mut decoder);
 
     let result = decoder
         .read_image()
@@ -112,7 +119,7 @@ pub fn decode_with_options(input: &[u8], auto_orient: bool) -> Result<Image, Ima
         });
     }
 
-    let image = Image::new(width, height, pixel_format, pixels)?;
+    let image = Image::new(width, height, pixel_format, pixels)?.with_icc(icc);
     apply_exif_orientation(image, orientation)
 }
 
@@ -129,6 +136,17 @@ fn tiff_orientation<R: std::io::Read + std::io::Seek>(decoder: &mut Decoder<R>) 
     }
 }
 
+/// Read the ICC profile (tag 34675, `ICCProfile`) from the decoder's current
+/// IFD, returning the raw bytes verbatim. A missing tag, an unexpected value
+/// type, or any read error yields `None` so a non-conforming profile tag never
+/// fails decoding.
+fn tiff_icc_profile<R: std::io::Read + std::io::Seek>(decoder: &mut Decoder<R>) -> Option<Vec<u8>> {
+    match decoder.find_tag(Tag::IccProfile) {
+        Ok(Some(value)) => value.into_u8_vec().ok().filter(|bytes| !bytes.is_empty()),
+        _ => None,
+    }
+}
+
 /// Encode an [`Image`] as a deterministic little-endian baseline TIFF.
 ///
 /// Output is byte-identical for identical input: uncompressed, no timestamps,
@@ -138,48 +156,91 @@ pub fn encode(image: &Image) -> Result<Vec<u8>, ImageError> {
     let mut out = Vec::new();
     let width = image.width();
     let height = image.height();
+    let icc = image.icc();
 
     {
         let mut encoder = TiffEncoder::new(Cursor::new(&mut out)).map_err(tiff_encode_error)?;
         match image.pixel_format() {
             PixelFormat::Bilevel | PixelFormat::Gray8 => {
                 let source = image.to_gray8()?;
-                encoder
-                    .write_image::<colortype::Gray8>(width, height, source.pixels())
-                    .map_err(tiff_encode_error)?;
+                write_image::<colortype::Gray8, _>(
+                    &mut encoder,
+                    width,
+                    height,
+                    source.pixels(),
+                    icc,
+                )?;
             }
             PixelFormat::Gray16Be => {
                 let samples = be_bytes_to_u16_samples(image.pixels());
-                encoder
-                    .write_image::<colortype::Gray16>(width, height, &samples)
-                    .map_err(tiff_encode_error)?;
+                write_image::<colortype::Gray16, _>(&mut encoder, width, height, &samples, icc)?;
             }
             PixelFormat::Rgb8 => {
-                encoder
-                    .write_image::<colortype::RGB8>(width, height, image.pixels())
-                    .map_err(tiff_encode_error)?;
+                write_image::<colortype::RGB8, _>(
+                    &mut encoder,
+                    width,
+                    height,
+                    image.pixels(),
+                    icc,
+                )?;
             }
             PixelFormat::Rgb16Be => {
                 let samples = be_bytes_to_u16_samples(image.pixels());
-                encoder
-                    .write_image::<colortype::RGB16>(width, height, &samples)
-                    .map_err(tiff_encode_error)?;
+                write_image::<colortype::RGB16, _>(&mut encoder, width, height, &samples, icc)?;
             }
             PixelFormat::Rgba8 => {
-                encoder
-                    .write_image::<colortype::RGBA8>(width, height, image.pixels())
-                    .map_err(tiff_encode_error)?;
+                write_image::<colortype::RGBA8, _>(
+                    &mut encoder,
+                    width,
+                    height,
+                    image.pixels(),
+                    icc,
+                )?;
             }
             PixelFormat::Rgba16Be => {
                 let source = image.to_rgba8()?;
-                encoder
-                    .write_image::<colortype::RGBA8>(width, height, source.pixels())
-                    .map_err(tiff_encode_error)?;
+                write_image::<colortype::RGBA8, _>(
+                    &mut encoder,
+                    width,
+                    height,
+                    source.pixels(),
+                    icc,
+                )?;
             }
         }
     }
 
     Ok(out)
+}
+
+/// Write a single image of the given encoder color type, injecting the ICC
+/// profile (tag 34675) when present.
+///
+/// Mirrors `TiffEncoder::write_image` but threads the optional ICC tag in
+/// before the pixel data. The profile is written as a `BYTE` array; the same
+/// `tiff` crate reads it back verbatim on decode.
+fn write_image<C, W>(
+    encoder: &mut TiffEncoder<W>,
+    width: u32,
+    height: u32,
+    samples: &[C::Inner],
+    icc: Option<&[u8]>,
+) -> Result<(), ImageError>
+where
+    C: EncoderColorType,
+    [C::Inner]: TiffValue,
+    W: Write + Seek,
+{
+    let mut image = encoder
+        .new_image::<C>(width, height)
+        .map_err(tiff_encode_error)?;
+    if let Some(profile) = icc {
+        image
+            .encoder()
+            .write_tag(Tag::IccProfile, profile)
+            .map_err(tiff_encode_error)?;
+    }
+    image.write_data(samples).map_err(tiff_encode_error)
 }
 
 fn supported_pixel_format(color: ColorType) -> Result<PixelFormat, ImageError> {
@@ -332,6 +393,30 @@ mod tests {
         let decoded = decode(&tiff).unwrap();
         assert_eq!(decoded.pixel_format(), PixelFormat::Gray16Be);
         assert_eq!(decoded.pixels(), pixels.as_slice());
+    }
+
+    #[test]
+    fn round_trips_icc_profile() {
+        let profile: Vec<u8> = (0..300u32).map(|i| (i % 251) as u8).collect();
+        let image = Image::new(
+            2,
+            2,
+            PixelFormat::Rgb8,
+            vec![255, 0, 0, 0, 255, 0, 0, 0, 255, 10, 20, 30],
+        )
+        .unwrap()
+        .with_icc(Some(profile.clone()));
+        let tiff = encode(&image).unwrap();
+        let decoded = decode(&tiff).unwrap();
+        assert_eq!(decoded.icc(), Some(profile.as_slice()));
+        assert_eq!(decoded.pixels(), image.pixels());
+    }
+
+    #[test]
+    fn encodes_without_icc_when_absent() {
+        let image = Image::new(2, 1, PixelFormat::Gray8, vec![0, 255]).unwrap();
+        let tiff = encode(&image).unwrap();
+        assert_eq!(decode(&tiff).unwrap().icc(), None);
     }
 
     #[test]
