@@ -121,7 +121,7 @@ imx self-test
 ```
 
 Exact uppercase format prefixes (`BMP:`, `FARBFELD:`, `JPEG:`, `QOI:`, `PBM:`,
-`PGM:`, `PNG:`, `PPM:`) may be attached to operands to assert the expected
+`PGM:`, `PNG:`, `PPM:`, `TIFF:`) may be attached to operands to assert the expected
 format; they are stripped before file IO and must match the detected input
 format or output extension. (`JPG:` is intentionally not a prefix.)
 
@@ -139,6 +139,7 @@ format or output extension. (`JPG:` is intentionally not a prefix.)
 | PBM       | `.pbm` / `PBM:`          |  yes  |  yes   | ASCII `P1` + binary `P4` bilevel in; deterministic binary `P4` out. |
 | PGM       | `.pgm` / `PGM:`          |  yes  |  yes   | ASCII `P2` + binary `P5` GRAY8/GRAY16BE in; deterministic binary `P5` out. |
 | PPM       | `.ppm` / `PPM:`          |  yes  |  yes   | ASCII `P3` + binary `P6` RGB8/RGB16BE in (`maxval` up to 65535); deterministic binary `P6` out. |
+| TIFF      | `.tif`, `.tiff` / `TIFF:`|  yes  |  yes   | First-IFD 8/16-bit grayscale, 8/16-bit RGB, 8-bit RGBA. Deterministic little-endian uncompressed baseline out. No multi-page, compression, palette, CMYK, or YCbCr. |
 | WebP      | input only               |  yes  |   no   | Decode / identify / transcode-from. Encoding is not supported. |
 | GIF       | input only               |  yes  |   no   | Decode / identify / transcode-from. Encoding is not supported. |
 
@@ -196,7 +197,7 @@ By design, IMX does not (yet) provide:
 - CMYK/YCCK JPEG, 12-bit JPEG, arithmetic-coded JPEG, lossless JPEG / JPEG-LS,
   JPEG 2000, JPEG XL.
 - Indexed/compressed/bitfields/OS2/high-depth BMP.
-- PAM, PFM, TIFF, and other container formats not listed above.
+- PAM, PFM, and other container formats not listed above.
 - Filters beyond nearest-neighbor resize and the listed geometric operations.
 
 ## Safety posture

@@ -959,7 +959,10 @@ fn transcodes_png_to_tiff_and_back() {
     );
 
     let output = Command::new(imx())
-        .args([output_tiff.to_str().unwrap(), roundtrip_png.to_str().unwrap()])
+        .args([
+            output_tiff.to_str().unwrap(),
+            roundtrip_png.to_str().unwrap(),
+        ])
         .output()
         .unwrap();
     assert!(

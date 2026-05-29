@@ -244,7 +244,7 @@ $glibc_symbols_report
 - No recursive batch walking, shell glob parsing, overwrites, or partial batch
   output commits after transform or encode failure.
 - No APNG, indexed/palette PNG, low-bit PNG, PNG color management/profile
-  preservation, TIFF, PAM, PFM, GIF, WebP, indexed BMP, compressed BMP,
+  preservation, PAM, PFM, GIF/WebP output, indexed BMP, compressed BMP,
   bitfields BMP, OS/2 BMP, or high-depth BMP support in this conformance
   surface.
 - No CMYK/YCCK JPEG, 12-bit JPEG, arithmetic-coded JPEG, lossless

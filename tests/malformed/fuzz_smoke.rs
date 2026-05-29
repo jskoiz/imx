@@ -46,6 +46,9 @@ fn decode_fuzz_smoke_does_not_panic_or_allocate_unboundedly() {
 
         let gif = std::panic::catch_unwind(|| imx_codec_gif::decode(&bytes));
         assert!(gif.is_ok(), "GIF decode panicked at len {len}");
+
+        let tiff = std::panic::catch_unwind(|| imx_codec_tiff::decode(&bytes));
+        assert!(tiff.is_ok(), "TIFF decode panicked at len {len}");
     }
 }
 
@@ -156,5 +159,13 @@ fn structured_truncation_fuzz_smoke_does_not_panic() {
     for len in 0..gif.len() {
         let result = std::panic::catch_unwind(|| imx_codec_gif::decode(&gif[..len]));
         assert!(result.is_ok(), "GIF truncation panicked at len {len}");
+    }
+
+    let tiff_image =
+        imx_core::Image::new(8, 8, imx_core::PixelFormat::Rgb8, vec![0x7f; 8 * 8 * 3]).unwrap();
+    let tiff = imx_codec_tiff::encode(&tiff_image).unwrap();
+    for len in 0..tiff.len() {
+        let result = std::panic::catch_unwind(|| imx_codec_tiff::decode(&tiff[..len]));
+        assert!(result.is_ok(), "TIFF truncation panicked at len {len}");
     }
 }

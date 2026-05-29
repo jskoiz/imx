@@ -86,48 +86,49 @@ pub fn decode(input: &[u8]) -> Result<Image, ImageError> {
 /// the nearest supported layout before encoding.
 pub fn encode(image: &Image) -> Result<Vec<u8>, ImageError> {
     let mut out = Vec::new();
-    let mut encoder = TiffEncoder::new(Cursor::new(&mut out)).map_err(tiff_encode_error)?;
     let width = image.width();
     let height = image.height();
 
-    match image.pixel_format() {
-        PixelFormat::Bilevel | PixelFormat::Gray8 => {
-            let source = image.to_gray8()?;
-            encoder
-                .write_image::<colortype::Gray8>(width, height, source.pixels())
-                .map_err(tiff_encode_error)?;
-        }
-        PixelFormat::Gray16Be => {
-            let samples = be_bytes_to_u16_samples(image.pixels());
-            encoder
-                .write_image::<colortype::Gray16>(width, height, &samples)
-                .map_err(tiff_encode_error)?;
-        }
-        PixelFormat::Rgb8 => {
-            encoder
-                .write_image::<colortype::RGB8>(width, height, image.pixels())
-                .map_err(tiff_encode_error)?;
-        }
-        PixelFormat::Rgb16Be => {
-            let samples = be_bytes_to_u16_samples(image.pixels());
-            encoder
-                .write_image::<colortype::RGB16>(width, height, &samples)
-                .map_err(tiff_encode_error)?;
-        }
-        PixelFormat::Rgba8 => {
-            encoder
-                .write_image::<colortype::RGBA8>(width, height, image.pixels())
-                .map_err(tiff_encode_error)?;
-        }
-        PixelFormat::Rgba16Be => {
-            let source = image.to_rgba8()?;
-            encoder
-                .write_image::<colortype::RGBA8>(width, height, source.pixels())
-                .map_err(tiff_encode_error)?;
+    {
+        let mut encoder = TiffEncoder::new(Cursor::new(&mut out)).map_err(tiff_encode_error)?;
+        match image.pixel_format() {
+            PixelFormat::Bilevel | PixelFormat::Gray8 => {
+                let source = image.to_gray8()?;
+                encoder
+                    .write_image::<colortype::Gray8>(width, height, source.pixels())
+                    .map_err(tiff_encode_error)?;
+            }
+            PixelFormat::Gray16Be => {
+                let samples = be_bytes_to_u16_samples(image.pixels());
+                encoder
+                    .write_image::<colortype::Gray16>(width, height, &samples)
+                    .map_err(tiff_encode_error)?;
+            }
+            PixelFormat::Rgb8 => {
+                encoder
+                    .write_image::<colortype::RGB8>(width, height, image.pixels())
+                    .map_err(tiff_encode_error)?;
+            }
+            PixelFormat::Rgb16Be => {
+                let samples = be_bytes_to_u16_samples(image.pixels());
+                encoder
+                    .write_image::<colortype::RGB16>(width, height, &samples)
+                    .map_err(tiff_encode_error)?;
+            }
+            PixelFormat::Rgba8 => {
+                encoder
+                    .write_image::<colortype::RGBA8>(width, height, image.pixels())
+                    .map_err(tiff_encode_error)?;
+            }
+            PixelFormat::Rgba16Be => {
+                let source = image.to_rgba8()?;
+                encoder
+                    .write_image::<colortype::RGBA8>(width, height, source.pixels())
+                    .map_err(tiff_encode_error)?;
+            }
         }
     }
 
-    drop(encoder);
     Ok(out)
 }
 

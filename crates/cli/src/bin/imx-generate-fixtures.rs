@@ -37,6 +37,7 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let gradient_png = imx_codec_png::encode(&gradient.to_rgba8()?)?;
     let gradient_png16 = imx_codec_png::encode(&gradient)?;
     let gradient_bmp = imx_codec_bmp::encode(&gradient.to_rgb8()?)?;
+    let gradient_tiff = imx_codec_tiff::encode(&gradient.to_rgb8()?)?;
     let gradient_pbm = imx_codec_pnm::encode_pbm(&gradient)?;
     let gradient_ppm = imx_codec_pnm::encode_ppm(&gradient.to_rgb8()?)?;
     let gradient_ppm16 = imx_codec_pnm::encode_ppm(&gradient)?;
@@ -217,6 +218,7 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         ("gradient-64.png", gradient_png),
         ("gradient-64-png16.png", gradient_png16),
         ("gradient-64.bmp", gradient_bmp),
+        ("gradient-64.tiff", gradient_tiff),
         ("gradient-64.pbm", gradient_pbm),
         ("gradient-64.ppm", gradient_ppm),
         ("gradient-64-ppm16.ppm", gradient_ppm16),

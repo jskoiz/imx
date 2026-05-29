@@ -90,6 +90,7 @@ fn identify(format: Format, input: &[u8]) -> Result<Identify, ImageError> {
         Format::Png => imx_codec_png::identify(input),
         Format::Ppm => imx_codec_pnm::identify_ppm(input),
         Format::Qoi => imx_codec_qoi::identify(input),
+        Format::Tiff => imx_codec_tiff::identify(input),
         Format::Webp => imx_codec_webp::identify(input),
     }
 }
@@ -105,6 +106,7 @@ fn decode(format: Format, input: &[u8]) -> Result<Image, ImageError> {
         Format::Png => imx_codec_png::decode(input),
         Format::Ppm => imx_codec_pnm::decode_ppm(input),
         Format::Qoi => imx_codec_qoi::decode(input).and_then(|image| image.into_core_image()),
+        Format::Tiff => imx_codec_tiff::decode(input),
         Format::Webp => imx_codec_webp::decode(input),
     }
 }
@@ -213,6 +215,14 @@ fn representative_intake_corpus_identifies_and_decodes() {
         &[10, 20, 30, 255, 40, 50, 60, 128],
     );
     let gif_rgba = gif_fixture(2, 1, &[255, 0, 0, 255, 0, 255, 0, 255]);
+    let tiff_rgb = imx_codec_tiff::encode(
+        &Image::new(2, 1, PixelFormat::Rgb8, vec![255, 0, 0, 0, 255, 0]).unwrap(),
+    )
+    .unwrap();
+    let tiff_gray16 = imx_codec_tiff::encode(
+        &Image::new(2, 1, PixelFormat::Gray16Be, vec![0x00, 0x00, 0xff, 0xff]).unwrap(),
+    )
+    .unwrap();
 
     let cases = vec![
         (
@@ -346,6 +356,18 @@ fn representative_intake_corpus_identifies_and_decodes() {
             Format::Gif,
             gif_rgba,
             "format=GIF width=2 height=1 channels=RGBA depth=8",
+        ),
+        (
+            "tiff-rgb8",
+            Format::Tiff,
+            tiff_rgb,
+            "format=TIFF width=2 height=1 channels=RGB depth=8",
+        ),
+        (
+            "tiff-gray16",
+            Format::Tiff,
+            tiff_gray16,
+            "format=TIFF width=2 height=1 channels=GRAY depth=16",
         ),
     ];
 

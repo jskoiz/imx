@@ -289,7 +289,7 @@ published binary references a `GLIBC_*` symbol newer than `GLIBC_2.34`.
 
 After v0.19.0 is published and tap-verified, the next milestone should improve
 everyday usefulness with one bounded operation or format gap, prove it against
-ImageMagick where applicable, and keep package/tap proof current. TIFF, GIF,
-WebP, APNG, delegates, MagickCore, MagickWand, color management, metadata
+ImageMagick where applicable, and keep package/tap proof current. GIF/WebP
+output, APNG, delegates, MagickCore, MagickWand, color management, metadata
 preservation beyond declared read-only fields, and full ImageMagick CLI
 compatibility remain too broad for a single next milestone.

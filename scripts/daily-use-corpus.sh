@@ -308,7 +308,7 @@ bad_bmp[30:34] = (1).to_bytes(4, "little")
 (out_dir / "bad-compression.bmp").write_bytes(bad_bmp)
 PY
 
-run_report_diagnostic_case unsupported-prefix "TIFF:$fixture_dir/gradient-64.ppm" input.unsupported_format_prefix
+run_report_diagnostic_case unsupported-prefix "TGA:$fixture_dir/gradient-64.ppm" input.unsupported_format_prefix
 run_report_diagnostic_case missing-prefix-path "PNG:" input.missing_prefix_path
 run_report_diagnostic_case missing-input "PPM:$out_dir/malformed/missing.ppm" input.missing
 run_report_diagnostic_case prefix-mismatch "QOI:$fixture_dir/gradient-64.ppm" input.format_prefix_mismatch
