@@ -3208,3 +3208,266 @@ fn oversized_input_is_rejected_before_reading() {
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("input file too large"));
 }
+
+fn run_with_stdin(args: &[&str], stdin_bytes: &[u8]) -> std::process::Output {
+    use std::io::Write;
+    use std::process::Stdio;
+
+    let mut child = Command::new(imx())
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child.stdin.take().unwrap().write_all(stdin_bytes).unwrap();
+    child.wait_with_output().unwrap()
+}
+
+#[test]
+fn streams_png_stdin_to_ppm_stdout() {
+    let dir = temp_dir("stream_roundtrip");
+    let png_path = dir.join("input.png");
+    png_fixture(
+        &png_path,
+        2,
+        1,
+        png::ColorType::Rgb,
+        png::BitDepth::Eight,
+        &[255, 0, 0, 0, 0, 255],
+    );
+    let png_bytes = fs::read(&png_path).unwrap();
+
+    let output = run_with_stdin(&["PNG:-", "PPM:-"], &png_bytes);
+    assert!(
+        output.status.success(),
+        "stream transcode failed with stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "expected empty stderr, got {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let out_ppm = dir.join("out.ppm");
+    fs::write(&out_ppm, &output.stdout).unwrap();
+    let identify = Command::new(imx())
+        .args(["identify", out_ppm.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(identify.status.success());
+    assert_eq!(
+        String::from_utf8(identify.stdout).unwrap().trim(),
+        "format=PPM width=2 height=1 channels=RGB depth=8"
+    );
+}
+
+#[test]
+fn identifies_from_stdin() {
+    let dir = temp_dir("stream_identify");
+    let png_path = dir.join("input.png");
+    png_fixture(
+        &png_path,
+        2,
+        1,
+        png::ColorType::Rgb,
+        png::BitDepth::Eight,
+        &[255, 0, 0, 0, 0, 255],
+    );
+    let png_bytes = fs::read(&png_path).unwrap();
+
+    let output = run_with_stdin(&["identify", "PNG:-"], &png_bytes);
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap().trim(),
+        "format=PNG width=2 height=1 channels=RGB depth=8"
+    );
+
+    let json = run_with_stdin(&["identify", "--json", "PNG:-"], &png_bytes);
+    assert!(json.status.success());
+    assert_eq!(
+        String::from_utf8(json.stdout).unwrap().trim(),
+        "{\"schema_version\":1,\"format\":\"PNG\",\"width\":2,\"height\":1,\"channels\":\"RGB\",\"depth\":8}"
+    );
+
+    let report = run_with_stdin(&["report", "--json", "PNG:-"], &png_bytes);
+    assert!(report.status.success());
+    assert_eq!(
+        String::from_utf8(report.stdout).unwrap().trim(),
+        "{\"schema_version\":1,\"status\":\"supported\",\"diagnostic_code\":null,\"format\":\"PNG\",\"width\":2,\"height\":1,\"channels\":\"RGB\",\"depth\":8}"
+    );
+}
+
+#[test]
+fn resize_streams_stdin_to_stdout() {
+    let dir = temp_dir("stream_resize");
+    let png_path = dir.join("input.png");
+    png_fixture(
+        &png_path,
+        2,
+        1,
+        png::ColorType::Rgb,
+        png::BitDepth::Eight,
+        &[255, 0, 0, 0, 0, 255],
+    );
+    let png_bytes = fs::read(&png_path).unwrap();
+
+    let output = run_with_stdin(&["resize", "3x2", "PNG:-", "PPM:-"], &png_bytes);
+    assert!(
+        output.status.success(),
+        "stream resize failed with stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let out_ppm = dir.join("out.ppm");
+    fs::write(&out_ppm, &output.stdout).unwrap();
+    let identify = Command::new(imx())
+        .args(["identify", out_ppm.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8(identify.stdout).unwrap().trim(),
+        "format=PPM width=3 height=2 channels=RGB depth=8"
+    );
+}
+
+#[test]
+fn stdout_output_without_prefix_is_rejected() {
+    let dir = temp_dir("stream_no_prefix");
+    let png_path = dir.join("input.png");
+    png_fixture(
+        &png_path,
+        2,
+        1,
+        png::ColorType::Rgb,
+        png::BitDepth::Eight,
+        &[255, 0, 0, 0, 0, 255],
+    );
+    let png_bytes = fs::read(&png_path).unwrap();
+
+    let output = run_with_stdin(&["PNG:-", "-"], &png_bytes);
+    assert_failure(output, 1, "stdout output (-) requires a format prefix");
+}
+
+#[test]
+fn quality_flag_changes_jpeg_output_size() {
+    let dir = temp_dir("quality_jpeg");
+    let png_path = dir.join("input.png");
+    let pixels: Vec<u8> = (0..16)
+        .flat_map(|y: u32| {
+            (0..16).flat_map(move |x: u32| {
+                [
+                    (x.wrapping_mul(13).wrapping_add(y.wrapping_mul(7)) & 0xff) as u8,
+                    (x.wrapping_mul(3).wrapping_add(y.wrapping_mul(19)) & 0xff) as u8,
+                    (x.wrapping_mul(23).wrapping_add(y.wrapping_mul(5)) & 0xff) as u8,
+                ]
+            })
+        })
+        .collect();
+    png_fixture(
+        &png_path,
+        16,
+        16,
+        png::ColorType::Rgb,
+        png::BitDepth::Eight,
+        &pixels,
+    );
+
+    let low = dir.join("q20.jpg");
+    let high = dir.join("q95.jpg");
+    let default = dir.join("default.jpg");
+
+    for (quality, out) in [("20", &low), ("95", &high)] {
+        let output = Command::new(imx())
+            .args([
+                "--quality",
+                quality,
+                png_path.to_str().unwrap(),
+                &prefixed("JPEG", out),
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "--quality {quality} failed with stderr={}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let identify = Command::new(imx())
+            .args(["identify", out.to_str().unwrap()])
+            .output()
+            .unwrap();
+        assert!(identify.status.success());
+        assert_eq!(
+            String::from_utf8(identify.stdout).unwrap().trim(),
+            "format=JPEG width=16 height=16 channels=RGB depth=8"
+        );
+    }
+
+    let default_output = Command::new(imx())
+        .args([png_path.to_str().unwrap(), &prefixed("JPEG", &default)])
+        .output()
+        .unwrap();
+    assert!(default_output.status.success());
+
+    let low_len = fs::read(&low).unwrap().len();
+    let high_len = fs::read(&high).unwrap().len();
+    let default_len = fs::read(&default).unwrap().len();
+    assert!(
+        low_len < high_len,
+        "expected q20 ({low_len}) smaller than q95 ({high_len})"
+    );
+    assert_ne!(default_len, low_len);
+    assert_ne!(default_len, high_len);
+}
+
+#[test]
+fn quality_flag_rejected_for_non_jpeg_output() {
+    let dir = temp_dir("quality_non_jpeg");
+    let png_path = dir.join("input.png");
+    png_fixture(
+        &png_path,
+        2,
+        1,
+        png::ColorType::Rgb,
+        png::BitDepth::Eight,
+        &[255, 0, 0, 0, 0, 255],
+    );
+    let out = dir.join("out.png");
+    let output = Command::new(imx())
+        .args([
+            "--quality",
+            "50",
+            png_path.to_str().unwrap(),
+            &prefixed("PNG", &out),
+        ])
+        .output()
+        .unwrap();
+    assert_failure(output, 1, "--quality only applies to JPEG output");
+}
+
+#[test]
+fn quality_flag_rejects_out_of_range_value() {
+    let dir = temp_dir("quality_range");
+    let png_path = dir.join("input.png");
+    png_fixture(
+        &png_path,
+        2,
+        1,
+        png::ColorType::Rgb,
+        png::BitDepth::Eight,
+        &[255, 0, 0, 0, 0, 255],
+    );
+    let out = dir.join("out.jpg");
+    for value in ["0", "101", "abc"] {
+        let output = Command::new(imx())
+            .args([
+                "--quality",
+                value,
+                png_path.to_str().unwrap(),
+                &prefixed("JPEG", &out),
+            ])
+            .output()
+            .unwrap();
+        assert_failure(output, 1, "invalid --quality value");
+    }
+}

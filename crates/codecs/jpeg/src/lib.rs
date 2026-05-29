@@ -36,6 +36,15 @@ pub fn decode(input: &[u8]) -> Result<Image, ImageError> {
 }
 
 pub fn encode(image: &Image) -> Result<Vec<u8>, ImageError> {
+    encode_with_quality(image, DEFAULT_QUALITY)
+}
+
+pub fn encode_with_quality(image: &Image, quality: u8) -> Result<Vec<u8>, ImageError> {
+    if !(1..=100).contains(&quality) {
+        return Err(ImageError::UnsupportedFormat(format!(
+            "JPEG quality must be between 1 and 100, got {quality}"
+        )));
+    }
     let (encoded, color_type) = encode_source(image)?;
     let width = u16::try_from(encoded.width()).map_err(|_| {
         ImageError::UnsupportedFormat("JPEG dimensions exceed 65535 pixels".to_string())
@@ -45,7 +54,7 @@ pub fn encode(image: &Image) -> Result<Vec<u8>, ImageError> {
     })?;
 
     let mut out = Vec::new();
-    Encoder::new(&mut out, DEFAULT_QUALITY)
+    Encoder::new(&mut out, quality)
         .encode(encoded.pixels(), width, height, color_type)
         .map_err(jpeg_encode_error)?;
     Ok(out)
@@ -592,6 +601,77 @@ mod tests {
         let malformed = jpeg_with_exif_app1(&jpeg, b"Exif\0\0ZZ\0*\0\0\0\x08");
         let err = decode(&malformed).unwrap_err().to_string();
         assert!(err.contains("JPEG EXIF Orientation metadata is malformed"));
+    }
+
+    #[test]
+    fn encode_with_quality_default_matches_encode() {
+        let image = Image::new(
+            8,
+            8,
+            PixelFormat::Rgb8,
+            (0..8)
+                .flat_map(|y| {
+                    (0..8).flat_map(move |x| {
+                        [
+                            (x * 31 + y * 3) as u8,
+                            (x * 5 + y * 29) as u8,
+                            (x * 17 + y * 11) as u8,
+                        ]
+                    })
+                })
+                .collect(),
+        )
+        .unwrap();
+        assert_eq!(
+            encode(&image).unwrap(),
+            encode_with_quality(&image, DEFAULT_QUALITY).unwrap()
+        );
+    }
+
+    #[test]
+    fn encode_with_quality_rejects_out_of_range() {
+        let image = Image::new(2, 1, PixelFormat::Rgb8, vec![255, 0, 0, 0, 0, 255]).unwrap();
+        for quality in [0u8, 101, 255] {
+            let err = encode_with_quality(&image, quality)
+                .unwrap_err()
+                .to_string();
+            assert!(
+                err.contains("JPEG quality must be between 1 and 100"),
+                "quality {quality} gave unexpected error: {err}"
+            );
+        }
+        assert!(encode_with_quality(&image, 1).is_ok());
+        assert!(encode_with_quality(&image, 100).is_ok());
+    }
+
+    #[test]
+    fn encode_with_quality_changes_output_size() {
+        let image = Image::new(
+            16,
+            16,
+            PixelFormat::Rgb8,
+            (0..16)
+                .flat_map(|y| {
+                    (0..16).flat_map(move |x| {
+                        [
+                            (x * 13 + y * 7) as u8,
+                            (x * 3 + y * 19) as u8,
+                            (x * 23 + y * 5) as u8,
+                        ]
+                    })
+                })
+                .collect(),
+        )
+        .unwrap();
+        let low = encode_with_quality(&image, 20).unwrap();
+        let high = encode_with_quality(&image, 95).unwrap();
+        assert_ne!(low, high);
+        assert!(
+            low.len() < high.len(),
+            "low={} high={}",
+            low.len(),
+            high.len()
+        );
     }
 
     #[test]
