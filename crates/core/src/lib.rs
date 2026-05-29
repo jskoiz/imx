@@ -693,6 +693,56 @@ impl Identify {
     }
 }
 
+/// Apply an EXIF Orientation transform so that the returned [`Image`] is
+/// displayed upright.
+///
+/// `orientation` is the raw EXIF Orientation tag value (1..=8) as defined by
+/// the TIFF/EXIF specification:
+///
+/// | Value | Transform                          |
+/// |-------|------------------------------------|
+/// | 1     | identity (no-op)                   |
+/// | 2     | mirror horizontal (flop)           |
+/// | 3     | rotate 180                         |
+/// | 4     | mirror vertical (flip)             |
+/// | 5     | transpose (rotate 90 CW + flop)    |
+/// | 6     | rotate 90 CW                       |
+/// | 7     | transverse (rotate 90 CW + flip)   |
+/// | 8     | rotate 270 CW                      |
+///
+/// Values 5..=8 swap the image's width and height. Any value outside 1..=8 is
+/// treated as `1` (identity), so callers may forward unknown or missing tags
+/// without special-casing them. The transform is implemented entirely in terms
+/// of the existing [`Image`] rotate/flip helpers, so it is bounded by
+/// [`MAX_PIXEL_BYTES`] and never panics.
+pub fn apply_exif_orientation(image: Image, orientation: u16) -> Result<Image, ImageError> {
+    match orientation {
+        2 => image.flop_horizontal(),
+        3 => image.rotate_180(),
+        4 => image.flip_vertical(),
+        5 => image.rotate_90()?.flop_horizontal(),
+        6 => image.rotate_90(),
+        7 => image.rotate_90()?.flip_vertical(),
+        8 => image.rotate_270(),
+        // 1 and any out-of-range value are treated as identity.
+        _ => Ok(image),
+    }
+}
+
+/// Return the displayed `(width, height)` after applying an EXIF Orientation
+/// transform, without touching pixels.
+///
+/// Orientation values 5..=8 swap the two axes; every other value (including
+/// out-of-range values, which are treated as identity) returns the dimensions
+/// unchanged. This mirrors [`apply_exif_orientation`] and lets `identify` report
+/// upright dimensions without decoding the full pixel buffer.
+pub fn exif_oriented_dimensions(orientation: u16, width: u32, height: u32) -> (u32, u32) {
+    match orientation {
+        5..=8 => (height, width),
+        _ => (width, height),
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ImageError {
     InvalidHeader(&'static str),
@@ -1777,5 +1827,105 @@ mod tests {
         let a = Image::new(2, 1, PixelFormat::Rgb8, vec![0, 0, 0, 0, 0, 0]).unwrap();
         let b = Image::new(1, 1, PixelFormat::Rgb8, vec![0, 0, 0]).unwrap();
         assert_eq!(compare_rgba8(&a, &b), Err(ImageError::InvalidDimensions));
+    }
+
+    /// A 3x2 grayscale image with a distinct value per pixel, used as an
+    /// asymmetric reference for orientation tests:
+    ///
+    /// ```text
+    /// 1 2 3
+    /// 4 5 6
+    /// ```
+    fn asymmetric_3x2() -> Image {
+        Image::new(3, 2, PixelFormat::Gray8, vec![1, 2, 3, 4, 5, 6]).unwrap()
+    }
+
+    /// Reference implementation of the EXIF orientation target mapping,
+    /// independent of the [`Image`] rotate/flip helpers, so the helper under
+    /// test is checked against an from-first-principles transform.
+    fn reference_oriented(image: &Image, orientation: u16) -> Image {
+        let width = image.width() as usize;
+        let height = image.height() as usize;
+        let bpp = image.pixel_format().bytes_per_pixel();
+        let (out_width, out_height) = match orientation {
+            5..=8 => (height, width),
+            _ => (width, height),
+        };
+        let mut out = vec![0u8; out_width * out_height * bpp];
+        for y in 0..height {
+            for x in 0..width {
+                let (ox, oy) = match orientation {
+                    2 => (width - 1 - x, y),
+                    3 => (width - 1 - x, height - 1 - y),
+                    4 => (x, height - 1 - y),
+                    5 => (y, x),
+                    6 => (height - 1 - y, x),
+                    7 => (height - 1 - y, width - 1 - x),
+                    8 => (y, width - 1 - x),
+                    _ => (x, y),
+                };
+                let src = (y * width + x) * bpp;
+                let dst = (oy * out_width + ox) * bpp;
+                out[dst..dst + bpp].copy_from_slice(&image.pixels()[src..src + bpp]);
+            }
+        }
+        Image::new(
+            out_width as u32,
+            out_height as u32,
+            image.pixel_format(),
+            out,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn apply_exif_orientation_identity_is_noop() {
+        let image = asymmetric_3x2();
+        assert_eq!(
+            apply_exif_orientation(image.clone(), 1).unwrap(),
+            image,
+            "orientation 1 must return the image unchanged"
+        );
+    }
+
+    #[test]
+    fn apply_exif_orientation_out_of_range_is_identity() {
+        let image = asymmetric_3x2();
+        for orientation in [0u16, 9, 42, u16::MAX] {
+            assert_eq!(
+                apply_exif_orientation(image.clone(), orientation).unwrap(),
+                image,
+                "orientation {orientation} must be treated as identity"
+            );
+        }
+    }
+
+    #[test]
+    fn apply_exif_orientation_matches_reference_for_all_values() {
+        let image = asymmetric_3x2();
+        for orientation in 1..=8u16 {
+            let oriented = apply_exif_orientation(image.clone(), orientation).unwrap();
+            let expected = reference_oriented(&image, orientation);
+            assert_eq!(
+                oriented, expected,
+                "orientation {orientation} did not match the reference transform"
+            );
+            let (ew, eh) = exif_oriented_dimensions(orientation, image.width(), image.height());
+            assert_eq!(
+                (oriented.width(), oriented.height()),
+                (ew, eh),
+                "orientation {orientation} dimensions disagree with exif_oriented_dimensions"
+            );
+        }
+    }
+
+    #[test]
+    fn exif_oriented_dimensions_swaps_only_for_rotated_values() {
+        for orientation in [1u16, 2, 3, 4, 0, 9] {
+            assert_eq!(exif_oriented_dimensions(orientation, 3, 2), (3, 2));
+        }
+        for orientation in 5..=8u16 {
+            assert_eq!(exif_oriented_dimensions(orientation, 3, 2), (2, 3));
+        }
     }
 }

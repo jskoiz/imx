@@ -758,6 +758,84 @@ fn camera_style_little_endian_exif_orientation_affects_identify_and_transcode_di
 }
 
 #[test]
+fn no_auto_orient_flag_keeps_raw_jpeg_dimensions_and_pixels() {
+    let dir = temp_dir("jpeg_no_auto_orient");
+    let input = dir.join("input.jpg");
+    let default_ppm = dir.join("default.ppm");
+    let raw_ppm = dir.join("raw.ppm");
+    let image = Image::new(
+        3,
+        2,
+        PixelFormat::Rgb8,
+        vec![
+            10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180,
+        ],
+    )
+    .unwrap();
+    let jpeg = imx_codec_jpeg::encode(&image).unwrap();
+    fs::write(&input, jpeg_with_exif_orientation(&jpeg, 6)).unwrap();
+    let input_arg = prefixed("JPEG", &input);
+
+    // Default identify reports upright (swapped) dimensions.
+    let identify = Command::new(imx())
+        .args(["identify", input_arg.as_str()])
+        .output()
+        .unwrap();
+    assert!(identify.status.success());
+    assert_eq!(
+        String::from_utf8(identify.stdout).unwrap().trim(),
+        "format=JPEG width=2 height=3 channels=RGB depth=8"
+    );
+
+    // --no-auto-orient identify reports the raw stored dimensions.
+    let identify_raw = Command::new(imx())
+        .args(["--no-auto-orient", "identify", input_arg.as_str()])
+        .output()
+        .unwrap();
+    assert!(
+        identify_raw.status.success(),
+        "--no-auto-orient identify failed with stderr={}",
+        String::from_utf8_lossy(&identify_raw.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(identify_raw.stdout).unwrap().trim(),
+        "format=JPEG width=3 height=2 channels=RGB depth=8"
+    );
+
+    // Decoded pixels differ: default is rotated, --no-auto-orient is raw.
+    let default_out = prefixed("PPM", &default_ppm);
+    assert!(Command::new(imx())
+        .args([input_arg.as_str(), default_out.as_str()])
+        .output()
+        .unwrap()
+        .status
+        .success());
+    let raw_out = prefixed("PPM", &raw_ppm);
+    assert!(Command::new(imx())
+        .args(["--no-auto-orient", input_arg.as_str(), raw_out.as_str()])
+        .output()
+        .unwrap()
+        .status
+        .success());
+
+    let default_decoded = imx_codec_pnm::decode_ppm(&fs::read(&default_ppm).unwrap()).unwrap();
+    let raw_decoded = imx_codec_pnm::decode_ppm(&fs::read(&raw_ppm).unwrap()).unwrap();
+    // JPEG is lossy, so compare against the codec's own raw decode rather than
+    // the pre-encode pixels.
+    let baseline = imx_codec_jpeg::decode_with_options(&jpeg, false).unwrap();
+    assert_eq!(
+        raw_decoded, baseline,
+        "raw decode must match the unoriented JPEG pixels"
+    );
+    assert_eq!(
+        default_decoded,
+        imx_core::apply_exif_orientation(baseline, 6).unwrap(),
+        "default decode must apply orientation 6"
+    );
+    assert_ne!(default_decoded, raw_decoded);
+}
+
+#[test]
 fn top_down_bmp_identify_and_transcode_preserve_logical_rows() {
     let dir = temp_dir("top_down_bmp");
     let input = dir.join("input.bmp");
@@ -2586,18 +2664,22 @@ fn help_and_version_are_available() {
         assert!(!output.stdout.is_empty());
         if flag == "--help" {
             let stdout = String::from_utf8(output.stdout).unwrap();
-            assert!(stdout.contains("imx identify --json"));
-            assert!(stdout.contains("imx report --json"));
+            assert!(stdout.contains("imx [--no-auto-orient] identify --json"));
+            assert!(stdout.contains("imx [--no-auto-orient] report --json"));
             assert!(stdout.contains("supported identify JSON"));
             assert!(stdout.contains("stable diagnostic_code"));
-            assert!(stdout.contains("imx resize <width>x<height>"));
-            assert!(stdout.contains("imx resize-fit <width>x<height>"));
-            assert!(stdout.contains("imx batch-convert --to <FORMAT> --output-dir <dir>"));
-            assert!(stdout.contains("imx compare [--metric <ae|mae|psnr>]"));
+            assert!(stdout.contains("imx [--no-auto-orient] resize <width>x<height>"));
+            assert!(stdout.contains("imx [--no-auto-orient] resize-fit <width>x<height>"));
+            assert!(stdout
+                .contains("imx [--no-auto-orient] batch-convert --to <FORMAT> --output-dir <dir>"));
+            assert!(stdout.contains("imx [--no-auto-orient] compare [--metric <ae|mae|psnr>]"));
             assert!(stdout.contains("supported compare:"));
             assert!(stdout.contains("imx self-test"));
             assert!(stdout.contains("imx completions <bash|zsh|fish>"));
             assert!(stdout.contains("man/imx.1"));
+            assert!(stdout.contains("supported orientation:"));
+            assert!(stdout.contains("--no-auto-orient"));
+            assert!(stdout.contains("EXIF/TIFF Orientation"));
             assert!(stdout.contains("offline install confidence check"));
             assert!(stdout.contains("nearest-neighbor exact dimensions (<width>x<height>)"));
             assert!(stdout.contains("<width>x or x<height>"));
@@ -3057,7 +3139,7 @@ fn malformed_jpeg_input_exits_nonzero_with_error_prefix() {
 }
 
 #[test]
-fn malformed_jpeg_exif_orientation_exits_nonzero_with_clear_error() {
+fn malformed_jpeg_exif_orientation_is_tolerated_as_identity() {
     let dir = temp_dir("malformed_jpeg_exif");
     let input = dir.join("bad-exif.jpg");
     let image = Image::new(2, 2, PixelFormat::Rgb8, vec![0x80; 2 * 2 * 3]).unwrap();
@@ -3068,15 +3150,22 @@ fn malformed_jpeg_exif_orientation_exits_nonzero_with_clear_error() {
     )
     .unwrap();
 
+    // Malformed EXIF metadata must not fail the decode; it is treated as
+    // orientation 1, so identify succeeds and reports the raw stored dimensions.
     let input_arg = prefixed("JPEG", &input);
     let output = Command::new(imx())
         .args(["identify", input_arg.as_str()])
         .output()
         .unwrap();
-    assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).starts_with("error: "));
-    assert!(String::from_utf8_lossy(&output.stderr)
-        .contains("JPEG EXIF Orientation metadata is malformed"));
+    assert!(
+        output.status.success(),
+        "malformed EXIF identify failed with stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap().trim(),
+        "format=JPEG width=2 height=2 channels=RGB depth=8"
+    );
 }
 
 #[test]

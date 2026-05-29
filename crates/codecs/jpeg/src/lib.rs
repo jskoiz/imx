@@ -1,8 +1,9 @@
 use std::io::Cursor;
 
+use exif::{In, Reader, Tag};
 use imx_core::{
-    pixel_count, pixel_len, try_vec_with_capacity, Format, Identify, Image, ImageError,
-    PixelFormat, MAX_PIXEL_BYTES,
+    apply_exif_orientation, exif_oriented_dimensions, pixel_count, Format, Identify, Image,
+    ImageError, PixelFormat, MAX_PIXEL_BYTES,
 };
 use jpeg_decoder::{Decoder, PixelFormat as JpegPixelFormat};
 use jpeg_encoder::{ColorType, Encoder, EncodingError};
@@ -11,11 +12,27 @@ pub const MAGIC: &[u8; 3] = b"\xff\xd8\xff";
 pub const DEFAULT_QUALITY: u8 = 90;
 pub const MAX_JPEG_DECODE_BYTES: usize = MAX_PIXEL_BYTES / 4;
 
+/// Identify a JPEG image, auto-applying the EXIF Orientation tag.
+///
+/// Equivalent to [`identify_with_options`] with `auto_orient` set to `true`.
 pub fn identify(input: &[u8]) -> Result<Identify, ImageError> {
-    let orientation = exif_orientation(input)?;
+    identify_with_options(input, true)
+}
+
+/// Identify a JPEG image.
+///
+/// When `auto_orient` is `true`, the reported dimensions reflect the EXIF
+/// Orientation tag (values 5..=8 swap width and height). When it is `false`,
+/// the raw stored dimensions are reported. A missing or malformed EXIF
+/// Orientation tag is treated as orientation 1 (no-op).
+pub fn identify_with_options(input: &[u8], auto_orient: bool) -> Result<Identify, ImageError> {
     let mut decoder = decoder(input)?;
     let (width, height, pixel_format) = checked_info(&mut decoder, "identify")?;
-    let (width, height) = orientation.dimensions(width, height);
+    let (width, height) = if auto_orient {
+        exif_oriented_dimensions(exif_orientation(input), width, height)
+    } else {
+        (width, height)
+    };
     Ok(Identify {
         format: Format::Jpeg,
         width,
@@ -24,15 +41,32 @@ pub fn identify(input: &[u8]) -> Result<Identify, ImageError> {
     })
 }
 
+/// Decode a JPEG image, auto-applying the EXIF Orientation tag.
+///
+/// Equivalent to [`decode_with_options`] with `auto_orient` set to `true`.
 pub fn decode(input: &[u8]) -> Result<Image, ImageError> {
-    let orientation = exif_orientation(input)?;
+    decode_with_options(input, true)
+}
+
+/// Decode a JPEG image.
+///
+/// When `auto_orient` is `true`, the EXIF Orientation tag is applied so the
+/// returned [`Image`] is upright. When it is `false`, the raw stored pixels are
+/// returned. A missing or malformed EXIF Orientation tag is treated as
+/// orientation 1 (no-op), so decoding never fails on bad metadata.
+pub fn decode_with_options(input: &[u8], auto_orient: bool) -> Result<Image, ImageError> {
+    let orientation = if auto_orient {
+        exif_orientation(input)
+    } else {
+        1
+    };
     let mut decoder = decoder(input)?;
     let (width, height, pixel_format) = checked_info(&mut decoder, "decode")?;
     let pixels = decoder
         .decode()
         .map_err(|err| jpeg_decode_error("decode", err))?;
     let image = Image::new(width, height, pixel_format, pixels)?;
-    orient_image(image, orientation)
+    apply_exif_orientation(image, orientation)
 }
 
 pub fn encode(image: &Image) -> Result<Vec<u8>, ImageError> {
@@ -119,220 +153,35 @@ fn supported_pixel_format(pixel_format: JpegPixelFormat) -> Result<PixelFormat, 
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Orientation {
-    Normal,
-    MirrorHorizontal,
-    Rotate180,
-    MirrorVertical,
-    Transpose,
-    Rotate90,
-    Transverse,
-    Rotate270,
-}
-
-impl Orientation {
-    fn from_exif(value: u16) -> Result<Self, ImageError> {
-        match value {
-            1 => Ok(Self::Normal),
-            2 => Ok(Self::MirrorHorizontal),
-            3 => Ok(Self::Rotate180),
-            4 => Ok(Self::MirrorVertical),
-            5 => Ok(Self::Transpose),
-            6 => Ok(Self::Rotate90),
-            7 => Ok(Self::Transverse),
-            8 => Ok(Self::Rotate270),
-            _ => Err(ImageError::UnsupportedFormat(format!(
-                "JPEG EXIF Orientation value {value} is not supported"
-            ))),
-        }
-    }
-
-    fn dimensions(self, width: u32, height: u32) -> (u32, u32) {
-        match self {
-            Self::Transpose | Self::Rotate90 | Self::Transverse | Self::Rotate270 => {
-                (height, width)
-            }
-            Self::Normal | Self::MirrorHorizontal | Self::Rotate180 | Self::MirrorVertical => {
-                (width, height)
-            }
-        }
-    }
-
-    fn target(self, x: usize, y: usize, width: usize, height: usize) -> (usize, usize) {
-        match self {
-            Self::Normal => (x, y),
-            Self::MirrorHorizontal => (width - 1 - x, y),
-            Self::Rotate180 => (width - 1 - x, height - 1 - y),
-            Self::MirrorVertical => (x, height - 1 - y),
-            Self::Transpose => (y, x),
-            Self::Rotate90 => (height - 1 - y, x),
-            Self::Transverse => (height - 1 - y, width - 1 - x),
-            Self::Rotate270 => (y, width - 1 - x),
-        }
-    }
-}
-
-fn orient_image(image: Image, orientation: Orientation) -> Result<Image, ImageError> {
-    if orientation == Orientation::Normal {
-        return Ok(image);
-    }
-
-    let width = usize::try_from(image.width()).map_err(|_| ImageError::LengthOverflow)?;
-    let height = usize::try_from(image.height()).map_err(|_| ImageError::LengthOverflow)?;
-    let bpp = image.pixel_format().bytes_per_pixel();
-    let (out_width, out_height) = orientation.dimensions(image.width(), image.height());
-    let out_width_usize = usize::try_from(out_width).map_err(|_| ImageError::LengthOverflow)?;
-    let out_len = pixel_len(out_width, out_height, bpp)?;
-    let mut out = try_vec_with_capacity(out_len)?;
-    out.resize(out_len, 0);
-
-    for y in 0..height {
-        for x in 0..width {
-            let source = (y * width + x) * bpp;
-            let (out_x, out_y) = orientation.target(x, y, width, height);
-            let target = (out_y * out_width_usize + out_x) * bpp;
-            out[target..target + bpp].copy_from_slice(&image.pixels()[source..source + bpp]);
-        }
-    }
-
-    Image::new(out_width, out_height, image.pixel_format(), out)
-}
-
-fn exif_orientation(input: &[u8]) -> Result<Orientation, ImageError> {
-    if input.len() < 2 || &input[..2] != b"\xff\xd8" {
-        return Ok(Orientation::Normal);
-    }
-
-    let mut offset = 2;
-    while offset < input.len() {
-        if input[offset] != 0xff {
-            break;
-        }
-        while offset < input.len() && input[offset] == 0xff {
-            offset += 1;
-        }
-        if offset >= input.len() {
-            break;
-        }
-        let marker = input[offset];
-        offset += 1;
-
-        if marker == 0xda || marker == 0xd9 {
-            break;
-        }
-        if marker == 0x01 || (0xd0..=0xd7).contains(&marker) {
-            continue;
-        }
-        if offset + 2 > input.len() {
-            break;
-        }
-
-        let length = usize::from(u16::from_be_bytes([input[offset], input[offset + 1]]));
-        if length < 2 {
-            break;
-        }
-        let data_start = offset + 2;
-        let data_end = data_start
-            .checked_add(length - 2)
-            .ok_or(ImageError::LengthOverflow)?;
-        if data_end > input.len() {
-            if marker == 0xe1 && input[data_start..].starts_with(b"Exif\0\0") {
-                return Err(malformed_exif("APP1 segment is truncated"));
-            }
-            break;
-        }
-
-        let data = &input[data_start..data_end];
-        if marker == 0xe1 && data.starts_with(b"Exif\0\0") {
-            if let Some(orientation) = parse_exif_orientation(&data[6..])? {
-                return Ok(orientation);
-            }
-        }
-        offset = data_end;
-    }
-
-    Ok(Orientation::Normal)
-}
-
-#[derive(Debug, Clone, Copy)]
-enum Endian {
-    Little,
-    Big,
-}
-
-impl Endian {
-    fn u16(self, bytes: &[u8]) -> u16 {
-        match self {
-            Self::Little => u16::from_le_bytes([bytes[0], bytes[1]]),
-            Self::Big => u16::from_be_bytes([bytes[0], bytes[1]]),
-        }
-    }
-
-    fn u32(self, bytes: &[u8]) -> u32 {
-        match self {
-            Self::Little => u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]),
-            Self::Big => u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]),
-        }
-    }
-}
-
-fn parse_exif_orientation(tiff: &[u8]) -> Result<Option<Orientation>, ImageError> {
-    if tiff.len() < 8 {
-        return Err(malformed_exif("TIFF header is truncated"));
-    }
-    let endian = match &tiff[..2] {
-        b"II" => Endian::Little,
-        b"MM" => Endian::Big,
-        _ => return Err(malformed_exif("TIFF byte order is invalid")),
+/// Extract the EXIF Orientation tag (1..=8) from a JPEG's APP1 segment.
+///
+/// EXIF parsing is delegated to the mature `kamadak-exif` crate, which locates
+/// the APP1/EXIF segment and decodes the embedded TIFF directory. A missing
+/// segment, a malformed directory, an out-of-range value, or any parse error is
+/// treated as orientation `1` (no-op) so that decoding hostile or non-conforming
+/// inputs never fails on metadata alone. The returned value is always within
+/// `1..=8` (clamped to `1` otherwise), matching what
+/// [`imx_core::apply_exif_orientation`] expects.
+pub fn exif_orientation(input: &[u8]) -> u16 {
+    let mut cursor = Cursor::new(input);
+    let exif = match Reader::new()
+        .continue_on_error(true)
+        .read_from_container(&mut cursor)
+    {
+        Ok(exif) => exif,
+        // `PartialResult` still carries the fields parsed before the error, so a
+        // truncated or partially malformed directory can still yield a valid
+        // Orientation tag; any other error means no usable EXIF data.
+        Err(exif::Error::PartialResult(partial)) => partial.into_inner().0,
+        Err(_) => return 1,
     };
-    if endian.u16(&tiff[2..4]) != 42 {
-        return Err(malformed_exif("TIFF magic is invalid"));
+    match exif
+        .get_field(Tag::Orientation, In::PRIMARY)
+        .and_then(|field| field.value.get_uint(0))
+    {
+        Some(value @ 1..=8) => value as u16,
+        _ => 1,
     }
-    let ifd_offset =
-        usize::try_from(endian.u32(&tiff[4..8])).map_err(|_| ImageError::LengthOverflow)?;
-    let entry_count_end = ifd_offset
-        .checked_add(2)
-        .ok_or(ImageError::LengthOverflow)?;
-    if entry_count_end > tiff.len() {
-        return Err(malformed_exif("IFD0 offset is outside the EXIF payload"));
-    }
-
-    let entry_count = usize::from(endian.u16(&tiff[ifd_offset..entry_count_end]));
-    let entries_start = entry_count_end;
-    let entries_len = entry_count
-        .checked_mul(12)
-        .ok_or(ImageError::LengthOverflow)?;
-    let entries_end = entries_start
-        .checked_add(entries_len)
-        .ok_or(ImageError::LengthOverflow)?;
-    if entries_end > tiff.len() {
-        return Err(malformed_exif("IFD0 entries are truncated"));
-    }
-
-    for entry in tiff[entries_start..entries_end].chunks_exact(12) {
-        let tag = endian.u16(&entry[0..2]);
-        if tag != 0x0112 {
-            continue;
-        }
-        let field_type = endian.u16(&entry[2..4]);
-        let count = endian.u32(&entry[4..8]);
-        if field_type != 3 || count != 1 {
-            return Err(malformed_exif(
-                "Orientation tag has unsupported type or count",
-            ));
-        }
-        let value = endian.u16(&entry[8..10]);
-        return Orientation::from_exif(value).map(Some);
-    }
-
-    Ok(None)
-}
-
-fn malformed_exif(reason: &'static str) -> ImageError {
-    ImageError::UnsupportedFormat(format!(
-        "JPEG EXIF Orientation metadata is malformed: {reason}"
-    ))
 }
 
 fn encode_source(image: &Image) -> Result<(Image, ColorType), ImageError> {
@@ -589,18 +438,74 @@ mod tests {
     }
 
     #[test]
-    fn rejects_invalid_exif_orientation_metadata() {
+    fn invalid_or_malformed_exif_orientation_is_treated_as_identity() {
         let image = Image::new(2, 2, PixelFormat::Rgb8, vec![0x80; 2 * 2 * 3]).unwrap();
         let jpeg = encode(&image).unwrap();
+        let baseline = decode(&jpeg).unwrap();
 
-        let err = identify(&jpeg_with_exif_orientation(&jpeg, 9))
-            .unwrap_err()
-            .to_string();
-        assert!(err.contains("JPEG EXIF Orientation value 9 is not supported"));
+        // Out-of-range Orientation values fall back to identity (no rotation),
+        // so dimensions stay raw and pixels are unchanged.
+        let out_of_range = jpeg_with_exif_orientation(&jpeg, 9);
+        assert_eq!(
+            identify(&out_of_range).unwrap().stable_line(),
+            "format=JPEG width=2 height=2 channels=RGB depth=8"
+        );
+        assert_eq!(decode(&out_of_range).unwrap(), baseline);
 
+        // A malformed EXIF/TIFF byte order is tolerated as orientation 1.
         let malformed = jpeg_with_exif_app1(&jpeg, b"Exif\0\0ZZ\0*\0\0\0\x08");
-        let err = decode(&malformed).unwrap_err().to_string();
-        assert!(err.contains("JPEG EXIF Orientation metadata is malformed"));
+        assert_eq!(exif_orientation(&malformed), 1);
+        assert_eq!(decode(&malformed).unwrap(), baseline);
+        assert_eq!(
+            identify(&malformed).unwrap().stable_line(),
+            "format=JPEG width=2 height=2 channels=RGB depth=8"
+        );
+    }
+
+    #[test]
+    fn exif_orientation_extracts_tag_value() {
+        let image = Image::new(2, 2, PixelFormat::Rgb8, vec![0x80; 2 * 2 * 3]).unwrap();
+        let jpeg = encode(&image).unwrap();
+        assert_eq!(
+            exif_orientation(&jpeg),
+            1,
+            "no EXIF tag means orientation 1"
+        );
+        for orientation in 1..=8u16 {
+            assert_eq!(
+                exif_orientation(&jpeg_with_exif_orientation(&jpeg, orientation)),
+                orientation
+            );
+        }
+    }
+
+    #[test]
+    fn auto_orient_option_toggles_normalization() {
+        let image = Image::new(3, 2, PixelFormat::Rgb8, vec![0x80; 3 * 2 * 3]).unwrap();
+        let jpeg = encode(&image).unwrap();
+        let raw = decode_with_options(&jpeg, false).unwrap();
+        let oriented = jpeg_with_exif_orientation(&jpeg, 6);
+
+        // With auto-orient disabled, dimensions and pixels stay raw.
+        assert_eq!(
+            identify_with_options(&oriented, false)
+                .unwrap()
+                .stable_line(),
+            "format=JPEG width=3 height=2 channels=RGB depth=8"
+        );
+        assert_eq!(decode_with_options(&oriented, false).unwrap(), raw);
+
+        // With auto-orient enabled, dimensions swap and pixels are normalized.
+        assert_eq!(
+            identify_with_options(&oriented, true)
+                .unwrap()
+                .stable_line(),
+            "format=JPEG width=2 height=3 channels=RGB depth=8"
+        );
+        assert_eq!(
+            decode_with_options(&oriented, true).unwrap(),
+            expected_oriented(&raw, 6)
+        );
     }
 
     #[test]

@@ -40,6 +40,7 @@ imx-codec-pnm = { path = "crates/codecs/pnm", version = "0.19.0" }
 imx-codec-qoi = { path = "crates/codecs/qoi", version = "0.19.0" }
 imx-codec-tiff = { path = "crates/codecs/tiff", version = "0.19.0" }
 imx-codec-webp = { path = "crates/codecs/webp", version = "0.19.0" }
+kamadak-exif = "0.6.1"
 
 [dependencies]
 imx-core = { workspace = true }
