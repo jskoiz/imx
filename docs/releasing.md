@@ -4,6 +4,18 @@ This is the runbook for publishing the `imx` workspace to [crates.io]. The
 workspace is published as a set of crates that share one version; the
 `scripts/publish.sh` helper drives the whole process in the correct order.
 
+A full release is two independent mechanisms:
+
+1. **crates.io** — `scripts/publish.sh` publishes the 11 library/CLI crates in
+   dependency order. This is a manual, gated, irreversible step.
+2. **GitHub release + binaries + Homebrew tap** — pushing a `vX.Y.Z` tag fires
+   the release CI (`.github/workflows/rust-standalone-preview.yml`), which
+   packages Linux archives, publishes a GitHub release, and generates the
+   `jskoiz/homebrew-imx` tap formula.
+
+The terse step-by-step is in [`RELEASE_CHECKLIST.md`](../RELEASE_CHECKLIST.md);
+this document is the explanation behind each step.
+
 ## What gets published
 
 The workspace publishes **bottom-up in dependency order**:
@@ -49,9 +61,9 @@ attempt count are configurable via `IMX_PUBLISH_POLL_INTERVAL` (default 10s) and
 Run with no arguments to dry-run every crate in order:
 
 ```sh
-scripts/publish.sh
+bash scripts/publish.sh
 # or the thin CI-friendly wrapper:
-scripts/verify-publishable.sh
+bash scripts/verify-publishable.sh
 ```
 
 This invokes `cargo publish --dry-run -p <crate>` for each crate and prints a
@@ -80,10 +92,19 @@ resolves further down the graph as more crates become available.
 > A real `cargo publish` is **irreversible** — a published version cannot be
 > unpublished (only yanked). Do a dry run first.
 
+Always dry-run first, then run the gated real publish in one line:
+
 ```sh
-export CARGO_REGISTRY_TOKEN=<your-token>   # required
-scripts/publish.sh --execute --yes
+# 1. dry-run (safe, default; no token needed)
+bash scripts/publish.sh
+
+# 2. gated real publish (irreversible)
+CARGO_REGISTRY_TOKEN=<your-token> bash scripts/publish.sh --execute --yes
 ```
+
+The publish order is fixed and dependency-driven:
+`imx-core` → the 9 codec crates
+(`imx-codec-{bmp,farbfeld,gif,jpeg,png,pnm,qoi,tiff,webp}`) → `imx-cli` last.
 
 `--execute` is gated:
 
@@ -114,6 +135,39 @@ root `Cargo.toml`. To cut a new release:
    heading and start a fresh `## [Unreleased]`.
 4. Run the dry run (`scripts/publish.sh`) and the full test suite
    (`scripts/ci.sh`) before tagging.
+
+## Tagging triggers the release CI
+
+Binaries, the GitHub release, and the Homebrew tap formula are produced by CI,
+not by hand. The release workflow
+(`.github/workflows/rust-standalone-preview.yml`) runs its `package`,
+`release`, and `release-archive-smoke` jobs only on a pushed tag matching `v*`.
+After the crates.io publish is done and the commit is tagged at the released
+version, push the tag:
+
+```sh
+git tag vX.Y.Z          # X.Y.Z must equal workspace.package.version
+git push origin vX.Y.Z
+```
+
+On that tag push the CI will:
+
+1. Re-run the full preview gates (differential corpus, fuzz smoke, benchmark
+   regression, install verification).
+2. Package `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu` archives
+   with deterministic tar/gzip metadata and an aggregate `SHA256SUMS`.
+3. Publish a GitHub release for the tag with the archives and conformance
+   report attached. The `release` job asserts the tag equals the `imx-preview`
+   package version, so a mismatched tag fails fast.
+4. Generate the `jskoiz/homebrew-imx` tap formula from that release's
+   `SHA256SUMS`.
+
+**`imx-preview` is never published to crates.io.** It is the workspace root
+package (the lib-only test/bench harness), marked `publish = false`, and is
+omitted from `scripts/publish.sh`. Its version is used *only* as the
+tag/version assertion source in the release job — it is not a released crate.
+No Windows or hosted-macOS release artifacts are produced; macOS/tap proof is
+local or manually approved.
 
 ## Post-publish verification
 
