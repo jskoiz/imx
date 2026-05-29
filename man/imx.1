@@ -1,0 +1,237 @@
+.\" Manpage for imx.
+.\" Mirror of the imx --help text; keep in sync with crates/cli/src/main.rs.
+.TH IMX 1 "2026-05-28" "imx 0.19.0" "IMX Manual"
+.SH NAME
+imx \- memory-safe, deterministic, differentially-verified image conversion CLI
+.SH SYNOPSIS
+.B imx
+.B \-\-help
+.br
+.B imx
+.B \-\-version
+.br
+.B imx identify
+.RI [ FORMAT :] input
+.br
+.B imx identify \-\-json
+.RI [ FORMAT :] input
+.br
+.B imx report \-\-json
+.RI [ FORMAT :] input
+.br
+.B imx resize
+.IR geometry " " "[FORMAT:]input " "[FORMAT:]output"
+.br
+.B imx resize-fit
+.IR <width>x<height> " " "[FORMAT:]input " "[FORMAT:]output"
+.br
+.B imx crop
+.IR <width>x<height>+<x>+<y> " " "[FORMAT:]input " "[FORMAT:]output"
+.br
+.B imx rotate
+.IR <90|180|270> " " "[FORMAT:]input " "[FORMAT:]output"
+.br
+.B imx flip
+.RI [ FORMAT :] input " " [ FORMAT :] output
+.br
+.B imx flop
+.RI [ FORMAT :] input " " [ FORMAT :] output
+.br
+.B imx batch-convert \-\-to
+.I FORMAT
+.B \-\-output-dir
+.IR dir " [\-\-resize " <width>x<height> "|\-\-resize-fit " <width>x<height> "] [\-\-quality " <1..=100> "] [FORMAT:]input..."
+.br
+.B imx self-test
+.br
+.B imx completions
+.RI < bash | zsh | fish >
+.br
+.B imx
+.RI [ \-\-quality " " <1..=100> ] " " [ FORMAT :] input " " [ FORMAT :] output
+.SH DESCRIPTION
+.B imx
+is a memory-safe, deterministic, differentially-verified image conversion
+library and command-line tool. It decodes, identifies, transcodes, resizes, and
+applies right-angle geometry operations to images, producing byte-identical
+output for a given input. It is not a fork or port of ImageMagick and does not
+provide the
+.BR convert ,
+.BR magick ,
+or
+.B mogrify
+commands.
+.SH COMMANDS
+.TP
+.B identify [\-\-json] [FORMAT:]<input>
+Print one stable key-value metadata line for the input image, or with
+.B \-\-json
+emit a deterministic JSON object with
+.IR schema_version ,
+.IR format ,
+.IR width ,
+.IR height ,
+.IR channels ,
+and
+.IR depth .
+.TP
+.B report \-\-json [FORMAT:]<input>
+Print a deterministic single-input JSON report with
+.I status
+(supported or unsupported) and a stable
+.I diagnostic_code
+over the existing identify metadata.
+.TP
+.B resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input> [FORMAT:]<output>
+Resize with center-sampled nearest-neighbor sampling. Supported geometries are
+exact dimensions
+.RB ( <width>x<height> ),
+single-axis aspect-preserving
+.RB ( <width>x " or " x<height> ),
+and uniform percent
+.RB ( <percent>% ).
+.TP
+.B resize-fit <width>x<height> [FORMAT:]<input> [FORMAT:]<output>
+Resize preserving aspect ratio to the largest integer box that fits within the
+requested dimensions.
+.TP
+.B crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>
+Extract a bounds-checked rectangular region. Format-preserving.
+.TP
+.B rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>
+Rotate clockwise by 90, 180, or 270 degrees. Format-preserving.
+.TP
+.B flip [FORMAT:]<input> [FORMAT:]<output>
+Flip vertically. Format-preserving.
+.TP
+.B flop [FORMAT:]<input> [FORMAT:]<output>
+Flop horizontally. Format-preserving.
+.TP
+.B batch-convert \-\-to <FORMAT> \-\-output-dir <dir> [\-\-resize <width>x<height>|\-\-resize-fit <width>x<height>] [\-\-quality <1..=100>] [FORMAT:]<input>...
+Convert shell-expanded input paths into an existing output directory with an
+explicit output format. Optionally resize each input. Optionally set JPEG
+.IR \-\-quality .
+Output names are deterministic; there is no overwrite or collision renaming.
+.TP
+.B self-test
+Run the offline install confidence check for identify, transcode, resize,
+resize-fit, and batch-convert across the supported formats.
+.TP
+.B completions <bash|zsh|fish>
+Print a hand-written shell completion script for the named shell to standard
+output.
+.TP
+.B [\-\-quality <1..=100>] [FORMAT:]<input> [FORMAT:]<output>
+Transcode between formats, including deterministic same-format rewrites.
+.SH OPTIONS
+.TP
+.BR \-h ", " \-\-help
+Print the help text and exit 0.
+.TP
+.BR \-V ", " \-\-version
+Print the version and exit 0.
+.TP
+.B \-\-json
+Emit deterministic JSON output for
+.B identify
+and
+.BR report .
+.TP
+.B \-\-to <FORMAT>
+Output format for
+.BR batch-convert .
+.TP
+.B \-\-output-dir <dir>
+Existing output directory for
+.BR batch-convert .
+.TP
+.B \-\-resize <width>x<height>
+Exact resize applied to each input during
+.BR batch-convert .
+.TP
+.B \-\-resize-fit <width>x<height>
+Aspect-preserving fit applied to each input during
+.BR batch-convert .
+.TP
+.B \-\-quality <1..=100>
+JPEG output quality (default 90). Applies only when the output format is JPEG;
+rejected for non-JPEG output.
+.SH FORMATS
+Supported formats (read and write):
+.B bmp
+(.bmp),
+.B farbfeld
+(.ff, .farbfeld),
+.B jpeg
+(.jpg, .jpeg),
+.B qoi
+(.qoi),
+.B pbm
+(.pbm),
+.B pgm
+(.pgm),
+.B png
+(.png),
+.B ppm
+(.ppm),
+.B webp
+(.webp). WEBP output is lossless.
+.PP
+Input-only formats:
+.B gif
+(.gif). The GIF decoder reads only the first frame and ignores animation.
+.PP
+Supported uppercase format prefixes:
+.BR BMP: ", " FARBFELD: ", " JPEG: ", " QOI: ", " PBM: ", " PGM: ", " PNG: ", " PPM: ", " WEBP: .
+Input-only prefix:
+.BR GIF: .
+A prefix is stripped before file IO and must match the detected input format or
+the output extension.
+.SH STREAMING
+Use
+.B \-
+as a path together with a
+.B FORMAT:
+prefix to read input from standard input and/or write output to standard output
+(for example
+.BR PNG:- ).
+Only image bytes are written to standard output.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Operation error: data, IO, malformed-input, or validation failure. Diagnostics
+are printed to standard error with an
+.B error:
+prefix.
+.TP
+.B 2
+Usage error or unsupported command shape.
+.SH UNSUPPORTED
+GIF as an output target, GIF animation or multi-frame decoding, recursive
+directory walking, arbitrary-angle rotation, delegates, color management, and
+formats beyond BMP, FARBFELD, GIF, JPEG, QOI, PBM, PGM, PNG, PPM, and WEBP.
+.SH EXAMPLES
+.TP
+Identify an image:
+.B imx identify photo.png
+.TP
+Identify as JSON:
+.B imx identify \-\-json photo.png
+.TP
+Transcode between formats:
+.B imx photo.png photo.jpg
+.TP
+Resize to exact dimensions:
+.B imx resize 800x600 photo.png thumb.png
+.TP
+Stream through standard input and output:
+.B cat photo.png | imx PNG:- JPEG:- > photo.jpg
+.TP
+Print bash completions:
+.B imx completions bash
+.SH SEE ALSO
+Project documentation and the behavior contract live in the IMX repository
+README and COMPATIBILITY documents.

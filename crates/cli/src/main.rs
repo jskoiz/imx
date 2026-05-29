@@ -7,6 +7,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use imx_core::{compare_rgba8, Format, Identify, ImageError, ResizeGeometry, MAX_PIXEL_BYTES};
 
+mod completions;
+
 const MAX_INPUT_BYTES: u64 = MAX_PIXEL_BYTES as u64 + 1024 * 1024;
 
 fn usage() -> ! {
@@ -82,6 +84,8 @@ fn main() {
         [_, command, rest @ ..] if command == "batch-convert" => batch_convert(rest),
         [_, command] if command == "self-test" => self_test(),
         [_, command, ..] if command == "self-test" => usage(),
+        [_, command, shell] if command == "completions" => completions(shell),
+        [_, command, ..] if command == "completions" => usage(),
         [_, command, ..] if is_unsupported_command_shape(command) => usage(),
         [_, flag, quality, input, output] if flag == "--quality" => {
             transcode_with_quality(quality, input, output)
@@ -107,6 +111,25 @@ fn self_test() -> ! {
         fail(format!("self-test failed: {err}"));
     }
     println!("self-test: passed");
+    process::exit(0);
+}
+
+fn completions(shell: &str) -> ! {
+    let script = match shell {
+        "bash" => completions::BASH,
+        "zsh" => completions::ZSH,
+        "fish" => completions::FISH,
+        other => fail_usage(format!(
+            "unsupported shell: {other}; expected bash, zsh, or fish"
+        )),
+    };
+    let mut stdout = std::io::stdout().lock();
+    if let Err(err) = stdout.write_all(script.as_bytes()) {
+        fail(format!("failed to write stdout: {err}"));
+    }
+    if let Err(err) = stdout.flush() {
+        fail(format!("failed to write stdout: {err}"));
+    }
     process::exit(0);
 }
 
