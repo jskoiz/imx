@@ -2578,6 +2578,12 @@ fn help_and_version_are_available() {
             assert!(stdout.contains("imx resize <width>x<height>"));
             assert!(stdout.contains("imx resize-fit <width>x<height>"));
             assert!(stdout.contains("imx batch-convert --to <FORMAT> --output-dir <dir>"));
+            assert!(stdout.contains(
+                "imx pipeline [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:-> --op <op> [--op <op> ...]"
+            ));
+            assert!(stdout.contains("supported pipeline:"));
+            assert!(stdout.contains("ops apply left-to-right"));
+            assert!(stdout.contains("single decode/encode pass"));
             assert!(stdout.contains("imx compare [--metric <ae|mae|psnr>]"));
             assert!(stdout.contains("supported compare:"));
             assert!(stdout.contains("imx self-test"));
@@ -4270,4 +4276,226 @@ fn gif_is_rejected_as_batch_output_format() {
         .unwrap();
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("input-only format"));
+}
+
+// A small, non-uniform RGB image so that ops (flip/flop/rotate/crop/resize) and
+// their ordering are observable in the encoded bytes.
+fn pipeline_fixture_image() -> Image {
+    let mut pixels = Vec::with_capacity(4 * 4 * 3);
+    for y in 0..4u8 {
+        for x in 0..4u8 {
+            pixels.extend_from_slice(&[x * 40 + 10, y * 40 + 20, x * 30 + y * 15 + 5]);
+        }
+    }
+    Image::new(4, 4, PixelFormat::Rgb8, pixels).unwrap()
+}
+
+#[test]
+fn pipeline_matches_sequential_subcommands() {
+    let dir = temp_dir("pipeline_equiv");
+    let input = dir.join("input.png");
+    write_png(&input, &pipeline_fixture_image());
+
+    // Pipeline: one decode/encode applying resize:50% -> rotate:90 -> flip.
+    let pipeline_out = dir.join("pipeline.png");
+    let status = Command::new(imx())
+        .args([
+            "pipeline",
+            input.to_str().unwrap(),
+            pipeline_out.to_str().unwrap(),
+            "--op",
+            "resize:50%",
+            "--op",
+            "rotate:90",
+            "--op",
+            "flip",
+        ])
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    // Equivalent: three separate transcodes, each its own decode/encode.
+    let step1 = dir.join("step1.png");
+    let step2 = dir.join("step2.png");
+    let step3 = dir.join("step3.png");
+    assert!(Command::new(imx())
+        .args([
+            "resize",
+            "50%",
+            input.to_str().unwrap(),
+            step1.to_str().unwrap()
+        ])
+        .status()
+        .unwrap()
+        .success());
+    assert!(Command::new(imx())
+        .args([
+            "rotate",
+            "90",
+            step1.to_str().unwrap(),
+            step2.to_str().unwrap()
+        ])
+        .status()
+        .unwrap()
+        .success());
+    assert!(Command::new(imx())
+        .args(["flip", step2.to_str().unwrap(), step3.to_str().unwrap()])
+        .status()
+        .unwrap()
+        .success());
+
+    assert_eq!(
+        fs::read(&pipeline_out).unwrap(),
+        fs::read(&step3).unwrap(),
+        "pipeline output must byte-match the equivalent sequential subcommands"
+    );
+}
+
+#[test]
+fn pipeline_order_matters() {
+    let dir = temp_dir("pipeline_order");
+    let input = dir.join("input.png");
+    write_png(&input, &pipeline_fixture_image());
+
+    let rotate_then_crop = dir.join("rotate_then_crop.png");
+    let crop_then_rotate = dir.join("crop_then_rotate.png");
+    assert!(Command::new(imx())
+        .args([
+            "pipeline",
+            input.to_str().unwrap(),
+            rotate_then_crop.to_str().unwrap(),
+            "--op",
+            "rotate:90",
+            "--op",
+            "crop:2x2+0+0",
+        ])
+        .status()
+        .unwrap()
+        .success());
+    assert!(Command::new(imx())
+        .args([
+            "pipeline",
+            input.to_str().unwrap(),
+            crop_then_rotate.to_str().unwrap(),
+            "--op",
+            "crop:2x2+0+0",
+            "--op",
+            "rotate:90",
+        ])
+        .status()
+        .unwrap()
+        .success());
+
+    assert_ne!(
+        fs::read(&rotate_then_crop).unwrap(),
+        fs::read(&crop_then_rotate).unwrap(),
+        "operation order must affect the result"
+    );
+}
+
+#[test]
+fn pipeline_is_deterministic() {
+    let dir = temp_dir("pipeline_determinism");
+    let input = dir.join("input.png");
+    write_png(&input, &pipeline_fixture_image());
+
+    let first = dir.join("first.png");
+    let second = dir.join("second.png");
+    for out in [&first, &second] {
+        assert!(Command::new(imx())
+            .args([
+                "pipeline",
+                input.to_str().unwrap(),
+                out.to_str().unwrap(),
+                "--op",
+                "resize:50%",
+                "--op",
+                "rotate:270",
+                "--op",
+                "flop",
+            ])
+            .status()
+            .unwrap()
+            .success());
+    }
+    assert_eq!(
+        fs::read(&first).unwrap(),
+        fs::read(&second).unwrap(),
+        "the same pipeline must produce identical output bytes"
+    );
+}
+
+#[test]
+fn pipeline_requires_at_least_one_op() {
+    let dir = temp_dir("pipeline_no_op");
+    let input = dir.join("input.png");
+    let out = dir.join("out.png");
+    write_png(&input, &pipeline_fixture_image());
+
+    let output = Command::new(imx())
+        .args(["pipeline", input.to_str().unwrap(), out.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert_failure(output, 2, "at least one --op");
+}
+
+#[test]
+fn pipeline_unknown_op_is_usage_error() {
+    let dir = temp_dir("pipeline_unknown_op");
+    let input = dir.join("input.png");
+    let out = dir.join("out.png");
+    write_png(&input, &pipeline_fixture_image());
+
+    let output = Command::new(imx())
+        .args([
+            "pipeline",
+            input.to_str().unwrap(),
+            out.to_str().unwrap(),
+            "--op",
+            "sharpen:3",
+        ])
+        .output()
+        .unwrap();
+    assert_failure(output, 2, "unsupported pipeline op");
+}
+
+#[test]
+fn pipeline_bad_geometry_is_usage_error() {
+    let dir = temp_dir("pipeline_bad_geometry");
+    let input = dir.join("input.png");
+    let out = dir.join("out.png");
+    write_png(&input, &pipeline_fixture_image());
+
+    let output = Command::new(imx())
+        .args([
+            "pipeline",
+            input.to_str().unwrap(),
+            out.to_str().unwrap(),
+            "--op",
+            "resize:notageometry",
+        ])
+        .output()
+        .unwrap();
+    assert_failure(output, 2, "invalid resize geometry");
+}
+
+#[test]
+fn pipeline_crop_out_of_bounds_is_operational_error() {
+    let dir = temp_dir("pipeline_crop_oob");
+    let input = dir.join("input.png");
+    let out = dir.join("out.png");
+    write_png(&input, &pipeline_fixture_image());
+
+    let output = Command::new(imx())
+        .args([
+            "pipeline",
+            input.to_str().unwrap(),
+            out.to_str().unwrap(),
+            "--op",
+            "crop:10x10+0+0",
+        ])
+        .output()
+        .unwrap();
+    assert_failure(output, 1, "failed to crop");
+    assert!(!out.exists(), "no output should be written on a failed op");
 }

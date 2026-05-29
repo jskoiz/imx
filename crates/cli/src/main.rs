@@ -13,7 +13,7 @@ const MAX_INPUT_BYTES: u64 = MAX_PIXEL_BYTES as u64 + 1024 * 1024;
 
 fn usage() -> ! {
     eprintln!(
-        "usage:\n  imx --help\n  imx --version\n  imx identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.tif|input.tiff|input.webp|FORMAT:->\n  imx identify --json [FORMAT:]<input|FORMAT:->\n  imx report --json [FORMAT:]<input|FORMAT:->\n  imx compare [--metric <ae|mae|psnr>] [FORMAT:]<a|FORMAT:-> [FORMAT:]<b>\n  imx resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx completions <bash|zsh|fish>\n  imx self-test\n  imx [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported formats: bmp (.bmp), farbfeld (.ff, .farbfeld), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm), tiff (.tif, .tiff), webp (.webp)\ninput-only formats: gif (.gif)\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, TIFF:, WEBP:\ninput-only prefixes: GIF:\nstdin/stdout: use - as a path with a FORMAT: prefix (e.g. PNG:-); --quality applies only to JPEG output"
+        "usage:\n  imx --help\n  imx --version\n  imx identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.tif|input.tiff|input.webp|FORMAT:->\n  imx identify --json [FORMAT:]<input|FORMAT:->\n  imx report --json [FORMAT:]<input|FORMAT:->\n  imx compare [--metric <ae|mae|psnr>] [FORMAT:]<a|FORMAT:-> [FORMAT:]<b>\n  imx resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx pipeline [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:-> --op <op> [--op <op> ...]\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx completions <bash|zsh|fish>\n  imx self-test\n  imx [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported formats: bmp (.bmp), farbfeld (.ff, .farbfeld), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm), tiff (.tif, .tiff), webp (.webp)\ninput-only formats: gif (.gif)\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, TIFF:, WEBP:\ninput-only prefixes: GIF:\nstdin/stdout: use - as a path with a FORMAT: prefix (e.g. PNG:-); --quality applies only to JPEG output"
     );
     process::exit(2);
 }
@@ -47,7 +47,7 @@ fn main() {
     match args.as_slice() {
         [_, flag] if flag == "--help" || flag == "-h" || flag == "help" => {
             println!(
-                "IMX Developer Preview\n\nusage:\n  imx identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.tif|input.tiff|input.webp|FORMAT:->\n  imx identify --json [FORMAT:]<input|FORMAT:->\n  imx report --json [FORMAT:]<input|FORMAT:->\n  imx compare [--metric <ae|mae|psnr>] [FORMAT:]<a|FORMAT:-> [FORMAT:]<b>\n  imx resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx completions <bash|zsh|fish>\n  imx self-test\n  imx [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported transcodes: BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM/TIFF/WEBP, including deterministic same-format rewrites except lossy JPEG re-encoding; WEBP output is lossless\nsupported input-only formats: GIF decode and identify, including transcode into any supported output format; the GIF decoder reads only the first frame and ignores animation\nsupported streaming: read input from stdin and/or write output to stdout via - with a FORMAT: prefix (e.g. PNG:-); only image bytes go to stdout\nsupported JPEG quality: --quality <1..=100> on the single transcode and batch-convert when the output format is JPEG (default 90); rejected for non-JPEG output\nsupported identify JSON: deterministic schema_version/format/width/height/channels/depth over existing identify metadata\nsupported report JSON: single-input supported/unsupported status with stable diagnostic_code values\nsupported compare: decode two inputs and diff them deterministically; differing dimensions or channels print a single differ: line and exit 1, matching images normalize to RGBA8 and report differing-pixel count, peak per-channel difference (AE), and mean absolute error (MAE); identical inputs print identical and exit 0, otherwise exit 1; --metric <ae|mae|psnr> prints only that single value (psnr is inf for identical inputs); usage errors exit 2\nsupported resize: nearest-neighbor exact dimensions (<width>x<height>), single-axis aspect-preserving (<width>x or x<height>), and uniform percent (<percent>%) geometries, plus aspect-preserving fit (resize-fit) for existing supported formats\nsupported geometry: bounds-checked crop (<width>x<height>+<x>+<y>), clockwise rotate (90/180/270), vertical flip, and horizontal flop, all format-preserving\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, optional --quality for JPEG output, no overwrite or collision renaming\nsupported completions: imx completions <bash|zsh|fish> prints a shell completion script to stdout; a roff man page is bundled at man/imx.1\nsupported self-test: offline install confidence check for identify/transcode/resize/resize-fit/batch-convert across supported formats\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, TIFF:, WEBP:\ninput-only prefixes: GIF:\nunsupported: GIF as output target, GIF animation/multi-frame decoding, recursive directory walking, arbitrary-angle rotation, delegates, color management, and formats beyond BMP/FARBFELD/GIF/JPEG/QOI/PBM/PGM/PNG/PPM/TIFF/WEBP"
+                "IMX Developer Preview\n\nusage:\n  imx identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.tif|input.tiff|input.webp|FORMAT:->\n  imx identify --json [FORMAT:]<input|FORMAT:->\n  imx report --json [FORMAT:]<input|FORMAT:->\n  imx compare [--metric <ae|mae|psnr>] [FORMAT:]<a|FORMAT:-> [FORMAT:]<b>\n  imx resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx pipeline [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:-> --op <op> [--op <op> ...]\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx completions <bash|zsh|fish>\n  imx self-test\n  imx [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported transcodes: BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM/TIFF/WEBP, including deterministic same-format rewrites except lossy JPEG re-encoding; WEBP output is lossless\nsupported input-only formats: GIF decode and identify, including transcode into any supported output format; the GIF decoder reads only the first frame and ignores animation\nsupported streaming: read input from stdin and/or write output to stdout via - with a FORMAT: prefix (e.g. PNG:-); only image bytes go to stdout\nsupported JPEG quality: --quality <1..=100> on the single transcode and batch-convert when the output format is JPEG (default 90); rejected for non-JPEG output\nsupported identify JSON: deterministic schema_version/format/width/height/channels/depth over existing identify metadata\nsupported report JSON: single-input supported/unsupported status with stable diagnostic_code values\nsupported compare: decode two inputs and diff them deterministically; differing dimensions or channels print a single differ: line and exit 1, matching images normalize to RGBA8 and report differing-pixel count, peak per-channel difference (AE), and mean absolute error (MAE); identical inputs print identical and exit 0, otherwise exit 1; --metric <ae|mae|psnr> prints only that single value (psnr is inf for identical inputs); usage errors exit 2\nsupported resize: nearest-neighbor exact dimensions (<width>x<height>), single-axis aspect-preserving (<width>x or x<height>), and uniform percent (<percent>%) geometries, plus aspect-preserving fit (resize-fit) for existing supported formats\nsupported geometry: bounds-checked crop (<width>x<height>+<x>+<y>), clockwise rotate (90/180/270), vertical flip, and horizontal flop, all format-preserving\nsupported pipeline: imx pipeline chains ordered --op values in a single decode/encode pass; supported ops are resize:<geometry>, resize-fit:<width>x<height>, crop:<width>x<height>+<x>+<y>, rotate:<90|180|270>, flip, and flop; ops apply left-to-right so order matters and at least one --op is required; output is byte-deterministic and equivalent to running the same ops as sequential subcommands\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, optional --quality for JPEG output, no overwrite or collision renaming\nsupported completions: imx completions <bash|zsh|fish> prints a shell completion script to stdout; a roff man page is bundled at man/imx.1\nsupported self-test: offline install confidence check for identify/transcode/resize/resize-fit/batch-convert across supported formats\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, TIFF:, WEBP:\ninput-only prefixes: GIF:\nunsupported: GIF as output target, GIF animation/multi-frame decoding, recursive directory walking, arbitrary-angle rotation, delegates, color management, and formats beyond BMP/FARBFELD/GIF/JPEG/QOI/PBM/PGM/PNG/PPM/TIFF/WEBP"
             );
             process::exit(0);
         }
@@ -82,6 +82,7 @@ fn main() {
         [_, command, input, output] if command == "flop" => flop(input, output),
         [_, command, ..] if command == "flop" => usage(),
         [_, command, rest @ ..] if command == "batch-convert" => batch_convert(rest),
+        [_, command, rest @ ..] if command == "pipeline" => pipeline(rest),
         [_, command] if command == "self-test" => self_test(),
         [_, command, ..] if command == "self-test" => usage(),
         [_, command, shell] if command == "completions" => completions(shell),
@@ -943,6 +944,146 @@ fn flop(input_path: &str, output_path: &str) -> ! {
     });
 
     write_atomic(output_path.path, &output);
+    process::exit(0);
+}
+
+/// A single pipeline operation, parsed from a `--op` spec. Each variant reuses
+/// the same geometry/angle parsing as the corresponding standalone subcommand so
+/// behavior is identical; the math is delegated to `imx_core::Image` methods.
+#[derive(Debug, Clone, Copy)]
+enum Op {
+    Resize(ResizeGeometry),
+    ResizeFit(ResizeDimensions),
+    Crop(CropGeometry),
+    Rotate(RotateAngle),
+    Flip,
+    Flop,
+}
+
+impl Op {
+    /// The operation name used in runtime error messages, matching the
+    /// standalone subcommand names.
+    fn name(self) -> &'static str {
+        match self {
+            Op::Resize(_) => "resize",
+            Op::ResizeFit(_) => "resize-fit",
+            Op::Crop(_) => "crop",
+            Op::Rotate(_) => "rotate",
+            Op::Flip => "flip",
+            Op::Flop => "flop",
+        }
+    }
+
+    /// Apply this operation to `image`, producing a new image. Errors are
+    /// runtime/operational errors (e.g. crop out of bounds).
+    fn apply(self, image: imx_core::Image) -> Result<imx_core::Image, ImageError> {
+        match self {
+            Op::Resize(geometry) => {
+                let (width, height) = geometry.resolve(image.width(), image.height())?;
+                image.resize_nearest(width, height)
+            }
+            Op::ResizeFit(dimensions) => {
+                image.resize_nearest_fit(dimensions.width, dimensions.height)
+            }
+            Op::Crop(geometry) => {
+                image.crop(geometry.x, geometry.y, geometry.width, geometry.height)
+            }
+            Op::Rotate(RotateAngle::Ninety) => image.rotate_90(),
+            Op::Rotate(RotateAngle::OneEighty) => image.rotate_180(),
+            Op::Rotate(RotateAngle::TwoSeventy) => image.rotate_270(),
+            Op::Flip => image.flip_vertical(),
+            Op::Flop => image.flop_horizontal(),
+        }
+    }
+}
+
+/// Parse a single `--op` spec into an [`Op`]. The op name is everything before
+/// the first `:`; the remainder (if any) is the argument. An invalid spec or bad
+/// geometry/angle is a usage error.
+fn parse_pipeline_op(spec: &str) -> Result<Op, String> {
+    let (name, arg) = match spec.split_once(':') {
+        Some((name, arg)) => (name, Some(arg)),
+        None => (spec, None),
+    };
+    match (name, arg) {
+        ("resize", Some(arg)) => ResizeGeometry::parse(arg)
+            .map(Op::Resize)
+            .map_err(|err| err.to_string()),
+        ("resize-fit", Some(arg)) => parse_resize_dimensions(arg).map(Op::ResizeFit),
+        ("crop", Some(arg)) => parse_crop_geometry(arg).map(Op::Crop),
+        ("rotate", Some(arg)) => parse_rotate_angle(arg).map(Op::Rotate),
+        ("flip", None) => Ok(Op::Flip),
+        ("flop", None) => Ok(Op::Flop),
+        ("resize" | "resize-fit" | "crop" | "rotate", None) => {
+            Err(format!("pipeline op {name} requires an argument: {name}:<value>"))
+        }
+        ("flip" | "flop", Some(_)) => {
+            Err(format!("pipeline op {name} does not take an argument"))
+        }
+        _ => Err(format!(
+            "unsupported pipeline op: {spec}; expected resize:<geometry>, resize-fit:<width>x<height>, crop:<width>x<height>+<x>+<y>, rotate:<90|180|270>, flip, or flop"
+        )),
+    }
+}
+
+/// Parse the positional input/output arguments and the ordered list of `--op`
+/// specs for the pipeline command. At least one `--op` is required.
+fn parse_pipeline_args(args: &[String]) -> Result<(&str, &str, Vec<Op>), String> {
+    let mut positionals: Vec<&str> = Vec::new();
+    let mut ops: Vec<Op> = Vec::new();
+    let mut index = 0;
+    while let Some(arg) = args.get(index) {
+        match arg.as_str() {
+            "--op" => {
+                let Some(value) = args.get(index + 1) else {
+                    return Err("pipeline --op requires a value".to_string());
+                };
+                ops.push(parse_pipeline_op(value)?);
+                index += 2;
+            }
+            option if option.starts_with("--") => {
+                return Err(format!("unsupported pipeline option: {option}"));
+            }
+            value => {
+                positionals.push(value);
+                index += 1;
+            }
+        }
+    }
+
+    let [input, output] = positionals.as_slice() else {
+        return Err("pipeline requires exactly one input and one output path".to_string());
+    };
+    if ops.is_empty() {
+        return Err("pipeline requires at least one --op".to_string());
+    }
+    Ok((input, output, ops))
+}
+
+fn pipeline(args: &[String]) -> ! {
+    let (input_arg, output_arg, ops) =
+        parse_pipeline_args(args).unwrap_or_else(|err| fail_usage(err));
+
+    let input_path = parse_cli_path(input_arg).unwrap_or_else(|err| fail(err));
+    let output_path = parse_cli_path(output_arg).unwrap_or_else(|err| fail(err));
+    reject_same_path(input_path.path, output_path.path);
+    let input = read(input_path.path);
+    let input_format = detect_input_format(&input_path, &input).unwrap_or_else(|err| fail(err));
+    let output_format = detect_output_format(&output_path).unwrap_or_else(|err| fail(err));
+
+    let mut image = decode_image(input_format, &input).unwrap_or_else(|err| {
+        fail_image_operation(input_format, "decode", "input", &input_path, err)
+    });
+    for op in ops {
+        image = op.apply(image).unwrap_or_else(|err| {
+            fail_image_operation(input_format, op.name(), "input", &input_path, err)
+        });
+    }
+    let output = encode_image(output_format, &image).unwrap_or_else(|err| {
+        fail_image_operation(output_format, "encode", "output", &output_path, err)
+    });
+
+    write_output(output_path.path, &output);
     process::exit(0);
 }
 
