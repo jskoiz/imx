@@ -40,6 +40,12 @@ fn decode_fuzz_smoke_does_not_panic_or_allocate_unboundedly() {
 
         let jpeg = std::panic::catch_unwind(|| imx_codec_jpeg::decode(&bytes));
         assert!(jpeg.is_ok(), "JPEG decode panicked at len {len}");
+
+        let webp = std::panic::catch_unwind(|| imx_codec_webp::decode(&bytes));
+        assert!(webp.is_ok(), "WEBP decode panicked at len {len}");
+
+        let gif = std::panic::catch_unwind(|| imx_codec_gif::decode(&bytes));
+        assert!(gif.is_ok(), "GIF decode panicked at len {len}");
     }
 }
 
@@ -124,5 +130,31 @@ fn structured_truncation_fuzz_smoke_does_not_panic() {
             result.is_ok(),
             "progressive JPEG truncation panicked at len {len}"
         );
+    }
+
+    let mut webp = Vec::new();
+    image_webp::WebPEncoder::new(std::io::Cursor::new(&mut webp))
+        .encode(
+            &[10, 20, 30, 255, 40, 50, 60, 128],
+            2,
+            1,
+            image_webp::ColorType::Rgba8,
+        )
+        .unwrap();
+    for len in 0..webp.len() {
+        let result = std::panic::catch_unwind(|| imx_codec_webp::decode(&webp[..len]));
+        assert!(result.is_ok(), "WEBP truncation panicked at len {len}");
+    }
+
+    let mut gif = Vec::new();
+    {
+        let mut encoder = gif::Encoder::new(&mut gif, 2, 1, &[]).unwrap();
+        let mut pixels = vec![255, 0, 0, 255, 0, 255, 0, 255];
+        let frame = gif::Frame::from_rgba_speed(2, 1, &mut pixels, 10);
+        encoder.write_frame(&frame).unwrap();
+    }
+    for len in 0..gif.len() {
+        let result = std::panic::catch_unwind(|| imx_codec_gif::decode(&gif[..len]));
+        assert!(result.is_ok(), "GIF truncation panicked at len {len}");
     }
 }

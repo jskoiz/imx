@@ -218,6 +218,40 @@ run_identify_error_case() {
   fi
 }
 
+geometry_cases=0
+
+run_geometry_case() {
+  local case_id="$1"
+  local input_prefix="$2"
+  local input_file="$3"
+  shift 3
+  local op_args=()
+  while [[ "$1" != "--" ]]; do
+    op_args+=("$1")
+    shift
+  done
+  shift
+  local width="$1"
+  local height="$2"
+  local channels="$3"
+  local depth="$4"
+  local input="$fixture_dir/$input_file"
+  local output="$out_dir/outputs/$case_id.ppm"
+  local report_json="$out_dir/$case_id.geometry.report.json"
+  local expected_report
+  geometry_cases=$((geometry_cases + 1))
+  expected_report="$(expected_report_json PPM "$width" "$height" "$channels" "$depth")"
+  if run_imx "${op_args[@]}" "$input_prefix:$input" "PPM:$output" >"$out_dir/$case_id.geometry.stdout" 2>"$out_dir/$case_id.geometry.stderr" &&
+    run_imx report --json "PPM:$output" >"$report_json" 2>"$out_dir/$case_id.geometry.report.stderr" &&
+    assert_file_exact "$report_json" "$expected_report"; then
+    record "geometry.$case_id" passed "${op_args[*]} output reported expected metadata"
+    passes=$((passes + 1))
+  else
+    record "geometry.$case_id" failed "${op_args[*]} output did not report expected metadata"
+    failures=$((failures + 1))
+  fi
+}
+
 run_supported_case gradient-bmp BMP gradient-64.bmp BMP 64 64 RGB 8
 run_supported_case gradient-farbfeld FARBFELD gradient-64.ff FARBFELD 64 64 RGBA 16
 run_supported_case gradient-jpeg JPEG gradient-64.jpg JPEG 64 64 RGB 8
@@ -232,6 +266,9 @@ run_supported_case intake-qoi-rgb-linear QOI intake-qoi-rgb-linear-2x2.qoi QOI 2
 run_supported_case intake-pgm-binary-comments PGM intake-pgm-binary-comments-crlf-3x1.pgm PGM 3 1 GRAY 8
 run_supported_case intake-png-rgb16 PNG intake-rgb16-2x1.png PNG 2 1 RGB 16
 run_supported_case intake-ppm-binary-comments PPM intake-ppm-binary-comments-crlf-2x1.ppm PPM 2 1 RGB 8
+run_supported_case intake-webp-rgb WEBP intake-webp-rgb-2x1.webp WEBP 2 1 RGB 8
+run_supported_case intake-webp-rgba WEBP intake-webp-rgba-2x1.webp WEBP 2 1 RGBA 8
+run_supported_case intake-gif-rgba GIF intake-gif-rgba-2x1.gif GIF 2 1 RGBA 8
 
 run_transcode_case bmp-to-ppm BMP gradient-64.bmp PPM bmp-to-ppm.ppm PPM 64 64 RGB 8
 run_transcode_case farbfeld-to-qoi FARBFELD gradient-64.ff QOI farbfeld-to-qoi.qoi QOI 64 64 RGBA 8
@@ -241,6 +278,13 @@ run_transcode_case pbm-to-pgm PBM gradient-64.pbm PGM pbm-to-pgm.pgm PGM 64 64 G
 run_transcode_case pgm-to-ppm PGM gradient-64.pgm PPM pgm-to-ppm.ppm PPM 64 64 RGB 16
 run_transcode_case png-to-farbfeld PNG gradient-64.png FARBFELD png-to-farbfeld.ff FARBFELD 64 64 RGBA 16
 run_transcode_case ppm-to-bmp PPM gradient-64.ppm BMP ppm-to-bmp.bmp BMP 64 64 RGB 8
+run_transcode_case webp-to-png WEBP intake-webp-rgba-2x1.webp PNG webp-to-png.png PNG 2 1 RGBA 8
+run_transcode_case gif-to-png GIF intake-gif-rgba-2x1.gif PNG gif-to-png.png PNG 2 1 RGBA 8
+
+run_geometry_case crop-bmp BMP gradient-64.bmp crop 4x3+2+1 -- 4 3 RGB 8
+run_geometry_case rotate90-bmp BMP gradient-64.bmp rotate 90 -- 64 64 RGB 8
+run_geometry_case flip-bmp BMP gradient-64.bmp flip -- 64 64 RGB 8
+run_geometry_case flop-bmp BMP gradient-64.bmp flop -- 64 64 RGB 8
 
 python3 - "$fixture_dir/gradient-64.bmp" "$out_dir/malformed" <<'PY'
 import sys
@@ -264,7 +308,7 @@ bad_bmp[30:34] = (1).to_bytes(4, "little")
 (out_dir / "bad-compression.bmp").write_bytes(bad_bmp)
 PY
 
-run_report_diagnostic_case unsupported-prefix "GIF:$fixture_dir/gradient-64.ppm" input.unsupported_format_prefix
+run_report_diagnostic_case unsupported-prefix "TIFF:$fixture_dir/gradient-64.ppm" input.unsupported_format_prefix
 run_report_diagnostic_case missing-prefix-path "PNG:" input.missing_prefix_path
 run_report_diagnostic_case missing-input "PPM:$out_dir/malformed/missing.ppm" input.missing
 run_report_diagnostic_case prefix-mismatch "QOI:$fixture_dir/gradient-64.ppm" input.format_prefix_mismatch
@@ -291,9 +335,10 @@ cat >"$manifest" <<EOF
   "runner": "${IMX_DAILY_USE_RUNNER:-}",
   "fixture_manifest": "generated-fixtures/manifest.json",
   "supported_surface": [
-    "identify --json for generated BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM fixtures",
-    "report --json for generated BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM fixtures",
-    "representative prefixed transcodes across all supported format families",
+    "identify --json for generated BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM/WEBP/GIF fixtures",
+    "report --json for generated BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM/WEBP/GIF fixtures",
+    "representative prefixed transcodes across all supported format families, including WEBP/GIF decode-only inputs",
+    "geometry operations (crop/rotate/flip/flop) reported via report --json",
     "report --json diagnostics for unsupported prefixes, missing paths, missing inputs, prefix mismatches, unsupported formats, malformed QOI/PNM, and unsupported BMP compression",
     "identify --json failure JSON on stderr for malformed and mismatched inputs"
   ]
@@ -309,6 +354,7 @@ cat >"$summary" <<EOF
   "results": "results.jsonl",
   "supported_cases": $supported_cases,
   "transcode_cases": $transcode_cases,
+  "geometry_cases": $geometry_cases,
   "diagnostic_cases": $diagnostic_cases,
   "identify_error_cases": $identify_error_cases,
   "passes": $passes,

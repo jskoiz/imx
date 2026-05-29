@@ -201,6 +201,15 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let intake_pgm_binary_comments_crlf =
         b"P5\r\n# binary comments and CRLF\r\n3\t1\r\n255\r\n\x00\x80\xff".to_vec();
 
+    let webp_rgb = encode_webp(2, 1, image_webp::ColorType::Rgb8, &[255, 0, 0, 0, 255, 0])?;
+    let webp_rgba = encode_webp(
+        2,
+        1,
+        image_webp::ColorType::Rgba8,
+        &[10, 20, 30, 255, 40, 50, 60, 128],
+    )?;
+    let gif_rgba = encode_gif(2, 1, &[255, 0, 0, 255, 0, 255, 0, 255])?;
+
     let files = [
         ("gradient-64.ff", gradient_ff),
         ("gradient-64.jpg", gradient_jpeg),
@@ -262,6 +271,9 @@ fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         ("intake-rgba32-2x2.bmp", intake_bmp_rgba32),
         ("intake-top-down-rgb24-3x2.bmp", intake_bmp_top_down_rgb24),
         ("intake-top-down-rgba32-2x2.bmp", intake_bmp_top_down_rgba32),
+        ("intake-webp-rgb-2x1.webp", webp_rgb),
+        ("intake-webp-rgba-2x1.webp", webp_rgba),
+        ("intake-gif-rgba-2x1.gif", gif_rgba),
     ];
 
     let mut manifest = String::from("# IMX generated fixtures\n");
@@ -377,6 +389,29 @@ fn top_down_bmp(
     }
     bmp[22..26].copy_from_slice(&(-(height as i32)).to_le_bytes());
     Ok(bmp)
+}
+
+fn encode_webp(
+    width: u32,
+    height: u32,
+    color: image_webp::ColorType,
+    pixels: &[u8],
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let mut out = Vec::new();
+    image_webp::WebPEncoder::new(std::io::Cursor::new(&mut out))
+        .encode(pixels, width, height, color)?;
+    Ok(out)
+}
+
+fn encode_gif(width: u16, height: u16, rgba: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let mut out = Vec::new();
+    {
+        let mut encoder = gif::Encoder::new(&mut out, width, height, &[])?;
+        let mut pixels = rgba.to_vec();
+        let frame = gif::Frame::from_rgba_speed(width, height, &mut pixels, 10);
+        encoder.write_frame(&frame)?;
+    }
+    Ok(out)
 }
 
 fn fnv64(bytes: &[u8]) -> u64 {
