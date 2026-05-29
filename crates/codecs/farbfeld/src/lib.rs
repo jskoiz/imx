@@ -1,3 +1,16 @@
+//! farbfeld decoding and encoding for the `imx` image toolkit.
+//!
+//! `imx-codec-farbfeld` reads and writes the suckless [farbfeld] format: a
+//! trivially simple, lossless 16-bit-per-channel RGBA container. It produces
+//! and consumes the format-agnostic [`imx_core::Image`] type shared across the
+//! workspace. Decoding is memory-safe and deterministic: the fixed-size header
+//! is validated and the pixel buffer is bounded by the `imx-core` allocation
+//! limits, so malformed or hostile inputs cannot trigger uncontrolled
+//! allocation. Round-trips are differentially verified against the real
+//! ImageMagick binary as an oracle.
+//!
+//! [farbfeld]: https://tools.suckless.org/farbfeld/
+
 use imx_core::{pixel_len, try_vec_with_capacity, Format, Image, ImageError, PixelFormat};
 
 pub const MAGIC: &[u8; 8] = b"farbfeld";

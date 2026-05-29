@@ -1,3 +1,13 @@
+//! `imx` command-line image converter.
+//!
+//! This binary is the front end of the `imx` image toolkit: it ties the
+//! format-agnostic `imx-core` model together with the per-format codec crates
+//! (BMP, farbfeld, GIF, JPEG, PNG, PNM, QOI, TIFF, WebP) to provide format
+//! conversion, identification, comparison, resizing, and geometry operations.
+//! Conversions are memory-safe and deterministic, with input size bounded by
+//! [`MAX_INPUT_BYTES`], and are differentially verified against the real
+//! ImageMagick binary as an oracle. Run `imx --help` for usage.
+
 use std::env;
 use std::fs;
 use std::io::{Read, Write};

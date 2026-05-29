@@ -1,3 +1,14 @@
+//! PNG decoding and encoding for the `imx` image toolkit.
+//!
+//! `imx-codec-png` reads and writes PNG, producing and consuming the
+//! format-agnostic [`imx_core::Image`] type shared across the workspace.
+//! Encoding is lossless and deterministic, so a decode/encode round-trip is
+//! byte-stable for a given configuration. Decoding is memory-safe and bounded:
+//! allocations are capped by the decoder [`png::Limits`] derived from
+//! [`MAX_PIXEL_BYTES`], so malformed or hostile inputs cannot trigger
+//! uncontrolled allocation. Behavior is differentially verified against the
+//! real ImageMagick binary as an oracle.
+
 use std::io::Cursor;
 
 use imx_core::{
