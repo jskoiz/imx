@@ -125,6 +125,45 @@ Exact uppercase format prefixes (`BMP:`, `FARBFELD:`, `JPEG:`, `QOI:`, `PBM:`,
 format; they are stripped before file IO and must match the detected input
 format or output extension. (`JPG:` is intentionally not a prefix.)
 
+## Shell completions & man page
+
+`imx` ships hand-written shell completion scripts and a checked-in roff manual
+page so the CLI is discoverable from your shell and `man`.
+
+### Completions
+
+`imx completions <bash|zsh|fish>` prints a completion script to standard output.
+The output is deterministic (identical bytes on every run), so it can be checked
+in or regenerated freely. An unknown shell or a missing argument exits with
+status `2`.
+
+```sh
+# bash: source once per shell, or install system-wide
+source <(imx completions bash)
+imx completions bash > /usr/local/etc/bash_completion.d/imx
+
+# zsh: install onto an fpath directory, then restart the shell
+imx completions zsh > "${fpath[1]}/_imx"
+
+# fish: install into the user completions directory
+imx completions fish > ~/.config/fish/completions/imx.fish
+```
+
+### Man page
+
+A roff manual page is checked in at `man/imx.1`. It mirrors the `--help` text:
+synopsis, every subcommand, options, exit status (`0` success, `1` operation
+error, `2` usage error), supported formats and prefixes, and the `FORMAT:-`
+streaming convention.
+
+```sh
+# read it directly
+man ./man/imx.1
+
+# install system-wide
+install -m 0644 man/imx.1 /usr/local/share/man/man1/imx.1
+```
+
 ## Supported formats & operations
 
 ### Container formats

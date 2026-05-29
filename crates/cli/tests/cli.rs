@@ -2487,6 +2487,8 @@ fn help_and_version_are_available() {
             assert!(stdout.contains("imx resize-fit <width>x<height>"));
             assert!(stdout.contains("imx batch-convert --to <FORMAT> --output-dir <dir>"));
             assert!(stdout.contains("imx self-test"));
+            assert!(stdout.contains("imx completions <bash|zsh|fish>"));
+            assert!(stdout.contains("man/imx.1"));
             assert!(stdout.contains("offline install confidence check"));
             assert!(stdout.contains("nearest-neighbor exact dimensions (<width>x<height>)"));
             assert!(stdout.contains("<width>x or x<height>"));
@@ -2501,6 +2503,73 @@ fn help_and_version_are_available() {
             assert!(stdout.contains(".png"));
             assert!(stdout.contains("PNG:"));
         }
+    }
+}
+
+#[test]
+fn completions_bash_emits_script() {
+    let output = Command::new(imx())
+        .args(["completions", "bash"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("complete -F _imx imx"));
+    assert!(stdout.contains("identify"));
+    assert!(stdout.contains("resize"));
+}
+
+#[test]
+fn completions_zsh_emits_compdef_marker() {
+    let output = Command::new(imx())
+        .args(["completions", "zsh"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("#compdef imx"));
+}
+
+#[test]
+fn completions_fish_emits_complete_directives() {
+    let output = Command::new(imx())
+        .args(["completions", "fish"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("complete -c imx"));
+}
+
+#[test]
+fn completions_unknown_shell_is_usage_error() {
+    let output = Command::new(imx())
+        .args(["completions", "powershell"])
+        .output()
+        .unwrap();
+    assert_failure(output, 2, "unsupported shell: powershell");
+}
+
+#[test]
+fn completions_missing_shell_is_usage_error() {
+    let output = Command::new(imx()).arg("completions").output().unwrap();
+    assert_failure(output, 2, "usage:");
+}
+
+#[test]
+fn completions_output_is_deterministic() {
+    for shell in ["bash", "zsh", "fish"] {
+        let first = Command::new(imx())
+            .args(["completions", shell])
+            .output()
+            .unwrap();
+        let second = Command::new(imx())
+            .args(["completions", shell])
+            .output()
+            .unwrap();
+        assert!(first.status.success());
+        assert!(second.status.success());
+        assert_eq!(first.stdout, second.stdout);
     }
 }
 
