@@ -1529,6 +1529,11 @@ fn batch_convert_supports_each_output_format_from_ppm() {
             "ppm",
             "format=PPM width=2 height=1 channels=RGB depth=8",
         ),
+        (
+            "WEBP",
+            "webp",
+            "format=WEBP width=2 height=1 channels=RGB depth=8",
+        ),
     ] {
         let output_dir = dir.join(format!("out-{}", format.to_ascii_lowercase()));
         fs::create_dir_all(&output_dir).unwrap();
@@ -3527,6 +3532,126 @@ fn quality_flag_rejects_out_of_range_value() {
     }
 }
 
+#[test]
+fn batch_convert_quality_changes_jpeg_output_size() {
+    let dir = temp_dir("batch_quality_jpeg");
+    let png_path = dir.join("input.png");
+    let pixels: Vec<u8> = (0..16)
+        .flat_map(|y: u32| {
+            (0..16).flat_map(move |x: u32| {
+                [
+                    (x.wrapping_mul(13).wrapping_add(y.wrapping_mul(7)) & 0xff) as u8,
+                    (x.wrapping_mul(3).wrapping_add(y.wrapping_mul(19)) & 0xff) as u8,
+                    (x.wrapping_mul(23).wrapping_add(y.wrapping_mul(5)) & 0xff) as u8,
+                ]
+            })
+        })
+        .collect();
+    png_fixture(
+        &png_path,
+        16,
+        16,
+        png::ColorType::Rgb,
+        png::BitDepth::Eight,
+        &pixels,
+    );
+
+    let low_dir = dir.join("low");
+    let high_dir = dir.join("high");
+    fs::create_dir_all(&low_dir).unwrap();
+    fs::create_dir_all(&high_dir).unwrap();
+
+    for (quality, out_dir) in [("40", &low_dir), ("95", &high_dir)] {
+        let output = Command::new(imx())
+            .args([
+                "batch-convert",
+                "--to",
+                "JPEG",
+                "--output-dir",
+                out_dir.to_str().unwrap(),
+                "--quality",
+                quality,
+                png_path.to_str().unwrap(),
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "batch --quality {quality} failed with stderr={}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    let low_len = fs::read(low_dir.join("input.jpg")).unwrap().len();
+    let high_len = fs::read(high_dir.join("input.jpg")).unwrap().len();
+    assert!(
+        low_len < high_len,
+        "expected q40 ({low_len}) smaller than q95 ({high_len})"
+    );
+}
+
+#[test]
+fn batch_convert_quality_rejected_for_non_jpeg_output() {
+    let dir = temp_dir("batch_quality_non_jpeg");
+    let png = dir.join("input.png");
+    let out_dir = dir.join("out");
+    fs::create_dir_all(&out_dir).unwrap();
+    png_fixture(
+        &png,
+        2,
+        1,
+        png::ColorType::Rgb,
+        png::BitDepth::Eight,
+        &[255, 0, 0, 0, 0, 255],
+    );
+    let output = Command::new(imx())
+        .args([
+            "batch-convert",
+            "--to",
+            "PNG",
+            "--output-dir",
+            out_dir.to_str().unwrap(),
+            "--quality",
+            "50",
+            png.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert_failure(output, 1, "--quality only applies to JPEG output");
+}
+
+#[test]
+fn batch_convert_quality_rejects_out_of_range_value() {
+    let dir = temp_dir("batch_quality_range");
+    let png = dir.join("input.png");
+    let out_dir = dir.join("out");
+    fs::create_dir_all(&out_dir).unwrap();
+    png_fixture(
+        &png,
+        2,
+        1,
+        png::ColorType::Rgb,
+        png::BitDepth::Eight,
+        &[255, 0, 0, 0, 0, 255],
+    );
+    for value in ["0", "101", "abc"] {
+        let output = Command::new(imx())
+            .args([
+                "batch-convert",
+                "--to",
+                "JPEG",
+                "--output-dir",
+                out_dir.to_str().unwrap(),
+                "--quality",
+                value,
+                png.to_str().unwrap(),
+            ])
+            .output()
+            .unwrap();
+        assert_failure(output, 1, "invalid --quality value");
+    }
+}
+
 fn write_webp_fixture(
     path: &Path,
     width: u32,
@@ -3651,30 +3776,130 @@ fn gif_identify_and_transcode_to_png_are_supported() {
 }
 
 #[test]
-fn webp_and_gif_are_rejected_as_output_targets() {
+fn png_transcodes_to_webp_and_round_trips_to_ppm() {
+    let dir = temp_dir("webp_output");
+    let png = dir.join("input.png");
+    let webp = dir.join("output.webp");
+    let ppm = dir.join("round.ppm");
+    let image = Image::new(
+        2,
+        2,
+        PixelFormat::Rgb8,
+        vec![255, 0, 0, 0, 255, 0, 0, 0, 255, 9, 8, 7],
+    )
+    .unwrap();
+    fs::write(&png, imx_codec_png::encode(&image).unwrap()).unwrap();
+
+    let transcode = Command::new(imx())
+        .args([png.to_str().unwrap(), webp.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        transcode.status.success(),
+        "PNG->WEBP failed with stderr={}",
+        String::from_utf8_lossy(&transcode.stderr)
+    );
+
+    let identify = Command::new(imx())
+        .args(["identify", webp.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(identify.status.success());
+    assert_eq!(
+        String::from_utf8(identify.stdout).unwrap().trim(),
+        "format=WEBP width=2 height=2 channels=RGB depth=8"
+    );
+
+    let round = Command::new(imx())
+        .args([webp.to_str().unwrap(), ppm.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        round.status.success(),
+        "WEBP->PPM failed with stderr={}",
+        String::from_utf8_lossy(&round.stderr)
+    );
+    let decoded = imx_codec_pnm::decode_ppm(&fs::read(&ppm).unwrap()).unwrap();
+    assert_eq!(decoded, image);
+}
+
+#[test]
+fn webp_output_is_deterministic() {
+    let dir = temp_dir("webp_output_deterministic");
+    let png = dir.join("input.png");
+    let first = dir.join("first.webp");
+    let second = dir.join("second.webp");
+    let image = Image::new(2, 1, PixelFormat::Rgb8, vec![10, 20, 30, 40, 50, 60]).unwrap();
+    fs::write(&png, imx_codec_png::encode(&image).unwrap()).unwrap();
+
+    for out in [&first, &second] {
+        let status = Command::new(imx())
+            .args([png.to_str().unwrap(), out.to_str().unwrap()])
+            .status()
+            .unwrap();
+        assert!(status.success());
+    }
+    assert_eq!(fs::read(&first).unwrap(), fs::read(&second).unwrap());
+}
+
+#[test]
+fn batch_convert_supports_webp_output() {
+    let dir = temp_dir("webp_batch_output");
+    let png = dir.join("input.png");
+    let out_dir = dir.join("out");
+    fs::create_dir_all(&out_dir).unwrap();
+    let image = Image::new(2, 1, PixelFormat::Rgb8, vec![1, 2, 3, 4, 5, 6]).unwrap();
+    fs::write(&png, imx_codec_png::encode(&image).unwrap()).unwrap();
+
+    let output = Command::new(imx())
+        .args([
+            "batch-convert",
+            "--to",
+            "WEBP",
+            "--output-dir",
+            out_dir.to_str().unwrap(),
+            png.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "batch WEBP failed with stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let identify = Command::new(imx())
+        .args(["identify", out_dir.join("input.webp").to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8(identify.stdout).unwrap().trim(),
+        "format=WEBP width=2 height=1 channels=RGB depth=8"
+    );
+}
+
+#[test]
+fn gif_is_rejected_as_output_target() {
     let dir = temp_dir("input_only_output");
     let png = dir.join("input.png");
     let image = Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap();
     fs::write(&png, imx_codec_png::encode(&image).unwrap()).unwrap();
 
-    for (ext, name) in [("webp", "WEBP"), ("gif", "GIF")] {
-        let output_path = dir.join(format!("out.{ext}"));
-        let output = Command::new(imx())
-            .args([png.to_str().unwrap(), output_path.to_str().unwrap()])
-            .output()
-            .unwrap();
-        assert!(!output.status.success(), "{name} output should be rejected");
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(
-            stderr.contains("input-only format") && stderr.contains(name),
-            "{name}: got stderr={stderr}"
-        );
-        assert!(!output_path.exists());
-    }
+    let output_path = dir.join("out.gif");
+    let output = Command::new(imx())
+        .args([png.to_str().unwrap(), output_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(!output.status.success(), "GIF output should be rejected");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("input-only format") && stderr.contains("GIF"),
+        "GIF: got stderr={stderr}"
+    );
+    assert!(!output_path.exists());
 }
 
 #[test]
-fn webp_and_gif_are_rejected_as_batch_output_format() {
+fn gif_is_rejected_as_batch_output_format() {
     let dir = temp_dir("input_only_batch");
     let png = dir.join("input.png");
     let out_dir = dir.join("out");
@@ -3682,19 +3907,17 @@ fn webp_and_gif_are_rejected_as_batch_output_format() {
     let image = Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap();
     fs::write(&png, imx_codec_png::encode(&image).unwrap()).unwrap();
 
-    for name in ["WEBP", "GIF"] {
-        let output = Command::new(imx())
-            .args([
-                "batch-convert",
-                "--to",
-                name,
-                "--output-dir",
-                out_dir.to_str().unwrap(),
-                png.to_str().unwrap(),
-            ])
-            .output()
-            .unwrap();
-        assert!(!output.status.success());
-        assert!(String::from_utf8_lossy(&output.stderr).contains("input-only format"));
-    }
+    let output = Command::new(imx())
+        .args([
+            "batch-convert",
+            "--to",
+            "GIF",
+            "--output-dir",
+            out_dir.to_str().unwrap(),
+            png.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("input-only format"));
 }
