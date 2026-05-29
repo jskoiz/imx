@@ -74,14 +74,29 @@ fn identify_json_from_stable_line(stable_line: &str) -> String {
 }
 
 fn report_json_from_stable_line(stable_line: &str) -> String {
-    identify_json_from_stable_line(stable_line).replacen(
-        "{\"schema_version\":1,",
-        "{\"schema_version\":1,\"status\":\"supported\",\"diagnostic_code\":null,",
-        1,
-    )
+    report_json_from_stable_line_with_frames(stable_line, 1)
+}
+
+fn report_json_from_stable_line_with_frames(stable_line: &str, frames: u32) -> String {
+    let base = identify_json_from_stable_line(stable_line)
+        .replacen(
+            "{\"schema_version\":1,",
+            "{\"schema_version\":2,\"status\":\"supported\",\"diagnostic_code\":null,",
+            1,
+        )
+        .replacen("}", &format!(",\"frames\":{frames}}}"), 1);
+    base
 }
 
 fn report_unsupported_json(code: &str, message: &str) -> String {
+    format!(
+        "{{\"schema_version\":2,\"status\":\"unsupported\",\"diagnostic_code\":\"{code}\",\"message\":\"{message}\"}}"
+    )
+}
+
+// `identify --json` errors use the identify schema (version 1), distinct from
+// the `report --json` schema (version 2).
+fn identify_unsupported_json(code: &str, message: &str) -> String {
     format!(
         "{{\"schema_version\":1,\"status\":\"unsupported\",\"diagnostic_code\":\"{code}\",\"message\":\"{message}\"}}"
     )
@@ -538,7 +553,7 @@ fn farbfeld_extension_alias_identifies_and_transcodes() {
     );
     assert_eq!(
         String::from_utf8_lossy(&report_json.stdout).trim(),
-        "{\"schema_version\":1,\"status\":\"supported\",\"diagnostic_code\":null,\"format\":\"FARBFELD\",\"width\":1,\"height\":1,\"channels\":\"RGBA\",\"depth\":16}"
+        "{\"schema_version\":2,\"status\":\"supported\",\"diagnostic_code\":null,\"format\":\"FARBFELD\",\"width\":1,\"height\":1,\"channels\":\"RGBA\",\"depth\":16,\"frames\":1}"
     );
 
     let transcode = Command::new(imx())
@@ -586,7 +601,7 @@ fn jpeg_extension_alias_reports_json() {
     );
     assert_eq!(
         String::from_utf8_lossy(&report.stdout).trim(),
-        "{\"schema_version\":1,\"status\":\"supported\",\"diagnostic_code\":null,\"format\":\"JPEG\",\"width\":2,\"height\":1,\"channels\":\"RGB\",\"depth\":8}"
+        "{\"schema_version\":2,\"status\":\"supported\",\"diagnostic_code\":null,\"format\":\"JPEG\",\"width\":2,\"height\":1,\"channels\":\"RGB\",\"depth\":8,\"frames\":1}"
     );
 }
 
@@ -2599,6 +2614,14 @@ fn help_and_version_are_available() {
             assert!(stdout.contains(".tif"));
             assert!(stdout.contains(".tiff"));
             assert!(stdout.contains("TIFF:"));
+            // Frame selection documentation and the reworded animation line.
+            assert!(stdout.contains("--frame <N>"));
+            assert!(stdout.contains("supported frame selection"));
+            assert!(stdout.contains("\"frames\""));
+            assert!(stdout.contains("schema_version 2"));
+            assert!(stdout.contains(
+                "GIF/WEBP animation OUTPUT (encode) unsupported; only frame extraction on decode"
+            ));
         }
     }
 }
@@ -2990,7 +3013,7 @@ fn identify_json_errors_are_machine_readable() {
     assert!(output.stdout.is_empty());
     assert_eq!(
         String::from_utf8(output.stderr).unwrap().trim(),
-        report_unsupported_json(
+        identify_unsupported_json(
             "qoi.invalid_channels",
             "failed to identify QOI input: QOI channels must be 3 or 4, got 2",
         )
@@ -3705,7 +3728,7 @@ fn identifies_from_stdin() {
     assert!(report.status.success());
     assert_eq!(
         String::from_utf8(report.stdout).unwrap().trim(),
-        "{\"schema_version\":1,\"status\":\"supported\",\"diagnostic_code\":null,\"format\":\"PNG\",\"width\":2,\"height\":1,\"channels\":\"RGB\",\"depth\":8}"
+        "{\"schema_version\":2,\"status\":\"supported\",\"diagnostic_code\":null,\"format\":\"PNG\",\"width\":2,\"height\":1,\"channels\":\"RGB\",\"depth\":8,\"frames\":1}"
     );
 }
 
@@ -4027,6 +4050,19 @@ fn write_gif_fixture(path: &Path, width: u16, height: u16, rgba: &[u8]) {
     fs::write(path, out).unwrap();
 }
 
+fn write_multiframe_gif_fixture(path: &Path, width: u16, height: u16, frames: &[Vec<u8>]) {
+    let mut out = Vec::new();
+    {
+        let mut encoder = gif::Encoder::new(&mut out, width, height, &[]).unwrap();
+        for rgba in frames {
+            let mut pixels = rgba.clone();
+            let frame = gif::Frame::from_rgba_speed(width, height, &mut pixels, 10);
+            encoder.write_frame(&frame).unwrap();
+        }
+    }
+    fs::write(path, out).unwrap();
+}
+
 #[test]
 fn webp_identify_and_transcode_to_png_are_supported() {
     let dir = temp_dir("webp_input");
@@ -4246,6 +4282,184 @@ fn gif_is_rejected_as_output_target() {
         "GIF: got stderr={stderr}"
     );
     assert!(!output_path.exists());
+}
+
+// A deterministic 1x1 3-frame GIF where each frame is a distinct solid color
+// drawn full-canvas with the default Keep disposal.
+fn three_frame_gif(path: &Path) {
+    write_multiframe_gif_fixture(
+        path,
+        1,
+        1,
+        &[
+            vec![255, 0, 0, 255],
+            vec![0, 255, 0, 255],
+            vec![0, 0, 255, 255],
+        ],
+    );
+}
+
+#[test]
+fn report_json_includes_frame_count_for_animated_gif() {
+    let dir = temp_dir("report_frames_gif");
+    let gif = dir.join("anim.gif");
+    three_frame_gif(&gif);
+
+    let output = Command::new(imx())
+        .args(["report", "--json", &prefixed("GIF", &gif)])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "report --json failed with stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap().trim(),
+        report_json_from_stable_line_with_frames(
+            "format=GIF width=1 height=1 channels=RGBA depth=8",
+            3,
+        )
+    );
+}
+
+#[test]
+fn report_json_reports_single_frame_for_still_inputs() {
+    let dir = temp_dir("report_frames_png");
+    let png = dir.join("still.png");
+    let image = Image::new(2, 1, PixelFormat::Rgb8, vec![1, 2, 3, 4, 5, 6]).unwrap();
+    fs::write(&png, imx_codec_png::encode(&image).unwrap()).unwrap();
+
+    let output = Command::new(imx())
+        .args(["report", "--json", png.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("\"frames\":1"), "got {stdout}");
+    assert!(stdout.contains("\"schema_version\":2"), "got {stdout}");
+}
+
+#[test]
+fn frame_flag_extracts_selected_gif_frame() {
+    let dir = temp_dir("frame_extract_gif");
+    let gif = dir.join("anim.gif");
+    three_frame_gif(&gif);
+
+    // Each frame is a single solid pixel; transcode it to PPM and read it back.
+    let expected = [vec![255u8, 0, 0], vec![0u8, 255, 0], vec![0u8, 0, 255]];
+    for (index, want) in expected.iter().enumerate() {
+        let out = dir.join(format!("frame-{index}.ppm"));
+        let status = Command::new(imx())
+            .args([
+                "--frame",
+                &index.to_string(),
+                &prefixed("GIF", &gif),
+                out.to_str().unwrap(),
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            status.status.success(),
+            "frame {index} extraction failed: stderr={}",
+            String::from_utf8_lossy(&status.stderr)
+        );
+        let decoded = imx_codec_pnm::decode_ppm(&fs::read(&out).unwrap()).unwrap();
+        assert_eq!(decoded.pixels(), want.as_slice(), "frame {index} mismatch");
+    }
+}
+
+#[test]
+fn frame_extraction_is_deterministic() {
+    let dir = temp_dir("frame_determinism");
+    let gif = dir.join("anim.gif");
+    three_frame_gif(&gif);
+    let first = dir.join("first.png");
+    let second = dir.join("second.png");
+    for out in [&first, &second] {
+        let status = Command::new(imx())
+            .args([
+                "--frame",
+                "2",
+                &prefixed("GIF", &gif),
+                out.to_str().unwrap(),
+            ])
+            .status()
+            .unwrap();
+        assert!(status.success());
+    }
+    assert_eq!(fs::read(&first).unwrap(), fs::read(&second).unwrap());
+}
+
+#[test]
+fn out_of_range_frame_errors_cleanly() {
+    let dir = temp_dir("frame_out_of_range");
+    let gif = dir.join("anim.gif");
+    three_frame_gif(&gif);
+    let out = dir.join("out.png");
+
+    // Transcode with an out-of-range frame: exit 1 with a clean message.
+    let transcode = Command::new(imx())
+        .args([
+            "--frame",
+            "5",
+            &prefixed("GIF", &gif),
+            out.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert_failure(transcode, 1, "frame index 5 out of range");
+    assert!(!out.exists());
+
+    // identify --frame N>count: exit 1 with a clean message.
+    let identify = Command::new(imx())
+        .args(["identify", "--frame", "9", &prefixed("GIF", &gif)])
+        .output()
+        .unwrap();
+    assert_failure(identify, 1, "frame index 9 out of range");
+
+    // report --json --frame N>count: exit 0 with an unsupported diagnostic.
+    let report = Command::new(imx())
+        .args(["report", "--json", "--frame", "9", &prefixed("GIF", &gif)])
+        .output()
+        .unwrap();
+    assert!(report.status.success());
+    let stdout = String::from_utf8(report.stdout).unwrap();
+    assert!(
+        stdout.contains("\"status\":\"unsupported\"")
+            && stdout.contains("image.frame_index_out_of_range"),
+        "got {stdout}"
+    );
+}
+
+#[test]
+fn frame_zero_works_on_single_frame_formats_and_rejects_higher() {
+    let dir = temp_dir("frame_single_format");
+    let png = dir.join("input.png");
+    let out = dir.join("out.ppm");
+    let image = Image::new(2, 1, PixelFormat::Rgb8, vec![1, 2, 3, 4, 5, 6]).unwrap();
+    fs::write(&png, imx_codec_png::encode(&image).unwrap()).unwrap();
+
+    let zero = Command::new(imx())
+        .args(["--frame", "0", png.to_str().unwrap(), out.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        zero.status.success(),
+        "--frame 0 on PNG failed: stderr={}",
+        String::from_utf8_lossy(&zero.stderr)
+    );
+
+    let nonzero = Command::new(imx())
+        .args([
+            "--frame",
+            "1",
+            png.to_str().unwrap(),
+            dir.join("nope.ppm").to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert_failure(nonzero, 1, "frame index 1 out of range");
 }
 
 #[test]

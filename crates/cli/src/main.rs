@@ -13,7 +13,7 @@ const MAX_INPUT_BYTES: u64 = MAX_PIXEL_BYTES as u64 + 1024 * 1024;
 
 fn usage() -> ! {
     eprintln!(
-        "usage:\n  imx --help\n  imx --version\n  imx identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.tif|input.tiff|input.webp|FORMAT:->\n  imx identify --json [FORMAT:]<input|FORMAT:->\n  imx report --json [FORMAT:]<input|FORMAT:->\n  imx compare [--metric <ae|mae|psnr>] [FORMAT:]<a|FORMAT:-> [FORMAT:]<b>\n  imx resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx completions <bash|zsh|fish>\n  imx self-test\n  imx [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported formats: bmp (.bmp), farbfeld (.ff, .farbfeld), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm), tiff (.tif, .tiff), webp (.webp)\ninput-only formats: gif (.gif)\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, TIFF:, WEBP:\ninput-only prefixes: GIF:\nstdin/stdout: use - as a path with a FORMAT: prefix (e.g. PNG:-); --quality applies only to JPEG output"
+        "usage:\n  imx --help\n  imx --version\n  imx identify [--frame <N>] [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.tif|input.tiff|input.webp|FORMAT:->\n  imx identify --json [--frame <N>] [FORMAT:]<input|FORMAT:->\n  imx report --json [--frame <N>] [FORMAT:]<input|FORMAT:->\n  imx compare [--metric <ae|mae|psnr>] [FORMAT:]<a|FORMAT:-> [FORMAT:]<b>\n  imx resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx completions <bash|zsh|fish>\n  imx self-test\n  imx [--frame <N>] [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported formats: bmp (.bmp), farbfeld (.ff, .farbfeld), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm), tiff (.tif, .tiff), webp (.webp)\ninput-only formats: gif (.gif)\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, TIFF:, WEBP:\ninput-only prefixes: GIF:\nframe selection: --frame <N> (0-based, default 0) selects which frame to decode; animated GIF/WEBP can be enumerated via report --json (\"frames\" field) and a single frame extracted; non-animated inputs accept only --frame 0\nstdin/stdout: use - as a path with a FORMAT: prefix (e.g. PNG:-); --quality applies only to JPEG output"
     );
     process::exit(2);
 }
@@ -47,7 +47,7 @@ fn main() {
     match args.as_slice() {
         [_, flag] if flag == "--help" || flag == "-h" || flag == "help" => {
             println!(
-                "IMX Developer Preview\n\nusage:\n  imx identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.tif|input.tiff|input.webp|FORMAT:->\n  imx identify --json [FORMAT:]<input|FORMAT:->\n  imx report --json [FORMAT:]<input|FORMAT:->\n  imx compare [--metric <ae|mae|psnr>] [FORMAT:]<a|FORMAT:-> [FORMAT:]<b>\n  imx resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx completions <bash|zsh|fish>\n  imx self-test\n  imx [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported transcodes: BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM/TIFF/WEBP, including deterministic same-format rewrites except lossy JPEG re-encoding; WEBP output is lossless\nsupported input-only formats: GIF decode and identify, including transcode into any supported output format; the GIF decoder reads only the first frame and ignores animation\nsupported streaming: read input from stdin and/or write output to stdout via - with a FORMAT: prefix (e.g. PNG:-); only image bytes go to stdout\nsupported JPEG quality: --quality <1..=100> on the single transcode and batch-convert when the output format is JPEG (default 90); rejected for non-JPEG output\nsupported identify JSON: deterministic schema_version/format/width/height/channels/depth over existing identify metadata\nsupported report JSON: single-input supported/unsupported status with stable diagnostic_code values\nsupported compare: decode two inputs and diff them deterministically; differing dimensions or channels print a single differ: line and exit 1, matching images normalize to RGBA8 and report differing-pixel count, peak per-channel difference (AE), and mean absolute error (MAE); identical inputs print identical and exit 0, otherwise exit 1; --metric <ae|mae|psnr> prints only that single value (psnr is inf for identical inputs); usage errors exit 2\nsupported resize: nearest-neighbor exact dimensions (<width>x<height>), single-axis aspect-preserving (<width>x or x<height>), and uniform percent (<percent>%) geometries, plus aspect-preserving fit (resize-fit) for existing supported formats\nsupported geometry: bounds-checked crop (<width>x<height>+<x>+<y>), clockwise rotate (90/180/270), vertical flip, and horizontal flop, all format-preserving\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, optional --quality for JPEG output, no overwrite or collision renaming\nsupported completions: imx completions <bash|zsh|fish> prints a shell completion script to stdout; a roff man page is bundled at man/imx.1\nsupported self-test: offline install confidence check for identify/transcode/resize/resize-fit/batch-convert across supported formats\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, TIFF:, WEBP:\ninput-only prefixes: GIF:\nunsupported: GIF as output target, GIF animation/multi-frame decoding, recursive directory walking, arbitrary-angle rotation, delegates, color management, and formats beyond BMP/FARBFELD/GIF/JPEG/QOI/PBM/PGM/PNG/PPM/TIFF/WEBP"
+                "IMX Developer Preview\n\nusage:\n  imx identify [--frame <N>] [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.tif|input.tiff|input.webp|FORMAT:->\n  imx identify --json [--frame <N>] [FORMAT:]<input|FORMAT:->\n  imx report --json [--frame <N>] [FORMAT:]<input|FORMAT:->\n  imx compare [--metric <ae|mae|psnr>] [FORMAT:]<a|FORMAT:-> [FORMAT:]<b>\n  imx resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx completions <bash|zsh|fish>\n  imx self-test\n  imx [--frame <N>] [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported transcodes: BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM/TIFF/WEBP, including deterministic same-format rewrites except lossy JPEG re-encoding; WEBP output is lossless\nsupported input-only formats: GIF decode and identify, including transcode into any supported output format\nsupported frame selection: --frame <N> (0-based, default 0) selects which frame to decode for identify, report --json, and the single-input transcode; animated GIF/WEBP frames are composited (GIF disposal Keep/Background/Previous honored) so frame N is the displayed canvas; non-animated inputs accept only --frame 0 and reject any N>0\nsupported streaming: read input from stdin and/or write output to stdout via - with a FORMAT: prefix (e.g. PNG:-); only image bytes go to stdout\nsupported JPEG quality: --quality <1..=100> on the single transcode and batch-convert when the output format is JPEG (default 90); rejected for non-JPEG output\nsupported identify JSON: deterministic schema_version/format/width/height/channels/depth over existing identify metadata\nsupported report JSON: single-input supported/unsupported status with stable diagnostic_code values; adds a \"frames\" count (animated GIF/WEBP frame count, 1 otherwise) and uses schema_version 2\nsupported compare: decode two inputs and diff them deterministically; differing dimensions or channels print a single differ: line and exit 1, matching images normalize to RGBA8 and report differing-pixel count, peak per-channel difference (AE), and mean absolute error (MAE); identical inputs print identical and exit 0, otherwise exit 1; --metric <ae|mae|psnr> prints only that single value (psnr is inf for identical inputs); usage errors exit 2\nsupported resize: nearest-neighbor exact dimensions (<width>x<height>), single-axis aspect-preserving (<width>x or x<height>), and uniform percent (<percent>%) geometries, plus aspect-preserving fit (resize-fit) for existing supported formats\nsupported geometry: bounds-checked crop (<width>x<height>+<x>+<y>), clockwise rotate (90/180/270), vertical flip, and horizontal flop, all format-preserving\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, optional --quality for JPEG output, no overwrite or collision renaming\nsupported completions: imx completions <bash|zsh|fish> prints a shell completion script to stdout; a roff man page is bundled at man/imx.1\nsupported self-test: offline install confidence check for identify/transcode/resize/resize-fit/batch-convert across supported formats\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, TIFF:, WEBP:\ninput-only prefixes: GIF:\nunsupported: GIF as output target, GIF/WEBP animation OUTPUT (encode) unsupported; only frame extraction on decode, recursive directory walking, arbitrary-angle rotation, delegates, color management, and formats beyond BMP/FARBFELD/GIF/JPEG/QOI/PBM/PGM/PNG/PPM/TIFF/WEBP"
             );
             process::exit(0);
         }
@@ -56,16 +56,42 @@ fn main() {
             process::exit(0);
         }
         [_, command, flag] if command == "identify" && flag == "--json" => usage(),
-        [_, command, flag, input] if command == "identify" && flag == "--json" => {
-            identify_json(input)
+        [_, command, json_flag, frame_flag, frame, input]
+            if command == "identify" && json_flag == "--json" && frame_flag == "--frame" =>
+        {
+            identify_json(
+                input,
+                parse_frame(frame).unwrap_or_else(|err| fail_usage(err)),
+            )
         }
-        [_, command, input] if command == "identify" => identify(input),
+        [_, command, flag, input] if command == "identify" && flag == "--json" => {
+            identify_json(input, 0)
+        }
+        [_, command, frame_flag, frame, input]
+            if command == "identify" && frame_flag == "--frame" =>
+        {
+            identify(
+                input,
+                parse_frame(frame).unwrap_or_else(|err| fail_usage(err)),
+            )
+        }
+        [_, command, input] if command == "identify" => identify(input, 0),
         [_, command, flag, metric, a, b] if command == "compare" && flag == "--metric" => {
             compare(a, b, Some(metric))
         }
         [_, command, a, b] if command == "compare" => compare(a, b, None),
         [_, command, ..] if command == "compare" => usage(),
-        [_, command, flag, input] if command == "report" && flag == "--json" => report_json(input),
+        [_, command, json_flag, frame_flag, frame, input]
+            if command == "report" && json_flag == "--json" && frame_flag == "--frame" =>
+        {
+            report_json(
+                input,
+                parse_frame(frame).unwrap_or_else(|err| fail_usage(err)),
+            )
+        }
+        [_, command, flag, input] if command == "report" && flag == "--json" => {
+            report_json(input, 0)
+        }
         [_, command, ..] if command == "report" => usage(),
         [_, command, dimensions, input, output] if command == "resize" => {
             resize(dimensions, input, output)
@@ -87,6 +113,32 @@ fn main() {
         [_, command, shell] if command == "completions" => completions(shell),
         [_, command, ..] if command == "completions" => usage(),
         [_, command, ..] if is_unsupported_command_shape(command) => usage(),
+        [_, frame_flag, frame, quality_flag, quality, input, output]
+            if frame_flag == "--frame" && quality_flag == "--quality" =>
+        {
+            let frame = parse_frame(frame).unwrap_or_else(|err| fail_usage(err));
+            run_transcode(
+                input,
+                output,
+                Some(parse_quality(quality).unwrap_or_else(|err| fail(err))),
+                frame,
+            )
+        }
+        [_, quality_flag, quality, frame_flag, frame, input, output]
+            if quality_flag == "--quality" && frame_flag == "--frame" =>
+        {
+            let frame = parse_frame(frame).unwrap_or_else(|err| fail_usage(err));
+            run_transcode(
+                input,
+                output,
+                Some(parse_quality(quality).unwrap_or_else(|err| fail(err))),
+                frame,
+            )
+        }
+        [_, frame_flag, frame, input, output] if frame_flag == "--frame" => {
+            let frame = parse_frame(frame).unwrap_or_else(|err| fail_usage(err));
+            run_transcode(input, output, None, frame)
+        }
         [_, flag, quality, input, output] if flag == "--quality" => {
             transcode_with_quality(quality, input, output)
         }
@@ -550,7 +602,7 @@ fn expected_identify_json(expected_identify: &str) -> Result<String, String> {
 fn expected_report_json(expected_identify: &str) -> Result<String, String> {
     let (format, width, height, channels, depth) = parse_expected_identify(expected_identify)?;
     Ok(format!(
-        "{{\"schema_version\":1,\"status\":\"supported\",\"diagnostic_code\":null,\"format\":\"{format}\",\"width\":{width},\"height\":{height},\"channels\":\"{channels}\",\"depth\":{depth}}}"
+        "{{\"schema_version\":2,\"status\":\"supported\",\"diagnostic_code\":null,\"format\":\"{format}\",\"width\":{width},\"height\":{height},\"channels\":\"{channels}\",\"depth\":{depth},\"frames\":1}}"
     ))
 }
 
@@ -692,19 +744,23 @@ fn compare(a_arg: &str, b_arg: &str, metric: Option<&str>) -> ! {
     process::exit(1);
 }
 
-fn identify(input_path: &str) -> ! {
+fn identify(input_path: &str, frame: u32) -> ! {
     let input_path = parse_cli_path(input_path).unwrap_or_else(|err| fail(err));
     let input = read(input_path.path);
     let format = detect_input_format(&input_path, &input).unwrap_or_else(|err| fail(err));
     let info = identify_bytes(format, &input)
         .unwrap_or_else(|err| fail_image_operation(format, "identify", "input", &input_path, err));
+    // Validate the requested frame exists; identify metadata is the canvas, so
+    // the line itself is frame-independent, but an out-of-range frame is an error.
+    validate_frame_in_range(format, &input, frame)
+        .unwrap_or_else(|err| fail_image_operation(format, "identify", "input", &input_path, err));
     println!("{}", info.stable_line());
     process::exit(0);
 }
 
-fn identify_json(input_path: &str) -> ! {
-    match try_identify(input_path) {
-        Ok(info) => {
+fn identify_json(input_path: &str, frame: u32) -> ! {
+    match try_identify(input_path, frame) {
+        Ok((info, _frames)) => {
             println!("{}", identify_json_object(info));
             process::exit(0);
         }
@@ -715,12 +771,25 @@ fn identify_json(input_path: &str) -> ! {
     }
 }
 
-fn report_json(input_path: &str) -> ! {
-    match try_identify(input_path) {
-        Ok(info) => println!("{}", report_supported_json_object(info)),
+fn report_json(input_path: &str, frame: u32) -> ! {
+    match try_identify(input_path, frame) {
+        Ok((info, frames)) => println!("{}", report_supported_json_object(info, frames)),
         Err(err) => println!("{}", report_unsupported_json_object(&err)),
     }
     process::exit(0);
+}
+
+/// Validate that `frame` is a decodable index for `input`, returning a clean
+/// [`ImageError::FrameIndexOutOfRange`] otherwise.
+fn validate_frame_in_range(format: Format, input: &[u8], frame: u32) -> Result<(), ImageError> {
+    let frames = frame_count_for(format, input)?;
+    if frame >= frames {
+        return Err(ImageError::FrameIndexOutOfRange {
+            index: frame,
+            frame_count: frames,
+        });
+    }
+    Ok(())
 }
 
 fn identify_bytes(format: Format, input: &[u8]) -> Result<Identify, ImageError> {
@@ -739,28 +808,45 @@ fn identify_bytes(format: Format, input: &[u8]) -> Result<Identify, ImageError> 
     }
 }
 
-fn try_identify(input_path: &str) -> Result<Identify, Diagnostic> {
+fn try_identify(input_path: &str, frame: u32) -> Result<(Identify, u32), Diagnostic> {
     let input_path = parse_cli_path_diagnostic(input_path)?;
     let input = read_diagnostic(input_path.path)?;
     let format = detect_input_format_diagnostic(&input_path, &input)?;
-    identify_bytes(format, &input).map_err(|err| {
+    let info = identify_bytes(format, &input).map_err(|err| {
         Diagnostic::new(
             image_diagnostic_code(format, "identify", &err),
             format!("failed to identify {} input: {err}", format.name()),
         )
-    })
+    })?;
+    let frames = frame_count_for(format, &input).map_err(|err| {
+        Diagnostic::new(
+            image_diagnostic_code(format, "identify", &err),
+            format!("failed to identify {} input: {err}", format.name()),
+        )
+    })?;
+    if frame >= frames {
+        let err = ImageError::FrameIndexOutOfRange {
+            index: frame,
+            frame_count: frames,
+        };
+        return Err(Diagnostic::new(
+            err.diagnostic_code(),
+            format!("failed to identify {} input: {err}", format.name()),
+        ));
+    }
+    Ok((info, frames))
 }
 
 fn transcode(input_path: &str, output_path: &str) -> ! {
-    run_transcode(input_path, output_path, None)
+    run_transcode(input_path, output_path, None, 0)
 }
 
 fn transcode_with_quality(quality: &str, input_path: &str, output_path: &str) -> ! {
     let quality = parse_quality(quality).unwrap_or_else(|err| fail(err));
-    run_transcode(input_path, output_path, Some(quality))
+    run_transcode(input_path, output_path, Some(quality), 0)
 }
 
-fn run_transcode(input_path: &str, output_path: &str, quality: Option<u8>) -> ! {
+fn run_transcode(input_path: &str, output_path: &str, quality: Option<u8>, frame: u32) -> ! {
     let input_path = parse_cli_path(input_path).unwrap_or_else(|err| fail(err));
     let output_path = parse_cli_path(output_path).unwrap_or_else(|err| fail(err));
     reject_same_path(input_path.path, output_path.path);
@@ -775,7 +861,7 @@ fn run_transcode(input_path: &str, output_path: &str, quality: Option<u8>) -> ! 
         ));
     }
 
-    let image = decode_image(input_format, &input).unwrap_or_else(|err| {
+    let image = decode_image_frame(input_format, &input, frame).unwrap_or_else(|err| {
         fail_image_operation(input_format, "decode", "input", &input_path, err)
     });
     let output = encode_image_with_quality(output_format, &image, quality).unwrap_or_else(|err| {
@@ -784,6 +870,17 @@ fn run_transcode(input_path: &str, output_path: &str, quality: Option<u8>) -> ! 
 
     write_output(output_path.path, &output);
     process::exit(0);
+}
+
+fn parse_frame(value: &str) -> Result<u32, String> {
+    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(format!(
+            "invalid --frame value: {value}; expected a 0-based frame index"
+        ));
+    }
+    value
+        .parse::<u32>()
+        .map_err(|_| format!("invalid --frame value: {value}; expected a 0-based frame index"))
 }
 
 fn parse_quality(value: &str) -> Result<u8, String> {
@@ -1013,10 +1110,27 @@ fn batch_convert(args: &[String]) -> ! {
 }
 
 fn decode_image(format: Format, input: &[u8]) -> Result<imx_core::Image, ImageError> {
+    decode_image_frame(format, input, 0)
+}
+
+/// Decode the requested 0-based frame. Animated GIF/WebP select the Nth
+/// composited frame; every other format is single-frame, so only frame 0 is
+/// valid and any other index is rejected with [`ImageError::FrameIndexOutOfRange`].
+fn decode_image_frame(
+    format: Format,
+    input: &[u8],
+    frame: u32,
+) -> Result<imx_core::Image, ImageError> {
     match format {
+        Format::Gif => imx_codec_gif::decode_frame(input, frame),
+        Format::Webp => imx_codec_webp::decode_frame(input, frame),
+        // Single-frame formats: only frame 0 exists.
+        _ if frame != 0 => Err(ImageError::FrameIndexOutOfRange {
+            index: frame,
+            frame_count: 1,
+        }),
         Format::Bmp => imx_codec_bmp::decode(input),
         Format::Farbfeld => imx_codec_farbfeld::decode(input),
-        Format::Gif => imx_codec_gif::decode(input),
         Format::Jpeg => imx_codec_jpeg::decode(input),
         Format::Pbm => imx_codec_pnm::decode_pbm(input),
         Format::Pgm => imx_codec_pnm::decode_pgm(input),
@@ -1024,7 +1138,16 @@ fn decode_image(format: Format, input: &[u8]) -> Result<imx_core::Image, ImageEr
         Format::Ppm => imx_codec_pnm::decode_ppm(input),
         Format::Qoi => imx_codec_qoi::decode(input).and_then(|decoded| decoded.into_core_image()),
         Format::Tiff => imx_codec_tiff::decode(input),
-        Format::Webp => imx_codec_webp::decode(input),
+    }
+}
+
+/// Number of frames the input declares. Animated GIF/WebP report their true
+/// frame count; all other formats are single-frame and report 1.
+fn frame_count_for(format: Format, input: &[u8]) -> Result<u32, ImageError> {
+    match format {
+        Format::Gif => imx_codec_gif::frame_count(input),
+        Format::Webp => imx_codec_webp::frame_count(input),
+        _ => Ok(1),
     }
 }
 
@@ -1190,9 +1313,9 @@ fn identify_json_object(info: Identify) -> String {
     )
 }
 
-fn report_supported_json_object(info: Identify) -> String {
+fn report_supported_json_object(info: Identify, frames: u32) -> String {
     format!(
-        "{{\"schema_version\":1,\"status\":\"supported\",\"diagnostic_code\":null,\"format\":\"{}\",\"width\":{},\"height\":{},\"channels\":\"{}\",\"depth\":{}}}",
+        "{{\"schema_version\":2,\"status\":\"supported\",\"diagnostic_code\":null,\"format\":\"{}\",\"width\":{},\"height\":{},\"channels\":\"{}\",\"depth\":{},\"frames\":{frames}}}",
         info.format.name(),
         info.width,
         info.height,
@@ -1203,7 +1326,7 @@ fn report_supported_json_object(info: Identify) -> String {
 
 fn report_unsupported_json_object(diagnostic: &Diagnostic) -> String {
     format!(
-        "{{\"schema_version\":1,\"status\":\"unsupported\",\"diagnostic_code\":\"{}\",\"message\":{}}}",
+        "{{\"schema_version\":2,\"status\":\"unsupported\",\"diagnostic_code\":\"{}\",\"message\":{}}}",
         diagnostic.code,
         json_string(&diagnostic.message)
     )

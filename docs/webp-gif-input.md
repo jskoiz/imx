@@ -22,7 +22,9 @@ Neither format can be used as an output target.
 - The RIFF container must begin with `RIFF`, with a `WEBP` form type at offset 8.
 - Images without alpha decode to `RGB8`; images with alpha decode to `RGBA8`,
   matching `image-webp`'s reported pixel layout.
-- Animated WebP is decoded as its first frame only.
+- Animated WebP is decoded as its first frame by default; individual frames can
+  be enumerated and extracted via the multi-frame decode surface (see
+  [`docs/multiframe-decode.md`](multiframe-decode.md)).
 - The decoder memory limit is set to `MAX_PIXEL_BYTES`, and dimensions are
   validated with checked size math before any pixel buffer is allocated.
 
@@ -30,10 +32,12 @@ Neither format can be used as an output target.
 
 - Decoding wraps the `gif` crate with RGBA color output.
 - The header must be `GIF87a` or `GIF89a`.
-- **Only the first frame is decoded.** Animation and multi-frame GIFs are out of
-  scope: subsequent frames are ignored, and frame delays, disposal methods, and
-  loop counts are not interpreted.
-- The first frame is composited at its declared offset onto a transparent
+- **Frame 0 is decoded by default.** Animated/multi-frame GIFs can be
+  enumerated and a single composited frame extracted via the multi-frame decode
+  surface (frame disposal `Keep`/`Background`/`Previous` is honored); see
+  [`docs/multiframe-decode.md`](multiframe-decode.md). Frame delays and loop
+  counts are still not interpreted (this is frame extraction, not playback).
+- Each frame is composited at its declared offset onto a transparent
   logical-screen canvas, so `identify` and `decode` always agree on the reported
   width and height. The output pixel format is always `RGBA8`.
 - A per-frame memory limit of `MAX_PIXEL_BYTES` is enforced.
@@ -49,9 +53,10 @@ Neither format can be used as an output target.
 
 ## Non-Goals
 
-- No WebP or GIF **encoding**; both are input-only.
-- No GIF animation, multi-frame composition, frame-delay handling, or loop
-  semantics.
+- No WebP or GIF **encoding**; both are input-only, and animation output
+  (encode) is unsupported — only frame extraction on decode.
+- No frame-delay handling or loop-playback semantics (frame extraction only;
+  see [`docs/multiframe-decode.md`](multiframe-decode.md)).
 - No metadata, ICC profile, EXIF, or XMP preservation.
 - No new command shapes beyond the existing identify/transcode/resize,
   resize-fit, and batch-convert surface.

@@ -176,7 +176,7 @@ run_archive_binary identify "PPM:$smoke_dir/input.ppm" >"$smoke_dir/identify-pre
 run_archive_binary identify --json "PPM:$smoke_dir/fit-input.ppm" >"$smoke_dir/identify-json-ppm.txt"
 grep -Fx '{"schema_version":1,"format":"PPM","width":2,"height":1,"channels":"RGB","depth":8}' "$smoke_dir/identify-json-ppm.txt"
 run_archive_binary report --json "PPM:$smoke_dir/fit-input.ppm" >"$smoke_dir/report-json-ppm.txt"
-grep -Fx '{"schema_version":1,"status":"supported","diagnostic_code":null,"format":"PPM","width":2,"height":1,"channels":"RGB","depth":8}' "$smoke_dir/report-json-ppm.txt"
+grep -Fx '{"schema_version":2,"status":"supported","diagnostic_code":null,"format":"PPM","width":2,"height":1,"channels":"RGB","depth":8,"frames":1}' "$smoke_dir/report-json-ppm.txt"
 run_archive_binary identify "PPM:$smoke_dir/input16.ppm" >"$smoke_dir/identify-prefix-ppm16.txt"
 run_archive_binary identify "PGM:$smoke_dir/input.pgm" >"$smoke_dir/identify-prefix-pgm.txt"
 run_archive_binary identify "PBM:$smoke_dir/input.pbm" >"$smoke_dir/identify-prefix-pbm.txt"
