@@ -336,204 +336,6 @@ fn gif_decode_error(operation: &'static str, err: DecodingError) -> ImageError {
     ImageError::UnsupportedFormat(format!("GIF {operation} failed: {err}"))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use gif::{Encoder, Frame};
-
-    fn gif_fixture(width: u16, height: u16, frames: &[(u16, u16, u16, u16, Vec<u8>)]) -> Vec<u8> {
-        let mut out = Vec::new();
-        {
-            let mut encoder = Encoder::new(&mut out, width, height, &[]).unwrap();
-            for (left, top, fw, fh, rgba) in frames {
-                let mut pixels = rgba.clone();
-                let mut frame = Frame::from_rgba_speed(*fw, *fh, &mut pixels, 10);
-                frame.left = *left;
-                frame.top = *top;
-                encoder.write_frame(&frame).unwrap();
-            }
-        }
-        out
-    }
-
-    fn gif_fixture_with_dispose(
-        width: u16,
-        height: u16,
-        frames: &[(u16, u16, u16, u16, DisposalMethod, Vec<u8>)],
-    ) -> Vec<u8> {
-        let mut out = Vec::new();
-        {
-            let mut encoder = Encoder::new(&mut out, width, height, &[]).unwrap();
-            for (left, top, fw, fh, dispose, rgba) in frames {
-                let mut pixels = rgba.clone();
-                let mut frame = Frame::from_rgba_speed(*fw, *fh, &mut pixels, 10);
-                frame.left = *left;
-                frame.top = *top;
-                frame.dispose = *dispose;
-                encoder.write_frame(&frame).unwrap();
-            }
-        }
-        out
-    }
-
-    #[test]
-    fn decodes_first_frame_rgba8() {
-        let rgba = vec![255, 0, 0, 255, 0, 255, 0, 255];
-        let gif = gif_fixture(2, 1, &[(0, 0, 2, 1, rgba)]);
-        assert_eq!(&gif[..MAGIC_LEN], MAGIC_89A);
-        assert_eq!(
-            identify(&gif).unwrap().stable_line(),
-            "format=GIF width=2 height=1 channels=RGBA depth=8"
-        );
-        let decoded = decode(&gif).unwrap();
-        assert_eq!(decoded.width(), 2);
-        assert_eq!(decoded.height(), 1);
-        assert_eq!(decoded.pixel_format(), PixelFormat::Rgba8);
-        assert_eq!(decoded.pixels(), &[255, 0, 0, 255, 0, 255, 0, 255]);
-    }
-
-    #[test]
-    fn decode_returns_first_frame_when_multiple_present() {
-        let first = vec![10, 20, 30, 255];
-        let second = vec![200, 100, 50, 255];
-        let gif = gif_fixture(1, 1, &[(0, 0, 1, 1, first), (0, 0, 1, 1, second)]);
-        let decoded = decode(&gif).unwrap();
-        assert_eq!(decoded.pixels(), &[10, 20, 30, 255]);
-    }
-
-    #[test]
-    fn frame_count_counts_all_frames() {
-        let first = vec![10, 20, 30, 255];
-        let second = vec![200, 100, 50, 255];
-        let third = vec![1, 2, 3, 255];
-        let single = gif_fixture(1, 1, &[(0, 0, 1, 1, first.clone())]);
-        assert_eq!(frame_count(&single).unwrap(), 1);
-        let triple = gif_fixture(
-            1,
-            1,
-            &[
-                (0, 0, 1, 1, first),
-                (0, 0, 1, 1, second),
-                (0, 0, 1, 1, third),
-            ],
-        );
-        assert_eq!(frame_count(&triple).unwrap(), 3);
-    }
-
-    #[test]
-    fn decode_frame_selects_requested_index() {
-        // Full-canvas opaque frames with the default Keep disposal: each frame
-        // replaces the visible canvas.
-        let first = vec![10, 20, 30, 255];
-        let second = vec![200, 100, 50, 255];
-        let third = vec![1, 2, 3, 255];
-        let gif = gif_fixture(
-            1,
-            1,
-            &[
-                (0, 0, 1, 1, first),
-                (0, 0, 1, 1, second),
-                (0, 0, 1, 1, third),
-            ],
-        );
-        assert_eq!(decode_frame(&gif, 0).unwrap().pixels(), &[10, 20, 30, 255]);
-        assert_eq!(
-            decode_frame(&gif, 1).unwrap().pixels(),
-            &[200, 100, 50, 255]
-        );
-        assert_eq!(decode_frame(&gif, 2).unwrap().pixels(), &[1, 2, 3, 255]);
-    }
-
-    #[test]
-    fn decode_frame_composites_partial_keep_frame_over_previous() {
-        // 2x1 canvas. Frame 0 fills both pixels red with Keep disposal. Frame 1
-        // draws only the right pixel green. The composited frame 1 keeps the
-        // left red pixel.
-        let frame0 = vec![255, 0, 0, 255, 255, 0, 0, 255];
-        let frame1 = vec![0, 255, 0, 255];
-        let gif = gif_fixture_with_dispose(
-            2,
-            1,
-            &[
-                (0, 0, 2, 1, DisposalMethod::Keep, frame0),
-                (1, 0, 1, 1, DisposalMethod::Keep, frame1),
-            ],
-        );
-        assert_eq!(
-            decode_frame(&gif, 1).unwrap().pixels(),
-            &[255, 0, 0, 255, 0, 255, 0, 255]
-        );
-    }
-
-    #[test]
-    fn decode_frame_applies_background_disposal() {
-        // 2x1 canvas. Frame 0 fills both pixels red but disposes to background.
-        // Frame 1 draws only the right pixel green; after frame 0's background
-        // disposal the left pixel is transparent again.
-        let frame0 = vec![255, 0, 0, 255, 255, 0, 0, 255];
-        let frame1 = vec![0, 255, 0, 255];
-        let gif = gif_fixture_with_dispose(
-            2,
-            1,
-            &[
-                (0, 0, 2, 1, DisposalMethod::Background, frame0),
-                (1, 0, 1, 1, DisposalMethod::Keep, frame1),
-            ],
-        );
-        assert_eq!(
-            decode_frame(&gif, 1).unwrap().pixels(),
-            &[0, 0, 0, 0, 0, 255, 0, 255]
-        );
-    }
-
-    #[test]
-    fn decode_frame_rejects_out_of_range_index() {
-        let gif = gif_fixture(1, 1, &[(0, 0, 1, 1, vec![10, 20, 30, 255])]);
-        assert_eq!(
-            decode_frame(&gif, 1),
-            Err(ImageError::FrameIndexOutOfRange {
-                index: 1,
-                frame_count: 1,
-            })
-        );
-    }
-
-    #[test]
-    fn composites_offset_first_frame_onto_canvas() {
-        let pixel = vec![5, 6, 7, 255];
-        let gif = gif_fixture(2, 2, &[(1, 1, 1, 1, pixel)]);
-        let decoded = decode(&gif).unwrap();
-        assert_eq!(decoded.width(), 2);
-        assert_eq!(decoded.height(), 2);
-        let mut expected = vec![0u8; 16];
-        expected[12..16].copy_from_slice(&[5, 6, 7, 255]);
-        assert_eq!(decoded.pixels(), expected.as_slice());
-    }
-
-    #[test]
-    fn rejects_short_input() {
-        assert_eq!(
-            decode(b"GIF"),
-            Err(ImageError::UnexpectedEof {
-                expected: MAGIC_LEN,
-                actual: 3,
-            })
-        );
-    }
-
-    #[test]
-    fn rejects_bad_magic() {
-        assert_eq!(decode(b"NOTGIF"), Err(ImageError::InvalidHeader("GIF")));
-    }
-
-    #[test]
-    fn rejects_truncated_gif() {
-        let gif = gif_fixture(2, 1, &[(0, 0, 2, 1, vec![1, 2, 3, 255, 4, 5, 6, 255])]);
-        let err = decode(&gif[..MAGIC_LEN + 4]).unwrap_err().to_string();
-        assert!(err.contains("GIF decode failed"), "{err}");
-    }
-}
-
 /// Encodes an image as a single-frame GIF with a deterministic, palette-quantized
 /// color table of at most 256 entries.
 pub fn encode(image: &Image) -> Result<Vec<u8>, ImageError> {
@@ -729,4 +531,201 @@ fn neuquant_palette(
 
 fn gif_encode_error(err: EncodingError) -> ImageError {
     ImageError::UnsupportedFormat(format!("GIF encode failed: {err}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gif::{Encoder, Frame};
+
+    type RgbaFrameSpec = (u16, u16, u16, u16, Vec<u8>);
+    type DisposingFrameSpec = (u16, u16, u16, u16, DisposalMethod, Vec<u8>);
+
+    fn gif_fixture(width: u16, height: u16, frames: &[RgbaFrameSpec]) -> Vec<u8> {
+        let mut out = Vec::new();
+        {
+            let mut encoder = Encoder::new(&mut out, width, height, &[]).unwrap();
+            for (left, top, fw, fh, rgba) in frames {
+                let mut pixels = rgba.clone();
+                let mut frame = Frame::from_rgba_speed(*fw, *fh, &mut pixels, 10);
+                frame.left = *left;
+                frame.top = *top;
+                encoder.write_frame(&frame).unwrap();
+            }
+        }
+        out
+    }
+
+    fn gif_fixture_with_dispose(width: u16, height: u16, frames: &[DisposingFrameSpec]) -> Vec<u8> {
+        let mut out = Vec::new();
+        {
+            let mut encoder = Encoder::new(&mut out, width, height, &[]).unwrap();
+            for (left, top, fw, fh, dispose, rgba) in frames {
+                let mut pixels = rgba.clone();
+                let mut frame = Frame::from_rgba_speed(*fw, *fh, &mut pixels, 10);
+                frame.left = *left;
+                frame.top = *top;
+                frame.dispose = *dispose;
+                encoder.write_frame(&frame).unwrap();
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn decodes_first_frame_rgba8() {
+        let rgba = vec![255, 0, 0, 255, 0, 255, 0, 255];
+        let gif = gif_fixture(2, 1, &[(0, 0, 2, 1, rgba)]);
+        assert_eq!(&gif[..MAGIC_LEN], MAGIC_89A);
+        assert_eq!(
+            identify(&gif).unwrap().stable_line(),
+            "format=GIF width=2 height=1 channels=RGBA depth=8"
+        );
+        let decoded = decode(&gif).unwrap();
+        assert_eq!(decoded.width(), 2);
+        assert_eq!(decoded.height(), 1);
+        assert_eq!(decoded.pixel_format(), PixelFormat::Rgba8);
+        assert_eq!(decoded.pixels(), &[255, 0, 0, 255, 0, 255, 0, 255]);
+    }
+
+    #[test]
+    fn decode_returns_first_frame_when_multiple_present() {
+        let first = vec![10, 20, 30, 255];
+        let second = vec![200, 100, 50, 255];
+        let gif = gif_fixture(1, 1, &[(0, 0, 1, 1, first), (0, 0, 1, 1, second)]);
+        let decoded = decode(&gif).unwrap();
+        assert_eq!(decoded.pixels(), &[10, 20, 30, 255]);
+    }
+
+    #[test]
+    fn frame_count_counts_all_frames() {
+        let first = vec![10, 20, 30, 255];
+        let second = vec![200, 100, 50, 255];
+        let third = vec![1, 2, 3, 255];
+        let single = gif_fixture(1, 1, &[(0, 0, 1, 1, first.clone())]);
+        assert_eq!(frame_count(&single).unwrap(), 1);
+        let triple = gif_fixture(
+            1,
+            1,
+            &[
+                (0, 0, 1, 1, first),
+                (0, 0, 1, 1, second),
+                (0, 0, 1, 1, third),
+            ],
+        );
+        assert_eq!(frame_count(&triple).unwrap(), 3);
+    }
+
+    #[test]
+    fn decode_frame_selects_requested_index() {
+        // Full-canvas opaque frames with the default Keep disposal: each frame
+        // replaces the visible canvas.
+        let first = vec![10, 20, 30, 255];
+        let second = vec![200, 100, 50, 255];
+        let third = vec![1, 2, 3, 255];
+        let gif = gif_fixture(
+            1,
+            1,
+            &[
+                (0, 0, 1, 1, first),
+                (0, 0, 1, 1, second),
+                (0, 0, 1, 1, third),
+            ],
+        );
+        assert_eq!(decode_frame(&gif, 0).unwrap().pixels(), &[10, 20, 30, 255]);
+        assert_eq!(
+            decode_frame(&gif, 1).unwrap().pixels(),
+            &[200, 100, 50, 255]
+        );
+        assert_eq!(decode_frame(&gif, 2).unwrap().pixels(), &[1, 2, 3, 255]);
+    }
+
+    #[test]
+    fn decode_frame_composites_partial_keep_frame_over_previous() {
+        // 2x1 canvas. Frame 0 fills both pixels red with Keep disposal. Frame 1
+        // draws only the right pixel green. The composited frame 1 keeps the
+        // left red pixel.
+        let frame0 = vec![255, 0, 0, 255, 255, 0, 0, 255];
+        let frame1 = vec![0, 255, 0, 255];
+        let gif = gif_fixture_with_dispose(
+            2,
+            1,
+            &[
+                (0, 0, 2, 1, DisposalMethod::Keep, frame0),
+                (1, 0, 1, 1, DisposalMethod::Keep, frame1),
+            ],
+        );
+        assert_eq!(
+            decode_frame(&gif, 1).unwrap().pixels(),
+            &[255, 0, 0, 255, 0, 255, 0, 255]
+        );
+    }
+
+    #[test]
+    fn decode_frame_applies_background_disposal() {
+        // 2x1 canvas. Frame 0 fills both pixels red but disposes to background.
+        // Frame 1 draws only the right pixel green; after frame 0's background
+        // disposal the left pixel is transparent again.
+        let frame0 = vec![255, 0, 0, 255, 255, 0, 0, 255];
+        let frame1 = vec![0, 255, 0, 255];
+        let gif = gif_fixture_with_dispose(
+            2,
+            1,
+            &[
+                (0, 0, 2, 1, DisposalMethod::Background, frame0),
+                (1, 0, 1, 1, DisposalMethod::Keep, frame1),
+            ],
+        );
+        assert_eq!(
+            decode_frame(&gif, 1).unwrap().pixels(),
+            &[0, 0, 0, 0, 0, 255, 0, 255]
+        );
+    }
+
+    #[test]
+    fn decode_frame_rejects_out_of_range_index() {
+        let gif = gif_fixture(1, 1, &[(0, 0, 1, 1, vec![10, 20, 30, 255])]);
+        assert_eq!(
+            decode_frame(&gif, 1),
+            Err(ImageError::FrameIndexOutOfRange {
+                index: 1,
+                frame_count: 1,
+            })
+        );
+    }
+
+    #[test]
+    fn composites_offset_first_frame_onto_canvas() {
+        let pixel = vec![5, 6, 7, 255];
+        let gif = gif_fixture(2, 2, &[(1, 1, 1, 1, pixel)]);
+        let decoded = decode(&gif).unwrap();
+        assert_eq!(decoded.width(), 2);
+        assert_eq!(decoded.height(), 2);
+        let mut expected = vec![0u8; 16];
+        expected[12..16].copy_from_slice(&[5, 6, 7, 255]);
+        assert_eq!(decoded.pixels(), expected.as_slice());
+    }
+
+    #[test]
+    fn rejects_short_input() {
+        assert_eq!(
+            decode(b"GIF"),
+            Err(ImageError::UnexpectedEof {
+                expected: MAGIC_LEN,
+                actual: 3,
+            })
+        );
+    }
+
+    #[test]
+    fn rejects_bad_magic() {
+        assert_eq!(decode(b"NOTGIF"), Err(ImageError::InvalidHeader("GIF")));
+    }
+
+    #[test]
+    fn rejects_truncated_gif() {
+        let gif = gif_fixture(2, 1, &[(0, 0, 2, 1, vec![1, 2, 3, 255, 4, 5, 6, 255])]);
+        let err = decode(&gif[..MAGIC_LEN + 4]).unwrap_err().to_string();
+        assert!(err.contains("GIF decode failed"), "{err}");
+    }
 }
