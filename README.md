@@ -1,5 +1,9 @@
 # IMX
 
+[![crates.io](https://img.shields.io/crates/v/imx-cli.svg)](https://crates.io/crates/imx-cli)
+[![docs.rs](https://img.shields.io/docsrs/imx-core)](https://docs.rs/imx-core)
+[![CI](https://github.com/jskoiz/imx/actions/workflows/rust-standalone-preview.yml/badge.svg)](https://github.com/jskoiz/imx/actions/workflows/rust-standalone-preview.yml)
+
 A fast, memory-safe, **differentially-verified** image conversion library and
 CLI for Rust. IMX decodes, identifies, transcodes, and resizes images through a
 small `imx` binary and a set of focused codec crates, with byte-identical,
@@ -19,9 +23,10 @@ This is the headline. IMX is built to be trustworthy on real and hostile input:
   ImageMagick's output, so IMX is verified against a mature reference
   implementation rather than only against itself.
 - **Per-codec fuzzing and a malformed-input corpus.** Coverage-guided fuzz
-  targets exercise the BMP, FARBFELD, JPEG, QOI, PNG, and Netpbm decode/identify
-  entrypoints, backed by seeded corpora and a malformed-input suite, with crash
-  artifacts retained from scheduled long-running fuzz runs.
+  targets exercise the BMP, FARBFELD, GIF, JPEG, PNG, PNM, QOI, and WebP
+  decode/identify entrypoints (a TIFF decode target lands in this release),
+  backed by seeded corpora and a malformed-input suite, with crash artifacts
+  retained from scheduled long-running fuzz runs.
 - **Deterministic, byte-identical output.** The same input always produces the
   same bytes. Output writes use a temp file plus atomic rename, so a malformed
   input never leaves a partial output behind.
@@ -35,6 +40,15 @@ This is the headline. IMX is built to be trustworthy on real and hostile input:
   JPEG codecs.
 
 ## Install
+
+Install the `imx` binary from crates.io with Cargo (installs the `imx-cli`
+crate, whose binary is named `imx`):
+
+```sh
+cargo install imx-cli
+imx --version
+imx self-test
+```
 
 Install the verified tap release:
 
@@ -82,6 +96,23 @@ imx --version
 
 The source install path is verified by `scripts/verify-install.sh` from a fresh
 checkout in CI.
+
+## New in this release
+
+This release sharpens resize quality and broadens the output surface ahead of a
+1.0 tag (see [CHANGELOG.md](CHANGELOG.md) and
+[docs/v1.0-readiness.md](docs/v1.0-readiness.md)):
+
+- **Real resampling filters** for `resize`/`resize-fit` via `--filter`
+  (nearest, triangle, catmull-rom, lanczos3), with **Lanczos3 the default** so
+  downscales are no longer nearest-neighbor aliased.
+- **Animated GIF output** via `imx assemble`, composing ordered frames with
+  per-frame delays.
+- **Color and tone pipeline ops** in `imx pipeline`, alongside the existing
+  geometry ops.
+- **ICC profile passthrough** with `--strip` to drop ICC/ancillary metadata for
+  a minimal, reproducible output.
+- **docs.rs build metadata** and a **`tiff_decode` fuzz target**.
 
 ## Quick examples
 
@@ -227,17 +258,20 @@ opcode choices, or other incidental representation details.
 
 By design, IMX does not (yet) provide:
 
-- GIF **animation/multi-frame output** (GIF output is a single still frame).
 - Full ImageMagick CLI parsing, the `magick`/`convert`/`mogrify` commands,
   delegates, MagickCore, or MagickWand.
-- Color management, ICC profiles, and general metadata preservation (beyond
-  read-only JPEG EXIF Orientation).
+- General metadata preservation beyond read-only JPEG/TIFF EXIF Orientation and
+  ICC profile passthrough.
 - APNG, interlaced PNG, indexed/palette PNG, low-bit PNG, `tRNS`.
 - CMYK/YCCK JPEG, 12-bit JPEG, arithmetic-coded JPEG, lossless JPEG / JPEG-LS,
   JPEG 2000, JPEG XL.
 - Indexed/compressed/bitfields/OS2/high-depth BMP.
 - PAM, PFM, and other container formats not listed above.
-- Filters beyond nearest-neighbor resize and the listed geometric operations.
+
+Items addressed in this release (see [the new-in-this-release list](#new-in-this-release)
+and [CHANGELOG.md](CHANGELOG.md)): animated GIF output (`imx assemble`), real
+resampling filters beyond nearest-neighbor (`--filter`, Lanczos3 default), color
+and tone pipeline ops, and ICC profile passthrough with `--strip`.
 
 ## Safety posture
 
