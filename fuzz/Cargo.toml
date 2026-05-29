@@ -12,10 +12,12 @@ cargo-fuzz = true
 [dependencies]
 imx-codec-bmp = { path = "../crates/codecs/bmp" }
 imx-codec-farbfeld = { path = "../crates/codecs/farbfeld" }
+imx-codec-gif = { path = "../crates/codecs/gif" }
 imx-codec-jpeg = { path = "../crates/codecs/jpeg" }
 imx-codec-png = { path = "../crates/codecs/png" }
 imx-codec-pnm = { path = "../crates/codecs/pnm" }
 imx-codec-qoi = { path = "../crates/codecs/qoi" }
+imx-codec-webp = { path = "../crates/codecs/webp" }
 libfuzzer-sys = "0.4"
 
 [[bin]]
@@ -51,5 +53,17 @@ doc = false
 [[bin]]
 name = "qoi_decode"
 path = "fuzz_targets/qoi_decode.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "webp_decode"
+path = "fuzz_targets/webp_decode.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "gif_decode"
+path = "fuzz_targets/gif_decode.rs"
 test = false
 doc = false

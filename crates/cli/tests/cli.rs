@@ -1090,10 +1090,10 @@ fn resize_prefix_errors_match_identify_and_transcode_contract() {
             vec![
                 "resize".to_string(),
                 "2x2".to_string(),
-                prefixed("GIF", &ppm),
+                prefixed("XYZ", &ppm),
                 prefixed("PPM", &output_ppm),
             ],
-            "unsupported format prefix: GIF",
+            "unsupported format prefix: XYZ",
         ),
         (
             vec![
@@ -1305,10 +1305,10 @@ fn resize_fit_prefix_errors_match_identify_and_transcode_contract() {
             vec![
                 "resize-fit".to_string(),
                 "2x2".to_string(),
-                prefixed("GIF", &ppm),
+                prefixed("XYZ", &ppm),
                 prefixed("PPM", &output_ppm),
             ],
-            "unsupported format prefix: GIF",
+            "unsupported format prefix: XYZ",
         ),
         (
             vec![
@@ -1824,7 +1824,7 @@ fn batch_convert_prefix_errors_match_existing_contract() {
     fs::write(&png, imx_codec_png::encode(&image).unwrap()).unwrap();
 
     let cases = vec![
-        (prefixed("GIF", &ppm), "unsupported format prefix: GIF"),
+        (prefixed("XYZ", &ppm), "unsupported format prefix: XYZ"),
         ("PNG:".to_string(), "missing path after format prefix PNG:"),
         (
             prefixed("PNG", &ppm),
@@ -2775,8 +2775,8 @@ fn malformed_format_prefixes_are_rejected() {
     let extensionless_output = dir.join("out");
     let cases = vec![
         (
-            vec!["identify".to_string(), prefixed("GIF", &ppm)],
-            "unsupported format prefix: GIF",
+            vec!["identify".to_string(), prefixed("XYZ", &ppm)],
+            "unsupported format prefix: XYZ",
         ),
         (
             vec!["identify".to_string(), prefixed("JPG", &jpeg)],
@@ -2878,11 +2878,11 @@ fn report_json_returns_stable_diagnostic_codes() {
             vec![
                 "report".to_string(),
                 "--json".to_string(),
-                prefixed("GIF", &ppm),
+                prefixed("XYZ", &ppm),
             ],
             report_unsupported_json(
                 "input.unsupported_format_prefix",
-                "unsupported format prefix: GIF",
+                "unsupported format prefix: XYZ",
             ),
         ),
         (
@@ -2998,9 +2998,9 @@ fn diagnostic_failures_have_stable_exit_codes_and_context() {
 
     let cases = vec![
         (
-            vec!["identify".to_string(), prefixed("GIF", &ppm)],
+            vec!["identify".to_string(), prefixed("XYZ", &ppm)],
             1,
-            "unsupported format prefix: GIF",
+            "unsupported format prefix: XYZ",
         ),
         (
             vec!["identify".to_string(), prefixed("PNG", &ppm)],
@@ -3469,5 +3469,177 @@ fn quality_flag_rejects_out_of_range_value() {
             .output()
             .unwrap();
         assert_failure(output, 1, "invalid --quality value");
+    }
+}
+
+fn write_webp_fixture(
+    path: &Path,
+    width: u32,
+    height: u32,
+    color: image_webp::ColorType,
+    pixels: &[u8],
+) {
+    let mut out = Vec::new();
+    image_webp::WebPEncoder::new(std::io::Cursor::new(&mut out))
+        .encode(pixels, width, height, color)
+        .unwrap();
+    fs::write(path, out).unwrap();
+}
+
+fn write_gif_fixture(path: &Path, width: u16, height: u16, rgba: &[u8]) {
+    let mut out = Vec::new();
+    {
+        let mut encoder = gif::Encoder::new(&mut out, width, height, &[]).unwrap();
+        let mut pixels = rgba.to_vec();
+        let frame = gif::Frame::from_rgba_speed(width, height, &mut pixels, 10);
+        encoder.write_frame(&frame).unwrap();
+    }
+    fs::write(path, out).unwrap();
+}
+
+#[test]
+fn webp_identify_and_transcode_to_png_are_supported() {
+    let dir = temp_dir("webp_input");
+    let webp = dir.join("input.webp");
+    let png = dir.join("output.png");
+    write_webp_fixture(
+        &webp,
+        2,
+        1,
+        image_webp::ColorType::Rgb8,
+        &[255, 0, 0, 0, 255, 0],
+    );
+
+    let identify = Command::new(imx())
+        .args(["identify", &prefixed("WEBP", &webp)])
+        .output()
+        .unwrap();
+    assert!(
+        identify.status.success(),
+        "identify failed with stderr={}",
+        String::from_utf8_lossy(&identify.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(identify.stdout).unwrap().trim(),
+        "format=WEBP width=2 height=1 channels=RGB depth=8"
+    );
+
+    let unprefixed = Command::new(imx())
+        .args(["identify", webp.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(unprefixed.status.success());
+    assert_eq!(
+        String::from_utf8(unprefixed.stdout).unwrap().trim(),
+        "format=WEBP width=2 height=1 channels=RGB depth=8"
+    );
+
+    let transcode = Command::new(imx())
+        .args([webp.to_str().unwrap(), png.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        transcode.status.success(),
+        "transcode failed with stderr={}",
+        String::from_utf8_lossy(&transcode.stderr)
+    );
+    let identify_png = Command::new(imx())
+        .args(["identify", png.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(identify_png.status.success());
+    assert_eq!(
+        String::from_utf8(identify_png.stdout).unwrap().trim(),
+        "format=PNG width=2 height=1 channels=RGB depth=8"
+    );
+}
+
+#[test]
+fn gif_identify_and_transcode_to_png_are_supported() {
+    let dir = temp_dir("gif_input");
+    let gif = dir.join("input.gif");
+    let png = dir.join("output.png");
+    write_gif_fixture(&gif, 2, 1, &[255, 0, 0, 255, 0, 255, 0, 255]);
+
+    let identify = Command::new(imx())
+        .args(["identify", &prefixed("GIF", &gif)])
+        .output()
+        .unwrap();
+    assert!(
+        identify.status.success(),
+        "identify failed with stderr={}",
+        String::from_utf8_lossy(&identify.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(identify.stdout).unwrap().trim(),
+        "format=GIF width=2 height=1 channels=RGBA depth=8"
+    );
+
+    let transcode = Command::new(imx())
+        .args([gif.to_str().unwrap(), png.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        transcode.status.success(),
+        "transcode failed with stderr={}",
+        String::from_utf8_lossy(&transcode.stderr)
+    );
+    let identify_png = Command::new(imx())
+        .args(["identify", png.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(identify_png.status.success());
+    assert_eq!(
+        String::from_utf8(identify_png.stdout).unwrap().trim(),
+        "format=PNG width=2 height=1 channels=RGBA depth=8"
+    );
+}
+
+#[test]
+fn webp_and_gif_are_rejected_as_output_targets() {
+    let dir = temp_dir("input_only_output");
+    let png = dir.join("input.png");
+    let image = Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap();
+    fs::write(&png, imx_codec_png::encode(&image).unwrap()).unwrap();
+
+    for (ext, name) in [("webp", "WEBP"), ("gif", "GIF")] {
+        let output_path = dir.join(format!("out.{ext}"));
+        let output = Command::new(imx())
+            .args([png.to_str().unwrap(), output_path.to_str().unwrap()])
+            .output()
+            .unwrap();
+        assert!(!output.status.success(), "{name} output should be rejected");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("input-only format") && stderr.contains(name),
+            "{name}: got stderr={stderr}"
+        );
+        assert!(!output_path.exists());
+    }
+}
+
+#[test]
+fn webp_and_gif_are_rejected_as_batch_output_format() {
+    let dir = temp_dir("input_only_batch");
+    let png = dir.join("input.png");
+    let out_dir = dir.join("out");
+    fs::create_dir_all(&out_dir).unwrap();
+    let image = Image::new(1, 1, PixelFormat::Rgb8, vec![255, 0, 0]).unwrap();
+    fs::write(&png, imx_codec_png::encode(&image).unwrap()).unwrap();
+
+    for name in ["WEBP", "GIF"] {
+        let output = Command::new(imx())
+            .args([
+                "batch-convert",
+                "--to",
+                name,
+                "--output-dir",
+                out_dir.to_str().unwrap(),
+                png.to_str().unwrap(),
+            ])
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("input-only format"));
     }
 }

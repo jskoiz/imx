@@ -615,6 +615,62 @@ fn pbm_rejects_malformed_inputs() {
 }
 
 #[test]
+fn webp_rejects_malformed_and_unsupported_inputs() {
+    assert_eq!(
+        imx_codec_webp::decode(b"RIFF"),
+        Err(ImageError::UnexpectedEof {
+            expected: imx_codec_webp::MAGIC_LEN,
+            actual: 4,
+        })
+    );
+
+    let mut bad_riff = vec![0u8; imx_codec_webp::MAGIC_LEN];
+    bad_riff[..4].copy_from_slice(b"RIFX");
+    assert_eq!(
+        imx_codec_webp::decode(&bad_riff),
+        Err(ImageError::InvalidHeader("WEBP"))
+    );
+
+    let mut bad_webp = vec![0u8; imx_codec_webp::MAGIC_LEN];
+    bad_webp[..4].copy_from_slice(imx_codec_webp::RIFF_MAGIC);
+    bad_webp[8..12].copy_from_slice(b"AVIF");
+    assert_eq!(
+        imx_codec_webp::decode(&bad_webp),
+        Err(ImageError::InvalidHeader("WEBP"))
+    );
+
+    let mut truncated = vec![0u8; imx_codec_webp::MAGIC_LEN + 4];
+    truncated[..4].copy_from_slice(imx_codec_webp::RIFF_MAGIC);
+    truncated[8..12].copy_from_slice(imx_codec_webp::WEBP_MAGIC);
+    assert!(imx_codec_webp::decode(&truncated)
+        .unwrap_err()
+        .to_string()
+        .contains("WEBP decode failed"));
+}
+
+#[test]
+fn gif_rejects_malformed_and_unsupported_inputs() {
+    assert_eq!(
+        imx_codec_gif::decode(b"GIF"),
+        Err(ImageError::UnexpectedEof {
+            expected: imx_codec_gif::MAGIC_LEN,
+            actual: 3,
+        })
+    );
+    assert_eq!(
+        imx_codec_gif::decode(b"NOTGIF"),
+        Err(ImageError::InvalidHeader("GIF"))
+    );
+
+    let mut truncated = Vec::from(imx_codec_gif::MAGIC_89A.as_slice());
+    truncated.extend_from_slice(&[0x02, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00]);
+    assert!(imx_codec_gif::decode(&truncated)
+        .unwrap_err()
+        .to_string()
+        .contains("GIF decode failed"));
+}
+
+#[test]
 fn shared_pixel_buffers_reject_wrong_lengths() {
     assert!(matches!(
         Image::new(2, 2, PixelFormat::Rgba16Be, vec![0; 31]),

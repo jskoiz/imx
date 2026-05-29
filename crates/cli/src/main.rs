@@ -11,7 +11,7 @@ const MAX_INPUT_BYTES: u64 = MAX_PIXEL_BYTES as u64 + 1024 * 1024;
 
 fn usage() -> ! {
     eprintln!(
-        "usage:\n  imx --help\n  imx --version\n  imx identify [FORMAT:]<input|FORMAT:->\n  imx identify --json [FORMAT:]<input|FORMAT:->\n  imx report --json [FORMAT:]<input|FORMAT:->\n  imx resize <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\n  imx self-test\n  imx [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported formats: bmp (.bmp), farbfeld (.ff, .farbfeld), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm)\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:\nstdin/stdout: use - as a path with a FORMAT: prefix (e.g. PNG:-); --quality applies only to JPEG output"
+        "usage:\n  imx --help\n  imx --version\n  imx identify [FORMAT:]<input|FORMAT:->\n  imx identify --json [FORMAT:]<input|FORMAT:->\n  imx report --json [FORMAT:]<input|FORMAT:->\n  imx resize <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\n  imx self-test\n  imx [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported formats: bmp (.bmp), farbfeld (.ff, .farbfeld), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm)\ninput-only formats: gif (.gif), webp (.webp)\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:\ninput-only prefixes: GIF:, WEBP:\nstdin/stdout: use - as a path with a FORMAT: prefix (e.g. PNG:-); --quality applies only to JPEG output"
     );
     process::exit(2);
 }
@@ -45,7 +45,7 @@ fn main() {
     match args.as_slice() {
         [_, flag] if flag == "--help" || flag == "-h" || flag == "help" => {
             println!(
-                "IMX Developer Preview\n\nusage:\n  imx identify [FORMAT:]<input|FORMAT:->\n  imx identify --json [FORMAT:]<input|FORMAT:->\n  imx report --json [FORMAT:]<input|FORMAT:->\n  imx resize <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\n  imx self-test\n  imx [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported transcodes: BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM, including deterministic same-format rewrites except lossy JPEG re-encoding\nsupported streaming: read input from stdin and/or write output to stdout via - with a FORMAT: prefix (e.g. PNG:-); only image bytes go to stdout\nsupported JPEG quality: --quality <1..=100> on the single transcode when the output format is JPEG (default 90); rejected for non-JPEG output\nsupported identify JSON: deterministic schema_version/format/width/height/channels/depth over existing identify metadata\nsupported report JSON: single-input supported/unsupported status with stable diagnostic_code values\nsupported resize: nearest-neighbor exact dimensions and aspect-preserving fit for existing supported formats\nsupported geometry: bounds-checked crop (<width>x<height>+<x>+<y>), clockwise rotate (90/180/270), vertical flip, and horizontal flop, all format-preserving\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, no overwrite or collision renaming\nsupported self-test: offline install confidence check for identify/transcode/resize/resize-fit/batch-convert across supported formats\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:\nunsupported: recursive directory walking, arbitrary-angle rotation, delegates, color management, and formats beyond BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM"
+                "IMX Developer Preview\n\nusage:\n  imx identify [FORMAT:]<input|FORMAT:->\n  imx identify --json [FORMAT:]<input|FORMAT:->\n  imx report --json [FORMAT:]<input|FORMAT:->\n  imx resize <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [FORMAT:]<input>...\n  imx self-test\n  imx [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported transcodes: BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM, including deterministic same-format rewrites except lossy JPEG re-encoding\nsupported input-only formats: GIF and WEBP decode and identify, including transcode into any supported output format; the GIF decoder reads only the first frame and ignores animation\nsupported streaming: read input from stdin and/or write output to stdout via - with a FORMAT: prefix (e.g. PNG:-); only image bytes go to stdout\nsupported JPEG quality: --quality <1..=100> on the single transcode when the output format is JPEG (default 90); rejected for non-JPEG output\nsupported identify JSON: deterministic schema_version/format/width/height/channels/depth over existing identify metadata\nsupported report JSON: single-input supported/unsupported status with stable diagnostic_code values\nsupported resize: nearest-neighbor exact dimensions and aspect-preserving fit for existing supported formats\nsupported geometry: bounds-checked crop (<width>x<height>+<x>+<y>), clockwise rotate (90/180/270), vertical flip, and horizontal flop, all format-preserving\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, no overwrite or collision renaming\nsupported self-test: offline install confidence check for identify/transcode/resize/resize-fit/batch-convert across supported formats\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:\ninput-only prefixes: GIF:, WEBP:\nunsupported: GIF/WEBP as output targets, GIF animation/multi-frame decoding, recursive directory walking, arbitrary-angle rotation, delegates, color management, and formats beyond BMP/FARBFELD/GIF/JPEG/QOI/PBM/PGM/PNG/PPM/WEBP"
             );
             process::exit(0);
         }
@@ -590,12 +590,14 @@ fn identify_bytes(format: Format, input: &[u8]) -> Result<Identify, ImageError> 
     match format {
         Format::Bmp => imx_codec_bmp::identify(input),
         Format::Farbfeld => imx_codec_farbfeld::identify(input),
+        Format::Gif => imx_codec_gif::identify(input),
         Format::Jpeg => imx_codec_jpeg::identify(input),
         Format::Pbm => imx_codec_pnm::identify_pbm(input),
         Format::Pgm => imx_codec_pnm::identify_pgm(input),
         Format::Png => imx_codec_png::identify(input),
         Format::Ppm => imx_codec_pnm::identify_ppm(input),
         Format::Qoi => imx_codec_qoi::identify(input),
+        Format::Webp => imx_codec_webp::identify(input),
     }
 }
 
@@ -872,12 +874,14 @@ fn decode_image(format: Format, input: &[u8]) -> Result<imx_core::Image, ImageEr
     match format {
         Format::Bmp => imx_codec_bmp::decode(input),
         Format::Farbfeld => imx_codec_farbfeld::decode(input),
+        Format::Gif => imx_codec_gif::decode(input),
         Format::Jpeg => imx_codec_jpeg::decode(input),
         Format::Pbm => imx_codec_pnm::decode_pbm(input),
         Format::Pgm => imx_codec_pnm::decode_pgm(input),
         Format::Png => imx_codec_png::decode(input),
         Format::Ppm => imx_codec_pnm::decode_ppm(input),
         Format::Qoi => imx_codec_qoi::decode(input).and_then(|decoded| decoded.into_core_image()),
+        Format::Webp => imx_codec_webp::decode(input),
     }
 }
 
@@ -902,6 +906,10 @@ fn encode_image(format: Format, image: &imx_core::Image) -> Result<Vec<u8>, Imag
         Format::Png => imx_codec_png::encode(image),
         Format::Ppm => imx_codec_pnm::encode_ppm(image),
         Format::Qoi => imx_codec_qoi::encode_image(image, imx_codec_qoi::QOI_SRGB),
+        Format::Gif | Format::Webp => Err(ImageError::UnsupportedFormat(format!(
+            "{} is an input-only format and cannot be used as an output target",
+            format.name()
+        ))),
     }
 }
 
@@ -1286,12 +1294,14 @@ fn parse_format_prefix(prefix: &str) -> Option<Format> {
     match prefix {
         "BMP" => Some(Format::Bmp),
         "FARBFELD" => Some(Format::Farbfeld),
+        "GIF" => Some(Format::Gif),
         "JPEG" => Some(Format::Jpeg),
         "PBM" => Some(Format::Pbm),
         "PGM" => Some(Format::Pgm),
         "PNG" => Some(Format::Png),
         "PPM" => Some(Format::Ppm),
         "QOI" => Some(Format::Qoi),
+        "WEBP" => Some(Format::Webp),
         _ => None,
     }
 }
@@ -1375,7 +1385,9 @@ fn parse_batch_options(args: &[String]) -> Result<BatchOptions<'_>, String> {
 }
 
 fn parse_batch_output_format(value: &str) -> Result<Format, String> {
-    parse_format_prefix(value).ok_or_else(|| format!("unsupported output format: {value}"))
+    let format =
+        parse_format_prefix(value).ok_or_else(|| format!("unsupported output format: {value}"))?;
+    reject_input_only_output(format)
 }
 
 fn validate_output_dir<'a>(path: &'a Path, original: &str) -> &'a Path {
@@ -1465,12 +1477,14 @@ fn format_extension(format: Format) -> &'static str {
     match format {
         Format::Bmp => "bmp",
         Format::Farbfeld => "ff",
+        Format::Gif => "gif",
         Format::Jpeg => "jpg",
         Format::Pbm => "pbm",
         Format::Pgm => "pgm",
         Format::Png => "png",
         Format::Ppm => "ppm",
         Format::Qoi => "qoi",
+        Format::Webp => "webp",
     }
 }
 
@@ -1608,6 +1622,18 @@ fn detect_unprefixed_input_format(path: &str, bytes: &[u8]) -> Result<Format, St
     {
         return Ok(Format::Jpeg);
     }
+    if bytes.len() >= imx_codec_webp::MAGIC_LEN
+        && &bytes[..4] == imx_codec_webp::RIFF_MAGIC
+        && &bytes[8..12] == imx_codec_webp::WEBP_MAGIC
+    {
+        return Ok(Format::Webp);
+    }
+    if bytes.len() >= imx_codec_gif::MAGIC_LEN
+        && (&bytes[..imx_codec_gif::MAGIC_LEN] == imx_codec_gif::MAGIC_87A
+            || &bytes[..imx_codec_gif::MAGIC_LEN] == imx_codec_gif::MAGIC_89A)
+    {
+        return Ok(Format::Gif);
+    }
     if bytes.len() >= imx_codec_png::MAGIC.len()
         && &bytes[..imx_codec_png::MAGIC.len()] == imx_codec_png::MAGIC
     {
@@ -1642,6 +1668,10 @@ fn image_diagnostic_code(format: Format, operation: &str, err: &ImageError) -> &
             (Format::Jpeg, "decode") => "jpeg.decode_failed",
             (Format::Png, "identify") => "png.identify_failed",
             (Format::Png, "decode") => "png.decode_failed",
+            (Format::Gif, "identify") => "gif.identify_failed",
+            (Format::Gif, "decode") => "gif.decode_failed",
+            (Format::Webp, "identify") => "webp.identify_failed",
+            (Format::Webp, "decode") => "webp.decode_failed",
             _ => err.diagnostic_code(),
         },
         _ => err.diagnostic_code(),
@@ -1655,7 +1685,23 @@ fn detect_output_format(path: &CliPath<'_>) -> Result<Format, String> {
             .ok_or_else(|| "stdout output (-) requires a format prefix, e.g. PNG:-".to_string());
     }
     let detected = detect_path_format(path.path)?;
-    enforce_prefix(path, detected, "path format")
+    let detected = enforce_prefix(path, detected, "path format")?;
+    reject_input_only_output(detected)?;
+    Ok(detected)
+}
+
+fn reject_input_only_output(format: Format) -> Result<Format, String> {
+    if is_input_only_format(format) {
+        return Err(format!(
+            "{} is an input-only format and cannot be used as an output target",
+            format.name()
+        ));
+    }
+    Ok(format)
+}
+
+fn is_input_only_format(format: Format) -> bool {
+    matches!(format, Format::Gif | Format::Webp)
 }
 
 fn detect_path_format(path: &str) -> Result<Format, String> {
@@ -1667,12 +1713,14 @@ fn detect_path_format(path: &str) -> Result<Format, String> {
     {
         Some("ff") | Some("farbfeld") => Ok(Format::Farbfeld),
         Some("bmp") => Ok(Format::Bmp),
+        Some("gif") => Ok(Format::Gif),
         Some("jpg") | Some("jpeg") => Ok(Format::Jpeg),
         Some("pbm") => Ok(Format::Pbm),
         Some("pgm") => Ok(Format::Pgm),
         Some("png") => Ok(Format::Png),
         Some("ppm") => Ok(Format::Ppm),
         Some("qoi") => Ok(Format::Qoi),
+        Some("webp") => Ok(Format::Webp),
         _ => Err(format!("unsupported format: {path}")),
     }
 }

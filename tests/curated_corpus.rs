@@ -64,12 +64,14 @@ fn identify(format: Format, input: &[u8]) -> Result<Identify, ImageError> {
     match format {
         Format::Bmp => imx_codec_bmp::identify(input),
         Format::Farbfeld => imx_codec_farbfeld::identify(input),
+        Format::Gif => imx_codec_gif::identify(input),
         Format::Jpeg => imx_codec_jpeg::identify(input),
         Format::Pbm => imx_codec_pnm::identify_pbm(input),
         Format::Pgm => imx_codec_pnm::identify_pgm(input),
         Format::Png => imx_codec_png::identify(input),
         Format::Ppm => imx_codec_pnm::identify_ppm(input),
         Format::Qoi => imx_codec_qoi::identify(input),
+        Format::Webp => imx_codec_webp::identify(input),
     }
 }
 
@@ -77,12 +79,14 @@ fn decode(format: Format, input: &[u8]) -> Result<Image, ImageError> {
     match format {
         Format::Bmp => imx_codec_bmp::decode(input),
         Format::Farbfeld => imx_codec_farbfeld::decode(input),
+        Format::Gif => imx_codec_gif::decode(input),
         Format::Jpeg => imx_codec_jpeg::decode(input),
         Format::Pbm => imx_codec_pnm::decode_pbm(input),
         Format::Pgm => imx_codec_pnm::decode_pgm(input),
         Format::Png => imx_codec_png::decode(input),
         Format::Ppm => imx_codec_pnm::decode_ppm(input),
         Format::Qoi => imx_codec_qoi::decode(input).and_then(|image| image.into_core_image()),
+        Format::Webp => imx_codec_webp::decode(input),
     }
 }
 

@@ -6,12 +6,14 @@ pub const MAX_PIXEL_BYTES: usize = 512 * 1024 * 1024;
 pub enum Format {
     Bmp,
     Farbfeld,
+    Gif,
     Jpeg,
     Pbm,
     Pgm,
     Png,
     Ppm,
     Qoi,
+    Webp,
 }
 
 impl Format {
@@ -19,12 +21,14 @@ impl Format {
         match self {
             Self::Bmp => "BMP",
             Self::Farbfeld => "FARBFELD",
+            Self::Gif => "GIF",
             Self::Jpeg => "JPEG",
             Self::Pbm => "PBM",
             Self::Pgm => "PGM",
             Self::Png => "PNG",
             Self::Ppm => "PPM",
             Self::Qoi => "QOI",
+            Self::Webp => "WEBP",
         }
     }
 }
