@@ -21,6 +21,7 @@ imx-codec-jpeg = { workspace = true }
 imx-codec-png = { workspace = true }
 imx-codec-pnm = { workspace = true }
 imx-codec-qoi = { workspace = true }
+imx-codec-tiff = { workspace = true }
 imx-codec-webp = { workspace = true }
 image-webp = "0.2.4"
 gif = "0.14.2"

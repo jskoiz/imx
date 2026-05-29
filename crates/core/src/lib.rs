@@ -48,6 +48,7 @@ pub enum Format {
     Png,
     Ppm,
     Qoi,
+    Tiff,
     Webp,
 }
 
@@ -63,6 +64,7 @@ impl Format {
             Self::Png => "PNG",
             Self::Ppm => "PPM",
             Self::Qoi => "QOI",
+            Self::Tiff => "TIFF",
             Self::Webp => "WEBP",
         }
     }
