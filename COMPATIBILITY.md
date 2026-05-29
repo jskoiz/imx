@@ -1,6 +1,12 @@
-# IMX BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM Compatibility Contract
+# IMX Compatibility Contract
 
-This contract covers only the standalone developer-preview slice.
+IMX is a fast, memory-safe, differentially-verified image conversion library
+and CLI. It is not a fork or port of ImageMagick and shares no code with it;
+ImageMagick is used only as an external oracle in IMX's own tests and
+benchmarks. This contract states the exact, intentionally bounded behavior IMX
+guarantees for the BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM surface so that the
+differential, fuzz, and conformance gates have a precise target. The boundaries
+below are deliberate scope limits, not informal aspirations.
 
 ## Product Boundary
 
