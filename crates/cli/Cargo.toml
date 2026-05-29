@@ -15,11 +15,11 @@ imx-codec-png = { workspace = true }
 imx-codec-pnm = { workspace = true }
 imx-codec-qoi = { workspace = true }
 imx-codec-webp = { workspace = true }
+image-webp = "0.2.4"
+gif = "0.14.2"
 
 [dev-dependencies]
 png = "0.18.1"
-image-webp = "0.2.4"
-gif = "0.14.2"
 
 [[bin]]
 name = "imx"

@@ -30,6 +30,8 @@ cat >"$out_dir/summary.json" <<EOF
     "PGM ASCII scaled, binary CRLF comments, and binary 16-bit",
     "PNG grayscale, grayscale-alpha, RGB16, and RGBA16",
     "PPM ASCII high maxval and binary CRLF comments",
+    "WEBP lossless RGB8 and RGBA8 input decode",
+    "GIF first-frame RGBA8 input decode",
     "adversarial malformed diagnostics",
     "resource boundary checks"
   ],

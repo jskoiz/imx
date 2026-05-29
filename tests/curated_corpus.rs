@@ -46,6 +46,25 @@ fn jpeg_with_camera_exif_orientation_le(jpeg: &[u8], orientation: u16) -> Vec<u8
     out
 }
 
+fn webp_fixture(width: u32, height: u32, color: image_webp::ColorType, pixels: &[u8]) -> Vec<u8> {
+    let mut out = Vec::new();
+    image_webp::WebPEncoder::new(std::io::Cursor::new(&mut out))
+        .encode(pixels, width, height, color)
+        .unwrap();
+    out
+}
+
+fn gif_fixture(width: u16, height: u16, rgba: &[u8]) -> Vec<u8> {
+    let mut out = Vec::new();
+    {
+        let mut encoder = gif::Encoder::new(&mut out, width, height, &[]).unwrap();
+        let mut pixels = rgba.to_vec();
+        let frame = gif::Frame::from_rgba_speed(width, height, &mut pixels, 10);
+        encoder.write_frame(&frame).unwrap();
+    }
+    out
+}
+
 fn top_down_bmp(mut bmp: Vec<u8>, width: usize, height: usize, bytes_per_pixel: usize) -> Vec<u8> {
     let pixel_offset = u32::from_le_bytes(bmp[10..14].try_into().unwrap()) as usize;
     let row_stride = (width * bytes_per_pixel).div_ceil(4) * 4;
@@ -186,6 +205,14 @@ fn representative_intake_corpus_identifies_and_decodes() {
     );
     let progressive_camera_jpeg =
         jpeg_with_camera_exif_orientation_le(&progressive_jpeg_fixtures::progressive_rgb_jpeg(), 6);
+    let webp_rgb = webp_fixture(2, 1, image_webp::ColorType::Rgb8, &[255, 0, 0, 0, 255, 0]);
+    let webp_rgba = webp_fixture(
+        2,
+        1,
+        image_webp::ColorType::Rgba8,
+        &[10, 20, 30, 255, 40, 50, 60, 128],
+    );
+    let gif_rgba = gif_fixture(2, 1, &[255, 0, 0, 255, 0, 255, 0, 255]);
 
     let cases = vec![
         (
@@ -301,6 +328,24 @@ fn representative_intake_corpus_identifies_and_decodes() {
             Format::Ppm,
             b"P6\r\n# binary comments and CRLF\r\n2\t1\r\n255\r\n\x00\x80\xff\xff\x40\x00".to_vec(),
             "format=PPM width=2 height=1 channels=RGB depth=8",
+        ),
+        (
+            "webp-rgb8",
+            Format::Webp,
+            webp_rgb,
+            "format=WEBP width=2 height=1 channels=RGB depth=8",
+        ),
+        (
+            "webp-rgba8",
+            Format::Webp,
+            webp_rgba,
+            "format=WEBP width=2 height=1 channels=RGBA depth=8",
+        ),
+        (
+            "gif-rgba8",
+            Format::Gif,
+            gif_rgba,
+            "format=GIF width=2 height=1 channels=RGBA depth=8",
         ),
     ];
 
