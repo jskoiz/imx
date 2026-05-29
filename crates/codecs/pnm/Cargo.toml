@@ -1,9 +1,16 @@
 [package]
 name = "imx-codec-pnm"
-version = "0.19.0"
+version.workspace = true
 edition.workspace = true
-license.workspace = true
+repository.workspace = true
+homepage.workspace = true
 publish.workspace = true
+description = "PNM (PBM/PGM/PPM) image decoder and encoder for the imx image toolkit, differentially verified against ImageMagick."
+documentation = "https://docs.rs/imx-codec-pnm"
+keywords = ["image", "pnm", "codec", "conversion", "imx"]
+categories = ["multimedia::images", "multimedia::encoding"]
+license-file = "LICENSE"
+readme = "README.md"
 
 [dependencies]
 imx-core = { workspace = true }
