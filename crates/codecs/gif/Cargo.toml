@@ -5,7 +5,7 @@ edition.workspace = true
 repository.workspace = true
 homepage.workspace = true
 publish.workspace = true
-description = "GIF image decoder for the imx image toolkit, differentially verified against ImageMagick."
+description = "GIF image codec for the imx image toolkit, differentially verified against ImageMagick."
 documentation = "https://docs.rs/imx-codec-gif"
 keywords = ["image", "gif", "codec", "conversion", "imx"]
 categories = ["multimedia::images", "multimedia::encoding"]
@@ -15,6 +15,7 @@ readme = "README.md"
 [dependencies]
 imx-core = { workspace = true }
 gif = "0.14.2"
+color_quant = "1.1.0"
 
 [lib]
 path = "src/lib.rs"

@@ -180,7 +180,7 @@ install -m 0644 man/imx.1 /usr/local/share/man/man1/imx.1
 | PPM       | `.ppm` / `PPM:`          |  yes  |  yes   | ASCII `P3` + binary `P6` RGB8/RGB16BE in (`maxval` up to 65535); deterministic binary `P6` out. |
 | TIFF      | `.tif`, `.tiff` / `TIFF:`|  yes  |  yes   | First-IFD 8/16-bit grayscale, 8/16-bit RGB, 8-bit RGBA. Deterministic little-endian uncompressed baseline out. No multi-page, compression, palette, CMYK, or YCbCr. |
 | WebP      | input only               |  yes  |   no   | Decode / identify / transcode-from. Encoding is not supported. |
-| GIF       | input only               |  yes  |   no   | Decode / identify / transcode-from. Encoding is not supported. |
+| GIF       | `.gif` / `GIF:`          |  yes  |  yes   | Decode reads the first frame only. Output is a single still frame with a deterministic palette of at most 256 colors (exact when the source has ≤256 colors, NeuQuant otherwise); fully transparent pixels map to one transparent palette index. No animation/multi-frame output. |
 
 ### Operations
 
@@ -227,7 +227,7 @@ opcode choices, or other incidental representation details.
 
 By design, IMX does not (yet) provide:
 
-- WebP or GIF **output** (both are input-only).
+- GIF **animation/multi-frame output** (GIF output is a single still frame).
 - Full ImageMagick CLI parsing, the `magick`/`convert`/`mogrify` commands,
   delegates, MagickCore, or MagickWand.
 - Color management, ICC profiles, and general metadata preservation (beyond

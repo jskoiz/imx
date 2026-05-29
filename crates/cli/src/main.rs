@@ -13,7 +13,7 @@ const MAX_INPUT_BYTES: u64 = MAX_PIXEL_BYTES as u64 + 1024 * 1024;
 
 fn usage() -> ! {
     eprintln!(
-        "usage:\n  imx --help\n  imx --version\n  imx identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.tif|input.tiff|input.webp|FORMAT:->\n  imx identify --json [FORMAT:]<input|FORMAT:->\n  imx report --json [FORMAT:]<input|FORMAT:->\n  imx compare [--metric <ae|mae|psnr>] [FORMAT:]<a|FORMAT:-> [FORMAT:]<b>\n  imx resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx completions <bash|zsh|fish>\n  imx self-test\n  imx [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported formats: bmp (.bmp), farbfeld (.ff, .farbfeld), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm), tiff (.tif, .tiff), webp (.webp)\ninput-only formats: gif (.gif)\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, TIFF:, WEBP:\ninput-only prefixes: GIF:\nstdin/stdout: use - as a path with a FORMAT: prefix (e.g. PNG:-); --quality applies only to JPEG output"
+        "usage:\n  imx --help\n  imx --version\n  imx identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.tif|input.tiff|input.webp|FORMAT:->\n  imx identify --json [FORMAT:]<input|FORMAT:->\n  imx report --json [FORMAT:]<input|FORMAT:->\n  imx compare [--metric <ae|mae|psnr>] [FORMAT:]<a|FORMAT:-> [FORMAT:]<b>\n  imx resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx completions <bash|zsh|fish>\n  imx self-test\n  imx [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported formats: bmp (.bmp), farbfeld (.ff, .farbfeld), gif (.gif), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm), tiff (.tif, .tiff), webp (.webp)\nsupported prefixes: BMP:, FARBFELD:, GIF:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, TIFF:, WEBP:\nstdin/stdout: use - as a path with a FORMAT: prefix (e.g. PNG:-); --quality applies only to JPEG output"
     );
     process::exit(2);
 }
@@ -47,7 +47,7 @@ fn main() {
     match args.as_slice() {
         [_, flag] if flag == "--help" || flag == "-h" || flag == "help" => {
             println!(
-                "IMX Developer Preview\n\nusage:\n  imx identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.tif|input.tiff|input.webp|FORMAT:->\n  imx identify --json [FORMAT:]<input|FORMAT:->\n  imx report --json [FORMAT:]<input|FORMAT:->\n  imx compare [--metric <ae|mae|psnr>] [FORMAT:]<a|FORMAT:-> [FORMAT:]<b>\n  imx resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx completions <bash|zsh|fish>\n  imx self-test\n  imx [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported transcodes: BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM/TIFF/WEBP, including deterministic same-format rewrites except lossy JPEG re-encoding; WEBP output is lossless\nsupported input-only formats: GIF decode and identify, including transcode into any supported output format; the GIF decoder reads only the first frame and ignores animation\nsupported streaming: read input from stdin and/or write output to stdout via - with a FORMAT: prefix (e.g. PNG:-); only image bytes go to stdout\nsupported JPEG quality: --quality <1..=100> on the single transcode and batch-convert when the output format is JPEG (default 90); rejected for non-JPEG output\nsupported identify JSON: deterministic schema_version/format/width/height/channels/depth over existing identify metadata\nsupported report JSON: single-input supported/unsupported status with stable diagnostic_code values\nsupported compare: decode two inputs and diff them deterministically; differing dimensions or channels print a single differ: line and exit 1, matching images normalize to RGBA8 and report differing-pixel count, peak per-channel difference (AE), and mean absolute error (MAE); identical inputs print identical and exit 0, otherwise exit 1; --metric <ae|mae|psnr> prints only that single value (psnr is inf for identical inputs); usage errors exit 2\nsupported resize: nearest-neighbor exact dimensions (<width>x<height>), single-axis aspect-preserving (<width>x or x<height>), and uniform percent (<percent>%) geometries, plus aspect-preserving fit (resize-fit) for existing supported formats\nsupported geometry: bounds-checked crop (<width>x<height>+<x>+<y>), clockwise rotate (90/180/270), vertical flip, and horizontal flop, all format-preserving\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, optional --quality for JPEG output, no overwrite or collision renaming\nsupported completions: imx completions <bash|zsh|fish> prints a shell completion script to stdout; a roff man page is bundled at man/imx.1\nsupported self-test: offline install confidence check for identify/transcode/resize/resize-fit/batch-convert across supported formats\nsupported prefixes: BMP:, FARBFELD:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, TIFF:, WEBP:\ninput-only prefixes: GIF:\nunsupported: GIF as output target, GIF animation/multi-frame decoding, recursive directory walking, arbitrary-angle rotation, delegates, color management, and formats beyond BMP/FARBFELD/GIF/JPEG/QOI/PBM/PGM/PNG/PPM/TIFF/WEBP"
+                "IMX Developer Preview\n\nusage:\n  imx identify [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.tif|input.tiff|input.webp|FORMAT:->\n  imx identify --json [FORMAT:]<input|FORMAT:->\n  imx report --json [FORMAT:]<input|FORMAT:->\n  imx compare [--metric <ae|mae|psnr>] [FORMAT:]<a|FORMAT:-> [FORMAT:]<b>\n  imx resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx flip [FORMAT:]<input> [FORMAT:]<output>\n  imx flop [FORMAT:]<input> [FORMAT:]<output>\n  imx batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx completions <bash|zsh|fish>\n  imx self-test\n  imx [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported transcodes: BMP/FARBFELD/GIF/JPEG/QOI/PBM/PGM/PNG/PPM/TIFF/WEBP, including deterministic same-format rewrites except lossy JPEG re-encoding; WEBP output is lossless; GIF output is a single still frame with a deterministic palette of at most 256 colors, and the GIF decoder reads only the first frame and ignores animation\nsupported streaming: read input from stdin and/or write output to stdout via - with a FORMAT: prefix (e.g. PNG:-); only image bytes go to stdout\nsupported JPEG quality: --quality <1..=100> on the single transcode and batch-convert when the output format is JPEG (default 90); rejected for non-JPEG output\nsupported identify JSON: deterministic schema_version/format/width/height/channels/depth over existing identify metadata\nsupported report JSON: single-input supported/unsupported status with stable diagnostic_code values\nsupported compare: decode two inputs and diff them deterministically; differing dimensions or channels print a single differ: line and exit 1, matching images normalize to RGBA8 and report differing-pixel count, peak per-channel difference (AE), and mean absolute error (MAE); identical inputs print identical and exit 0, otherwise exit 1; --metric <ae|mae|psnr> prints only that single value (psnr is inf for identical inputs); usage errors exit 2\nsupported resize: nearest-neighbor exact dimensions (<width>x<height>), single-axis aspect-preserving (<width>x or x<height>), and uniform percent (<percent>%) geometries, plus aspect-preserving fit (resize-fit) for existing supported formats\nsupported geometry: bounds-checked crop (<width>x<height>+<x>+<y>), clockwise rotate (90/180/270), vertical flip, and horizontal flop, all format-preserving\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, optional --quality for JPEG output, no overwrite or collision renaming\nsupported completions: imx completions <bash|zsh|fish> prints a shell completion script to stdout; a roff man page is bundled at man/imx.1\nsupported self-test: offline install confidence check for identify/transcode/resize/resize-fit/batch-convert across supported formats\nsupported prefixes: BMP:, FARBFELD:, GIF:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, TIFF:, WEBP:\nunsupported: GIF animation/multi-frame decoding, recursive directory walking, arbitrary-angle rotation, delegates, color management, and formats beyond BMP/FARBFELD/GIF/JPEG/QOI/PBM/PGM/PNG/PPM/TIFF/WEBP"
             );
             process::exit(0);
         }
@@ -471,6 +471,12 @@ fn write_self_test_fixtures(output_dir: &Path) -> Result<Vec<SelfTestFixture>, S
             "input.webp",
             imx_codec_webp::encode(&rgb),
             "format=WEBP width=2 height=1 channels=RGB depth=8",
+        ),
+        (
+            Format::Gif,
+            "input.gif",
+            imx_codec_gif::encode(&rgb),
+            "format=GIF width=2 height=1 channels=RGBA depth=8",
         ),
     ];
 
@@ -1051,10 +1057,7 @@ fn encode_image(format: Format, image: &imx_core::Image) -> Result<Vec<u8>, Imag
         Format::Qoi => imx_codec_qoi::encode_image(image, imx_codec_qoi::QOI_SRGB),
         Format::Tiff => imx_codec_tiff::encode(image),
         Format::Webp => imx_codec_webp::encode(image),
-        Format::Gif => Err(ImageError::UnsupportedFormat(format!(
-            "{} is an input-only format and cannot be used as an output target",
-            format.name()
-        ))),
+        Format::Gif => imx_codec_gif::encode(image),
     }
 }
 
@@ -1553,9 +1556,7 @@ fn parse_batch_options(args: &[String]) -> Result<BatchOptions<'_>, String> {
 }
 
 fn parse_batch_output_format(value: &str) -> Result<Format, String> {
-    let format =
-        parse_format_prefix(value).ok_or_else(|| format!("unsupported output format: {value}"))?;
-    reject_input_only_output(format)
+    parse_format_prefix(value).ok_or_else(|| format!("unsupported output format: {value}"))
 }
 
 fn validate_output_dir<'a>(path: &'a Path, original: &str) -> &'a Path {
@@ -1863,22 +1864,7 @@ fn detect_output_format(path: &CliPath<'_>) -> Result<Format, String> {
     }
     let detected = detect_path_format(path.path)?;
     let detected = enforce_prefix(path, detected, "path format")?;
-    reject_input_only_output(detected)?;
     Ok(detected)
-}
-
-fn reject_input_only_output(format: Format) -> Result<Format, String> {
-    if is_input_only_format(format) {
-        return Err(format!(
-            "{} is an input-only format and cannot be used as an output target",
-            format.name()
-        ));
-    }
-    Ok(format)
-}
-
-fn is_input_only_format(format: Format) -> bool {
-    matches!(format, Format::Gif)
 }
 
 fn detect_path_format(path: &str) -> Result<Format, String> {
