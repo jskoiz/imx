@@ -9,10 +9,13 @@ Work top to bottom; do not skip the dry run or the tag-version match.
 ## 1. Green CI
 
 - [ ] `bash scripts/ci.sh` passes locally.
+- [ ] Rust MSRV check passes:
+      `rustup toolchain install 1.85.0 --profile minimal` then
+      `IMX_MSRV_TOOLCHAIN=1.85.0 bash scripts/check-msrv.sh`.
 - [ ] Differential corpus passes **against the ImageMagick oracle**:
       `IMAGEMAGICK_MAGICK=/path/to/magick IMX_REQUIRE_ORACLE=1 bash scripts/ci.sh`.
 - [ ] Latest CI on the release commit is green (preview gates: differential,
-      fuzz smoke, benchmark regression, install verify).
+      fuzz smoke, benchmark regression, MSRV, install verify).
 
 ## 2. Version bump (single shared version)
 
@@ -33,6 +36,11 @@ Work top to bottom; do not skip the dry run or the tag-version match.
 - [ ] Working tree clean at the release commit.
 - [ ] `bash scripts/publish.sh` dry-runs cleanly (PASS, or PASS-with-SKIPPED on
       a first-ever publish where dependents are not yet indexed).
+      Before the release commit exists, PR-readiness can be checked with
+      `IMX_PUBLISH_ALLOW_DIRTY_DRY_RUN=1 bash scripts/publish.sh`; do not use
+      that env var for the final release check.
+- [ ] API freeze snapshot reviewed:
+      `PATH="$(dirname "$(rustup which --toolchain nightly cargo)"):$PATH" cargo public-api -p imx-core --simplified > target/public-api-imx-core.txt`.
 
 ## 5. Real publish (irreversible)
 

@@ -132,13 +132,15 @@ local/manual only unless explicitly approved in the current turn.
 | Gate | Producer | Artifact Path | Coverage | Result |
 | --- | --- | --- | --- | --- |
 | Release gates | `scripts/ci.sh` | terminal plus CI logs | fmt, clippy, tests, fixture generation, self-test and diagnostics tests, fuzz smoke, benchmark smoke, differential tests | required before tag |
-| Differential corpus | `scripts/differential-corpus.sh` | `target/differential-corpus-*/summary.json` | identify for 8 formats, prefixed identify for 8 formats, JSON identify/report smoke over the same metadata, high-depth PPM/PNG identify, directed transcodes across BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM, a prefixed transcode ring covering every supported prefix as input/output, plain and prefixed resize plus resize-fit for 8 formats, batch-convert runs across all destination formats plus safety cases, an `imx self-test` result row, 16-bit PPM/PNG preserving transcodes, JPEG RGB8 lossy metric evidence, EXIF Orientation cases against ImageMagick `-auto-orient`, and progressive JPEG RGB/gray/orientation cases | required before tag |
+| Differential corpus | `scripts/differential-corpus.sh` | `target/differential-corpus-*/summary.json` | identify for the 8 ImageMagick-oracle encodable corpus formats, prefixed identify for those same formats, JSON identify/report smoke over the same metadata, high-depth PPM/PNG identify, directed transcodes across BMP/FARBFELD/JPEG/QOI/PBM/PGM/PNG/PPM, a prefixed transcode ring across those prefixes, plain and prefixed resize plus resize-fit for those 8 corpus formats, batch-convert runs across those oracle-comparable destinations plus safety cases, an `imx self-test` result row, 16-bit PPM/PNG preserving transcodes, JPEG RGB8 lossy metric evidence, EXIF Orientation cases against ImageMagick `-auto-orient`, and progressive JPEG RGB/gray/orientation cases | required before tag |
 | Curated intake corpus | `scripts/curated-corpus.sh` and `cargo test --test curated_corpus` | `target/curated-corpus/summary.json` | generated/in-test representative intake cases, malformed diagnostic assertions, and resource-boundary checks for supported formats only | required before tag |
 | Daily-use corpus | `scripts/daily-use-corpus.sh` | `target/daily-use-corpus/summary.json` | installed-style binary smoke for JSON identify/report over generated fixtures, representative prefixed transcodes, stable unsupported `report --json` diagnostics, and `identify --json` failure JSON on stderr | required before tag |
-| Fuzz smoke | `scripts/run-fuzz.sh` | `target/fuzz-runs/*/summary.json` | BMP, FARBFELD, JPEG, QOI, PNG, and PNM identify/decode with retained crash artifacts | required before tag |
+| Fuzz smoke | `scripts/run-fuzz.sh` | `target/fuzz-runs/*/summary.json` | BMP, FARBFELD, GIF, JPEG, PNG, PNM, QOI, TIFF, and WebP identify/decode with retained crash artifacts | required before tag |
 | Scheduled fuzz | `.github/workflows/rust-fuzz-scheduled.yml` | `scheduled-fuzz-evidence` artifact | longer cargo-fuzz run with artifact retention | required CI lane |
 | Bench/RSS thresholds | `scripts/bench-release.sh` | `target/release-bench-*/threshold-summary.json` | throughput and process/library RSS sanity budgets | required before tag |
 | Bench regression | `scripts/bench-regression.sh` | `target/bench-regression-*/regression-report.json` | v0.19.x vs v0.5.0 throughput/RSS baseline; newer PNG/JPEG/BMP/resize/resize-fit/batch/self-test/JSON metrics without a baseline are warnings, RSS growth is enforced where a baseline exists | required before tag |
+| MSRV | `scripts/check-msrv.sh` | terminal plus CI logs | workspace `cargo check --workspace --all-targets` on Rust 1.85.0 | required before tag |
+| Visual regression | `cargo test --test visual_regression` | terminal | fixed golden pixels for resize filters, color/tone ops, and a geometry transform chain | required before tag |
 | Source install verify | `scripts/verify-install.sh` | `target/install-verify/install-summary.json` | fresh checkout install plus `imx self-test` and supported identify/report JSON, identify/transcode/resize/resize-fit/batch-convert/prefix/BMP/PPM16/PNG/JPEG/orientation/progressive smoke | required before tag |
 | Package/SHA/no-link | `scripts/package-release.sh` plus hosted Linux workflow; local macOS or explicitly approved manual evidence for macOS targets | `target/release-artifacts`, GitHub Release assets | deterministic archives, extracted archive `imx self-test`, JSON identify/report, exact-prefix, resize, resize-fit, and batch-convert smoke, BMP/PPM16/PNG/JPEG/orientation/progressive/intake smoke, no ImageMagick linkage, and max `GLIBC_* <= GLIBC_2.34` for each claimed Linux platform; v0.19.x hosted automation prepares Linux x86_64 and Linux arm64 release artifacts | required before publishing that platform archive |
 | Published archive smoke | `scripts/verify-release-archive.sh` | `target/release-archive-smoke/<target>/summary.json` | downloads the selected GitHub release archive, verifies that archive against aggregate SHA256SUMS, no-link, max `GLIBC_* <= GLIBC_2.34`, and self-test/JSON identify/report/identify/transcode/resize/resize-fit/batch-convert/same-format/prefix smoke; hosted CI covers Linux only | required after release publish |
@@ -164,6 +166,10 @@ IMAGEMAGICK_MAGICK=/Users/jk/Desktop/imx/target/local-tools/magick-oracle \
   IMX_BENCH_BASE_REF=v0.5.0 \
   IMX_BENCH_ITERATIONS=2 \
   bash scripts/bench-regression.sh
+IMX_MSRV_TOOLCHAIN=1.85.0 \
+  bash scripts/check-msrv.sh
+RUSTDOCFLAGS="-D warnings" \
+  cargo doc --workspace --no-deps
 IMX_INSTALL_REPO_URL=/Users/jk/Desktop/imx \
   IMX_INSTALL_REVISION=HEAD \
 bash scripts/verify-install.sh
@@ -200,11 +206,11 @@ published binary references a `GLIBC_*` symbol newer than `GLIBC_2.34`.
   for Linux-only hosted formula/archive smoke, plus local or explicitly
   approved manual Homebrew install smoke when making tap claims.
 - Branch, pull-request, and tag CI build ImageMagick as an external oracle, run
-  IMX release gates, generate differential corpus evidence, generate structured
-  benchmark evidence, record v0.5.0 throughput ratios and enforce RSS budgets,
-  package Linux x86_64 and Linux arm64 artifacts, verify fresh-checkout
-  installation, verify the Linux glibc symbol baseline, generate conformance
-  reports, and upload evidence artifacts.
+  IMX release gates, check the Rust MSRV, generate differential corpus evidence,
+  generate structured benchmark evidence, record v0.5.0 throughput ratios and
+  enforce RSS budgets, package Linux x86_64 and Linux arm64 artifacts, verify
+  fresh-checkout installation, verify the Linux glibc symbol baseline, generate
+  conformance reports, and upload evidence artifacts.
 - Tag pushes matching `v*` run the preview gates, build native Linux x86_64 and
   cross-built Linux arm64 release archives, generate aggregate checksums, attach
   the generated tap formula and conformance report, publish the GitHub Release,
@@ -289,7 +295,7 @@ published binary references a `GLIBC_*` symbol newer than `GLIBC_2.34`.
 
 After v0.19.0 is published and tap-verified, the next milestone should improve
 everyday usefulness with one bounded operation or format gap, prove it against
-ImageMagick where applicable, and keep package/tap proof current. GIF/WebP
+ImageMagick where applicable, and keep package/tap proof current. Animated WebP
 output, APNG, delegates, MagickCore, MagickWand, color management, metadata
 preservation beyond declared read-only fields, and full ImageMagick CLI
 compatibility remain too broad for a single next milestone.

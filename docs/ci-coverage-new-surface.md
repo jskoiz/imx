@@ -66,9 +66,9 @@ This is the install/confidence gate that drives the real `imx` binary. It now:
 - Adds a `run_geometry_case` helper and exercises `crop`, `rotate 90`, `flip`,
   and `flop` end to end, asserting the resulting PPM metadata via
   `report --json`.
-- Reclassifies the `unsupported-prefix` diagnostic case to use `TIFF:` (still
-  unsupported) because `GIF:` is now a recognized input-only prefix; without
-  this the case would report `input.format_prefix_mismatch` instead of
+- Reclassifies the `unsupported-prefix` diagnostic case to use `TGA:` because
+  `GIF:`, `TIFF:`, and `WEBP:` are now recognized prefixes; without this the
+  case would report `input.format_prefix_mismatch` instead of
   `input.unsupported_format_prefix`. The summary now reports `geometry_cases`.
 
 ## Differential tests (oracle-gated)

@@ -1,18 +1,21 @@
-# IMX WebP and GIF Input Support
+# IMX WebP and GIF Support
 
-This slice adds WebP and GIF as **input-only** formats: IMX can identify and
-decode them, and transcode from them into any existing supported output format.
-Neither format can be used as an output target.
+This slice originally added WebP and GIF intake. The current surface is broader:
+IMX can identify and decode both formats, write lossless still WebP, write
+single-frame GIF output through normal transcodes, and write animated GIF output
+through `imx assemble`. Animated WebP output remains unsupported.
 
 ## Supported Surface
 
 - `imx identify input.webp` and `imx identify WEBP:input.webp`.
 - `imx identify input.gif` and `imx identify GIF:input.gif`.
 - `imx identify --json` and `imx report --json` over WebP and GIF inputs.
-- `imx input.webp output.{bmp,ff,jpg,qoi,pbm,pgm,png,ppm}`.
-- `imx input.gif output.{bmp,ff,jpg,qoi,pbm,pgm,png,ppm}`.
+- `imx input.webp output.{bmp,ff,gif,jpg,qoi,pbm,pgm,png,ppm,tif,webp}`.
+- `imx input.gif output.{bmp,ff,gif,jpg,qoi,pbm,pgm,png,ppm,tif,webp}`.
 - `imx resize`, `imx resize-fit`, and `imx batch-convert` with WebP or GIF
-  inputs (the output format must be a supported writable format).
+  inputs and any supported writable output format.
+- `imx assemble --delay <centiseconds> [--loop <n>] output.gif frame0 frame1 ...`
+  for animated GIF output from same-size frames.
 - Magic-byte detection (`RIFF....WEBP`, `GIF87a`/`GIF89a`) and extension
   fallback (`.webp`, `.gif`).
 
@@ -53,21 +56,20 @@ Neither format can be used as an output target.
 
 ## Non-Goals
 
-- No WebP or GIF **encoding**; both are input-only, and animation output
-  (encode) is unsupported — only frame extraction on decode.
-- No frame-delay handling or loop-playback semantics (frame extraction only;
-  see [`docs/multiframe-decode.md`](multiframe-decode.md)).
+- No animated WebP encoding.
+- No arbitrary frame-delay or loop-playback semantics for decode-time frame
+  extraction; animation timing is only written by `imx assemble`.
 - No metadata, ICC profile, EXIF, or XMP preservation.
-- No new command shapes beyond the existing identify/transcode/resize,
-  resize-fit, and batch-convert surface.
+- No new command shapes beyond identify, report, transcode, resize, resize-fit,
+  batch-convert, and `assemble`.
 
 ## Required Evidence
 
 - Codec unit tests for RGB and RGBA WebP decode, first-frame GIF decode,
   multi-frame GIF first-frame selection, offset-frame compositing, and
   malformed/truncated rejection for both formats.
-- CLI tests for `.webp`/`.gif` and `WEBP:`/`GIF:` identify, transcode into PNG,
-  and rejection of WebP/GIF as transcode and batch-convert output targets.
+- CLI tests for `.webp`/`.gif` and `WEBP:`/`GIF:` identify, transcodes into PNG,
+  WebP/GIF output, batch-convert WebP output, and animated GIF assembly.
 - Malformed-input coverage in `tests/malformed/mod.rs` and per-codec fuzz
   targets `fuzz/fuzz_targets/webp_decode.rs` and
   `fuzz/fuzz_targets/gif_decode.rs`.

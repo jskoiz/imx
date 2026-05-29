@@ -2856,8 +2856,8 @@ fn help_and_version_are_available() {
             assert!(stdout.contains("supported frame selection"));
             assert!(stdout.contains("\"frames\""));
             assert!(stdout.contains("schema_version 2"));
-            // Animated GIF output is now supported via assemble; only animated
-            // WEBP output remains unsupported.
+            // Animated GIF output is supported via assemble; only animated
+            // WEBP animation encode remains unsupported.
             assert!(stdout
                 .contains("imx [--no-auto-orient] assemble --delay <centiseconds> [--loop <n>]"));
             assert!(stdout.contains("supported animation:"));

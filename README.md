@@ -23,10 +23,9 @@ This is the headline. IMX is built to be trustworthy on real and hostile input:
   ImageMagick's output, so IMX is verified against a mature reference
   implementation rather than only against itself.
 - **Per-codec fuzzing and a malformed-input corpus.** Coverage-guided fuzz
-  targets exercise the BMP, FARBFELD, GIF, JPEG, PNG, PNM, QOI, and WebP
-  decode/identify entrypoints (a TIFF decode target lands in this release),
-  backed by seeded corpora and a malformed-input suite, with crash artifacts
-  retained from scheduled long-running fuzz runs.
+  targets exercise the BMP, FARBFELD, GIF, JPEG, PNG, PNM, QOI, TIFF, and WebP
+  decode/identify entrypoints, backed by seeded corpora and a malformed-input
+  suite, with crash artifacts retained from scheduled long-running fuzz runs.
 - **Deterministic, byte-identical output.** The same input always produces the
   same bytes. Output writes use a temp file plus atomic rename, so a malformed
   input never leaves a partial output behind.
@@ -104,7 +103,7 @@ This release sharpens resize quality and broadens the output surface ahead of a
 [docs/v1.0-readiness.md](docs/v1.0-readiness.md)):
 
 - **Real resampling filters** for `resize`/`resize-fit` via `--filter`
-  (nearest, triangle, catmull-rom, lanczos3), with **Lanczos3 the default** so
+  (point, box, triangle, catmull-rom, lanczos3), with **Lanczos3 the default** so
   downscales are no longer nearest-neighbor aliased.
 - **Animated GIF output** via `imx assemble`, composing ordered frames with
   per-frame delays.
@@ -112,7 +111,8 @@ This release sharpens resize quality and broadens the output surface ahead of a
   geometry ops.
 - **ICC profile passthrough** with `--strip` to drop ICC/ancillary metadata for
   a minimal, reproducible output.
-- **docs.rs build metadata** and a **`tiff_decode` fuzz target**.
+- **docs.rs build metadata**, an explicit Rust MSRV, and full decode-fuzz
+  coverage across the current codec set.
 
 ## Quick examples
 
@@ -151,10 +151,11 @@ imx batch-convert --to PNG --output-dir out/ a.jpg b.bmp c.qoi
 imx self-test
 ```
 
-Exact uppercase format prefixes (`BMP:`, `FARBFELD:`, `JPEG:`, `QOI:`, `PBM:`,
-`PGM:`, `PNG:`, `PPM:`, `TIFF:`) may be attached to operands to assert the expected
-format; they are stripped before file IO and must match the detected input
-format or output extension. (`JPG:` is intentionally not a prefix.)
+Exact uppercase format prefixes (`BMP:`, `FARBFELD:`, `GIF:`, `JPEG:`, `QOI:`,
+`PBM:`, `PGM:`, `PNG:`, `PPM:`, `TIFF:`, `WEBP:`) may be attached to operands
+to assert the expected format; they are stripped before file IO and must match
+the detected input format or output extension. (`JPG:` is intentionally not a
+prefix.)
 
 ## Shell completions & man page
 
@@ -210,8 +211,8 @@ install -m 0644 man/imx.1 /usr/local/share/man/man1/imx.1
 | PGM       | `.pgm` / `PGM:`          |  yes  |  yes   | ASCII `P2` + binary `P5` GRAY8/GRAY16BE in; deterministic binary `P5` out. |
 | PPM       | `.ppm` / `PPM:`          |  yes  |  yes   | ASCII `P3` + binary `P6` RGB8/RGB16BE in (`maxval` up to 65535); deterministic binary `P6` out. |
 | TIFF      | `.tif`, `.tiff` / `TIFF:`|  yes  |  yes   | First-IFD 8/16-bit grayscale, 8/16-bit RGB, 8-bit RGBA. Deterministic little-endian uncompressed baseline out. No multi-page, compression, palette, CMYK, or YCbCr. |
-| WebP      | input only               |  yes  |   no   | Decode / identify / transcode-from. Encoding is not supported. |
-| GIF       | `.gif` / `GIF:`          |  yes  |  yes   | Decode reads the first frame only. Output is a single still frame with a deterministic palette of at most 256 colors (exact when the source has ≤256 colors, NeuQuant otherwise); fully transparent pixels map to one transparent palette index. No animation/multi-frame output. |
+| WebP      | `.webp` / `WEBP:`        |  yes  |  yes   | Still and animated decode; `--frame` selects a composited frame. Output is a single lossless still WebP frame. No animated WebP output. |
+| GIF       | `.gif` / `GIF:`          |  yes  |  yes   | Decode supports composited frame selection. Single-image output writes a deterministic still GIF palette; `imx assemble` writes animated GIF output with uniform delay/loop settings. |
 
 ### Operations
 
@@ -220,11 +221,13 @@ install -m 0644 man/imx.1 /usr/local/share/man/man1/imx.1
 | Identify              | `imx identify [--json] <input>`        | Stable key-value line, or deterministic JSON. |
 | Report                | `imx report --json <input>`            | Identify fields plus `status` and `diagnostic_code`. |
 | Transcode             | `imx <input> <output>`                 | Cross-format and deterministic same-format rewrite. |
-| Exact resize          | `imx resize <w>x<h> <input> <output>`  | Center-sampled nearest-neighbor to exact dimensions. |
-| Aspect-preserving fit | `imx resize-fit <w>x<h> <in> <out>`    | Largest integer box that preserves aspect ratio. |
+| Exact resize          | `imx [--filter <filter>] resize <geometry> <input> <output>` | Exact, single-axis, or percent geometry; default `lanczos3`, with `point` for byte-exact nearest-neighbor. |
+| Aspect-preserving fit | `imx [--filter <filter>] resize-fit <w>x<h> <in> <out>` | Largest integer box that preserves aspect ratio. |
 | Crop                  | `imx crop ...`                         | Extract a rectangular region. |
 | Rotate                | `imx rotate <90\|180\|270> ...`        | Right-angle rotation. |
 | Flip / Flop           | `imx flip ...` / `imx flop ...`        | Vertical / horizontal mirror. |
+| Pipeline              | `imx pipeline <in> <out> --op <op>...` | Chained geometry and color/tone ops in one decode/encode pass. |
+| Compare               | `imx compare [--metric <ae\|mae\|psnr>] <a> <b>` | Deterministic pixel diff after RGBA8 normalization. |
 | JPEG quality          | `--quality <1..=100>`                  | Quality for JPEG output. |
 | Streaming             | `FORMAT:-`                             | Read stdin / write stdout via a `-` operand with a `FORMAT:` prefix. |
 | Batch convert         | `imx batch-convert --to <FMT> --output-dir <dir> [--resize\|--resize-fit] <input>...` | Preflighted; deterministic output names; no overwrite/recurse/glob. |
@@ -276,15 +279,15 @@ and tone pipeline ops, and ICC profile passthrough with `--strip`.
 ## Safety posture
 
 - Product decode/encode paths are safe Rust.
-- Runtime dependencies are the local IMX crates plus pure-Rust PNG and JPEG
-  codec dependencies used by `crates/codecs/png` and `crates/codecs/jpeg`.
+- Runtime dependencies are the local IMX crates plus pure-Rust codec
+  dependencies used by the format crates.
 - Decoded pixel buffers are capped at 512 MiB, with JPEG decode capped at
   128 MiB to account for decoder working-memory overhead.
 - CLI input reads are capped at 513 MiB.
 - Output writes use a temp file plus rename; malformed input does not leave the
   requested output behind.
-- Fuzz targets cover BMP, FARBFELD, JPEG, QOI, PNG, and PNM decode/identify
-  entrypoints with seeded corpora.
+- Fuzz targets cover BMP, FARBFELD, GIF, JPEG, PNG, PNM, QOI, TIFF, and WebP
+  decode/identify entrypoints with seeded corpora.
 
 ## Library
 
@@ -301,8 +304,8 @@ assert_eq!(gray.pixels(), &[54, 182]);
 # Ok::<(), imx_core::ImageError>(())
 ```
 
-The codec and CLI crates depend on `imx-core` by path and are not yet published
-individually.
+The codec and CLI crates depend on `imx-core` by path in this workspace and are
+published together with the same version when a release is cut.
 
 ## Release gates
 
@@ -332,6 +335,21 @@ IMX_FUZZ_MAX_TOTAL_TIME=5 ./scripts/run-fuzz.sh
 
 Scheduled CI runs the same cargo-fuzz targets for a longer window and retains
 crash artifacts under the fuzz evidence directory.
+
+Check the declared Rust MSRV:
+
+```sh
+rustup toolchain install 1.85.0 --profile minimal
+IMX_MSRV_TOOLCHAIN=1.85.0 ./scripts/check-msrv.sh
+```
+
+Capture the pre-1.0 public API surface before tagging a release candidate:
+
+```sh
+cargo install cargo-public-api --locked
+PATH="$(dirname "$(rustup which --toolchain nightly cargo)"):$PATH" \
+  cargo public-api -p imx-core --simplified > target/public-api-imx-core.txt
+```
 
 Generate machine-readable benchmark evidence:
 

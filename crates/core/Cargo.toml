@@ -2,6 +2,7 @@
 name = "imx-core"
 version = "0.19.0"
 edition.workspace = true
+rust-version.workspace = true
 publish = true
 description = "Memory-safe, deterministic core image model and pixel-format conversions for the imx image toolkit, differentially verified against ImageMagick."
 repository = "https://github.com/jskoiz/imx"

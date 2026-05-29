@@ -2,9 +2,9 @@
 
 This slice adds the ability to enumerate the frames of an animated GIF or WebP
 and to decode a single selected frame as the fully composited canvas at that
-point in the animation. It is a **decode-only** capability: IMX still cannot
-write animation, and GIF remains an input-only format. Animated WebP output
-(encode) is likewise unsupported — only frame extraction on decode is provided.
+point in the animation. This frame-selection surface is decode-only. GIF
+animation output is handled separately by `imx assemble`, and animated WebP
+output remains unsupported.
 
 ## Supported Surface
 
