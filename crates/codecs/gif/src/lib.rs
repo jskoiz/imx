@@ -19,14 +19,21 @@
 //! colors the exact palette is preserved, otherwise a NeuQuant color map with a
 //! fixed sample factor is used. Fully transparent pixels (alpha 0) are mapped to
 //! a single reserved transparent palette index; if there are none, no
-//! transparency is emitted. Animation output is explicitly out of scope.
+//! transparency is emitted.
+//!
+//! Animated GIF output is supported via [`encode_animation`], which writes one
+//! image block per frame. Each frame carries its own local palette, quantized
+//! independently with the same deterministic strategy as the single-frame path,
+//! so frames never share or fight over a single global color table. A Netscape
+//! looping extension records the requested repeat count and every frame stores
+//! its delay in centiseconds.
 
 use std::io::Cursor;
 
 use color_quant::NeuQuant;
 use gif::{
     ColorOutput, DecodeOptions, DecodingError, DisposalMethod, Encoder, EncodingError, Frame,
-    MemoryLimit,
+    MemoryLimit, Repeat,
 };
 use imx_core::{
     pixel_len, try_vec_with_capacity, Format, Identify, Image, ImageError, PixelFormat,
@@ -339,6 +346,107 @@ fn gif_decode_error(operation: &'static str, err: DecodingError) -> ImageError {
 /// Encodes an image as a single-frame GIF with a deterministic, palette-quantized
 /// color table of at most 256 entries.
 pub fn encode(image: &Image) -> Result<Vec<u8>, ImageError> {
+    let prepared = prepare_frame(image)?;
+    let (gif_width, gif_height) = prepared.dimensions;
+
+    let mut out = Vec::new();
+    {
+        let mut encoder =
+            Encoder::new(&mut out, gif_width, gif_height, &[]).map_err(gif_encode_error)?;
+        encoder
+            .write_frame(&prepared.into_frame(gif_width, gif_height, 0))
+            .map_err(gif_encode_error)?;
+    }
+    Ok(out)
+}
+
+/// Encodes a sequence of frames as an animated GIF.
+///
+/// Every frame must share identical dimensions; the first frame's size defines
+/// the logical screen. Each frame is quantized independently with the same
+/// deterministic strategy as [`encode`] and written with its own local palette,
+/// so frames never compete for a shared global color table. `delay_cs` is the
+/// inter-frame delay in centiseconds (1/100 s), applied uniformly to every
+/// frame. `loop_count` is written as a Netscape looping extension: `0` means
+/// loop forever, any other value loops that many times.
+///
+/// The output is byte-deterministic: encoding the same frames twice yields
+/// identical bytes. Returns a clean [`ImageError`] (never panics) when there are
+/// no frames, when frame dimensions disagree, or when dimensions exceed the GIF
+/// 16-bit limit.
+pub fn encode_animation(
+    frames: &[Image],
+    delay_cs: u16,
+    loop_count: u16,
+) -> Result<Vec<u8>, ImageError> {
+    let Some((first, rest)) = frames.split_first() else {
+        return Err(ImageError::UnsupportedFormat(
+            "GIF animation encode failed: at least one frame is required".to_string(),
+        ));
+    };
+
+    let prepared_first = prepare_frame(first)?;
+    let (gif_width, gif_height) = prepared_first.dimensions;
+
+    // Validate every other frame's dimensions before allocating the encoder so a
+    // mismatch fails cleanly and deterministically.
+    for frame in rest {
+        let (w, h) = (frame.width(), frame.height());
+        if w != u32::from(gif_width) || h != u32::from(gif_height) {
+            return Err(ImageError::UnsupportedFormat(format!(
+                "GIF animation encode failed: frame {w}x{h} does not match first frame {gif_width}x{gif_height}"
+            )));
+        }
+    }
+
+    let mut out = Vec::new();
+    {
+        let mut encoder =
+            Encoder::new(&mut out, gif_width, gif_height, &[]).map_err(gif_encode_error)?;
+        let repeat = match loop_count {
+            0 => Repeat::Infinite,
+            n => Repeat::Finite(n),
+        };
+        encoder.set_repeat(repeat).map_err(gif_encode_error)?;
+
+        // The first frame is already prepared; reuse it before walking the rest.
+        encoder
+            .write_frame(&prepared_first.into_frame(gif_width, gif_height, delay_cs))
+            .map_err(gif_encode_error)?;
+        for frame in rest {
+            let prepared = prepare_frame(frame)?;
+            encoder
+                .write_frame(&prepared.into_frame(gif_width, gif_height, delay_cs))
+                .map_err(gif_encode_error)?;
+        }
+    }
+    Ok(out)
+}
+
+/// A single frame quantized to a local palette and ready to hand to the `gif`
+/// encoder, alongside its validated GIF dimensions.
+struct PreparedFrame {
+    dimensions: (u16, u16),
+    quantized: Quantized,
+}
+
+impl PreparedFrame {
+    fn into_frame(self, width: u16, height: u16, delay: u16) -> Frame<'static> {
+        Frame {
+            width,
+            height,
+            delay,
+            transparent: self.quantized.transparent_index,
+            palette: Some(self.quantized.palette),
+            buffer: self.quantized.indices.into(),
+            ..Frame::default()
+        }
+    }
+}
+
+/// Converts an image to RGBA8, validates its GIF dimensions, and quantizes it to
+/// a deterministic local palette. Shared by the single-frame and animation paths.
+fn prepare_frame(image: &Image) -> Result<PreparedFrame, ImageError> {
     let rgba = image.to_rgba8()?;
     let width = rgba.width();
     let height = rgba.height();
@@ -360,20 +468,10 @@ pub fn encode(image: &Image) -> Result<Vec<u8>, ImageError> {
     let has_transparency = pixels.chunks_exact(4).any(|px| px[3] == 0);
     let quantized = quantize(pixels, pixel_count, has_transparency)?;
 
-    let mut out = Vec::new();
-    {
-        let mut encoder = Encoder::new(&mut out, gif_width, gif_height, &quantized.palette)
-            .map_err(gif_encode_error)?;
-        let frame = Frame {
-            width: gif_width,
-            height: gif_height,
-            transparent: quantized.transparent_index,
-            buffer: quantized.indices.into(),
-            ..Frame::default()
-        };
-        encoder.write_frame(&frame).map_err(gif_encode_error)?;
-    }
-    Ok(out)
+    Ok(PreparedFrame {
+        dimensions: (gif_width, gif_height),
+        quantized,
+    })
 }
 
 /// The result of mapping RGBA8 pixels onto a bounded GIF palette.
@@ -704,6 +802,77 @@ mod tests {
         let mut expected = vec![0u8; 16];
         expected[12..16].copy_from_slice(&[5, 6, 7, 255]);
         assert_eq!(decoded.pixels(), expected.as_slice());
+    }
+
+    fn solid_image(width: u32, height: u32, rgba: [u8; 4]) -> Image {
+        let mut pixels = Vec::with_capacity((width * height * 4) as usize);
+        for _ in 0..(width * height) {
+            pixels.extend_from_slice(&rgba);
+        }
+        Image::new(width, height, PixelFormat::Rgba8, pixels).unwrap()
+    }
+
+    #[test]
+    fn encode_animation_round_trips_three_frames() {
+        let frames = [
+            solid_image(2, 2, [255, 0, 0, 255]),
+            solid_image(2, 2, [0, 255, 0, 255]),
+            solid_image(2, 2, [0, 0, 255, 255]),
+        ];
+        let gif = encode_animation(&frames, 50, 0).unwrap();
+        assert_eq!(&gif[..MAGIC_LEN], MAGIC_89A);
+        assert_eq!(frame_count(&gif).unwrap(), 3);
+
+        assert_eq!(
+            decode_frame(&gif, 0).unwrap().pixels(),
+            &[255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255]
+        );
+        assert_eq!(
+            decode_frame(&gif, 1).unwrap().pixels(),
+            &[0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255]
+        );
+        assert_eq!(
+            decode_frame(&gif, 2).unwrap().pixels(),
+            &[0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255]
+        );
+    }
+
+    #[test]
+    fn encode_animation_is_deterministic() {
+        let frames = [
+            solid_image(3, 1, [10, 20, 30, 255]),
+            solid_image(3, 1, [40, 50, 60, 255]),
+        ];
+        let a = encode_animation(&frames, 25, 3).unwrap();
+        let b = encode_animation(&frames, 25, 3).unwrap();
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn encode_animation_single_frame() {
+        let frames = [solid_image(2, 2, [1, 2, 3, 255])];
+        let gif = encode_animation(&frames, 10, 0).unwrap();
+        assert_eq!(frame_count(&gif).unwrap(), 1);
+        assert_eq!(
+            decode_frame(&gif, 0).unwrap().pixels(),
+            &[1, 2, 3, 255, 1, 2, 3, 255, 1, 2, 3, 255, 1, 2, 3, 255]
+        );
+    }
+
+    #[test]
+    fn encode_animation_rejects_empty() {
+        let err = encode_animation(&[], 10, 0).unwrap_err().to_string();
+        assert!(err.contains("at least one frame"), "{err}");
+    }
+
+    #[test]
+    fn encode_animation_rejects_dimension_mismatch() {
+        let frames = [
+            solid_image(2, 2, [255, 0, 0, 255]),
+            solid_image(3, 2, [0, 255, 0, 255]),
+        ];
+        let err = encode_animation(&frames, 10, 0).unwrap_err().to_string();
+        assert!(err.contains("does not match first frame"), "{err}");
     }
 
     #[test]

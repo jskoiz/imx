@@ -2713,7 +2713,15 @@ fn help_and_version_are_available() {
             assert!(stdout.contains("supported frame selection"));
             assert!(stdout.contains("\"frames\""));
             assert!(stdout.contains("schema_version 2"));
-            assert!(stdout.contains(
+            // Animated GIF output is now supported via assemble; only animated
+            // WEBP output remains unsupported.
+            assert!(stdout
+                .contains("imx [--no-auto-orient] assemble --delay <centiseconds> [--loop <n>]"));
+            assert!(stdout.contains("supported animation:"));
+            assert!(stdout.contains("Netscape looping extension"));
+            assert!(stdout.contains("animated WEBP OUTPUT (encode) unsupported"));
+            assert!(stdout.contains("animated GIF output is supported via assemble"));
+            assert!(!stdout.contains(
                 "GIF/WEBP animation OUTPUT (encode) unsupported; only frame extraction on decode"
             ));
         }
@@ -4643,6 +4651,143 @@ fn batch_convert_supports_gif_output() {
         String::from_utf8(identify.stdout).unwrap().trim(),
         "format=GIF width=2 height=1 channels=RGBA depth=8"
     );
+}
+
+#[test]
+fn assemble_writes_three_frame_animation() {
+    let dir = temp_dir("assemble_three_frames");
+    let f0 = dir.join("f0.png");
+    let f1 = dir.join("f1.png");
+    let f2 = dir.join("f2.png");
+    let out = dir.join("out.gif");
+    fs::write(
+        &f0,
+        imx_codec_png::encode(&rgb_image(2, 2, [255, 0, 0])).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        &f1,
+        imx_codec_png::encode(&rgb_image(2, 2, [0, 255, 0])).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        &f2,
+        imx_codec_png::encode(&rgb_image(2, 2, [0, 0, 255])).unwrap(),
+    )
+    .unwrap();
+
+    let output = Command::new(imx())
+        .args([
+            "assemble",
+            "--delay",
+            "50",
+            "--loop",
+            "0",
+            out.to_str().unwrap(),
+            f0.to_str().unwrap(),
+            f1.to_str().unwrap(),
+            f2.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "assemble failed with stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let report = Command::new(imx())
+        .args(["report", "--json", out.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(report.status.success());
+    let report = String::from_utf8(report.stdout).unwrap();
+    assert!(report.contains("\"frames\":3"), "report={report}");
+}
+
+#[test]
+fn assemble_is_deterministic() {
+    let dir = temp_dir("assemble_deterministic");
+    let f0 = dir.join("f0.png");
+    let f1 = dir.join("f1.png");
+    let first = dir.join("first.gif");
+    let second = dir.join("second.gif");
+    fs::write(
+        &f0,
+        imx_codec_png::encode(&rgb_image(3, 1, [10, 20, 30])).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        &f1,
+        imx_codec_png::encode(&rgb_image(3, 1, [40, 50, 60])).unwrap(),
+    )
+    .unwrap();
+
+    for out in [&first, &second] {
+        let status = Command::new(imx())
+            .args([
+                "assemble",
+                "--delay",
+                "25",
+                out.to_str().unwrap(),
+                f0.to_str().unwrap(),
+                f1.to_str().unwrap(),
+            ])
+            .status()
+            .unwrap();
+        assert!(status.success());
+    }
+    assert_eq!(fs::read(&first).unwrap(), fs::read(&second).unwrap());
+}
+
+#[test]
+fn assemble_rejects_dimension_mismatch() {
+    let dir = temp_dir("assemble_mismatch");
+    let f0 = dir.join("f0.png");
+    let f1 = dir.join("f1.png");
+    let out = dir.join("out.gif");
+    fs::write(
+        &f0,
+        imx_codec_png::encode(&rgb_image(2, 2, [255, 0, 0])).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        &f1,
+        imx_codec_png::encode(&rgb_image(3, 2, [0, 255, 0])).unwrap(),
+    )
+    .unwrap();
+
+    let output = Command::new(imx())
+        .args([
+            "assemble",
+            "--delay",
+            "50",
+            out.to_str().unwrap(),
+            f0.to_str().unwrap(),
+            f1.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    assert!(!out.exists());
+}
+
+#[test]
+fn assemble_without_delay_is_usage_error() {
+    let dir = temp_dir("assemble_no_delay");
+    let f0 = dir.join("f0.png");
+    let out = dir.join("out.gif");
+    fs::write(
+        &f0,
+        imx_codec_png::encode(&rgb_image(2, 2, [1, 2, 3])).unwrap(),
+    )
+    .unwrap();
+
+    let output = Command::new(imx())
+        .args(["assemble", out.to_str().unwrap(), f0.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
 }
 
 // A small, non-uniform RGB image so that ops (flip/flop/rotate/crop/resize) and
