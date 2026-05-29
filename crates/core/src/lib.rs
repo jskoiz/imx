@@ -208,6 +208,139 @@ impl Image {
         self.resize_nearest(width, height)
     }
 
+    /// Resize to exact `width` x `height` using the given resampling `filter`.
+    ///
+    /// [`ResizeFilter::Point`] is byte-for-byte identical to
+    /// [`Image::resize_nearest`]. Every other filter performs a separable
+    /// two-pass weighted resample (horizontal then vertical) in a normalized
+    /// floating-point working space, rounding half-up back to the source bit
+    /// depth. The source pixel format and channel count are preserved, output
+    /// is byte-deterministic, and all allocation is bounded by
+    /// [`MAX_PIXEL_BYTES`] so this never panics on hostile dimensions.
+    pub fn resize_filtered(
+        &self,
+        width: u32,
+        height: u32,
+        filter: ResizeFilter,
+    ) -> Result<Self, ImageError> {
+        if filter == ResizeFilter::Point {
+            return self.resize_nearest(width, height);
+        }
+        // Validate and bound the output buffer up front.
+        let _ = pixel_len(width, height, self.pixel_format.bytes_per_pixel())?;
+        if width == self.width && height == self.height {
+            return Ok(self.clone());
+        }
+
+        match self.pixel_format {
+            PixelFormat::Bilevel => self.resize_filtered_bilevel(width, height, filter),
+            PixelFormat::Gray8 | PixelFormat::Rgb8 | PixelFormat::Rgba8 => {
+                self.resize_filtered_u8(width, height, filter)
+            }
+            PixelFormat::Gray16Be | PixelFormat::Rgb16Be | PixelFormat::Rgba16Be => {
+                self.resize_filtered_u16be(width, height, filter)
+            }
+        }
+    }
+
+    /// Aspect-preserving filtered resize: fit within `width` x `height`, then
+    /// resample with `filter`. Mirrors [`Image::resize_nearest_fit`].
+    pub fn resize_filtered_fit(
+        &self,
+        width: u32,
+        height: u32,
+        filter: ResizeFilter,
+    ) -> Result<Self, ImageError> {
+        let (width, height) = fit_dimensions(self.width, self.height, width, height)?;
+        self.resize_filtered(width, height, filter)
+    }
+
+    fn resize_filtered_u8(
+        &self,
+        width: u32,
+        height: u32,
+        filter: ResizeFilter,
+    ) -> Result<Self, ImageError> {
+        let channels = self.pixel_format.bytes_per_pixel();
+        let samples = self
+            .pixels
+            .iter()
+            .map(|&value| f64::from(value))
+            .collect::<Vec<_>>();
+        let resampled = resample_planes(
+            &samples,
+            self.width as usize,
+            self.height as usize,
+            width as usize,
+            height as usize,
+            channels,
+            filter,
+        )?;
+        let mut out = try_vec_with_capacity(pixel_len(width, height, channels)?)?;
+        for value in resampled {
+            out.push(round_clamp_u8(value));
+        }
+        Self::new(width, height, self.pixel_format, out)
+    }
+
+    fn resize_filtered_u16be(
+        &self,
+        width: u32,
+        height: u32,
+        filter: ResizeFilter,
+    ) -> Result<Self, ImageError> {
+        let channels = self.pixel_format.bytes_per_pixel() / 2;
+        let samples = self
+            .pixels
+            .chunks_exact(2)
+            .map(|chunk| f64::from(u16::from_be_bytes([chunk[0], chunk[1]])))
+            .collect::<Vec<_>>();
+        let resampled = resample_planes(
+            &samples,
+            self.width as usize,
+            self.height as usize,
+            width as usize,
+            height as usize,
+            channels,
+            filter,
+        )?;
+        let mut out = try_vec_with_capacity(pixel_len(width, height, channels * 2)?)?;
+        for value in resampled {
+            out.extend_from_slice(&round_clamp_u16(value).to_be_bytes());
+        }
+        Self::new(width, height, self.pixel_format, out)
+    }
+
+    fn resize_filtered_bilevel(
+        &self,
+        width: u32,
+        height: u32,
+        filter: ResizeFilter,
+    ) -> Result<Self, ImageError> {
+        // Bilevel pixels are stored as one byte per pixel valued 0 or 255.
+        // Resample in that 0..=255 space, then re-threshold so the output is a
+        // valid bilevel buffer.
+        let samples = self
+            .pixels
+            .iter()
+            .map(|&value| f64::from(value))
+            .collect::<Vec<_>>();
+        let resampled = resample_planes(
+            &samples,
+            self.width as usize,
+            self.height as usize,
+            width as usize,
+            height as usize,
+            1,
+            filter,
+        )?;
+        let mut out = try_vec_with_capacity(pixel_len(width, height, 1)?)?;
+        for value in resampled {
+            out.push(threshold_u8(round_clamp_u8(value)));
+        }
+        Self::new(width, height, PixelFormat::Bilevel, out)
+    }
+
     pub fn crop(&self, x: u32, y: u32, width: u32, height: u32) -> Result<Self, ImageError> {
         if width == 0 || height == 0 {
             return Err(ImageError::CropOutOfBounds {
@@ -1084,6 +1217,97 @@ pub enum ResizeGeometry {
     Percent(u32),
 }
 
+/// Resampling filter used by [`Image::resize_filtered`].
+///
+/// `Point` reproduces the exact center-sampled nearest-neighbor output of
+/// [`Image::resize_nearest`] byte-for-byte. The remaining filters perform a
+/// separable two-pass (horizontal then vertical) weighted resample using the
+/// named reconstruction kernel:
+///
+/// | Filter        | Kernel                    | Support |
+/// |---------------|---------------------------|---------|
+/// | `Point`       | nearest neighbor          | n/a     |
+/// | `Box`         | box / averaging           | 0.5     |
+/// | `Triangle`    | linear (bilinear)         | 1.0     |
+/// | `CatmullRom`  | Catmull-Rom bicubic       | 2.0     |
+/// | `Lanczos3`    | windowed sinc (a = 3)     | 3.0     |
+///
+/// All filtered paths operate in a normalized floating-point working space and
+/// round half-up back to the source bit depth, so output is fully
+/// byte-deterministic across platforms.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResizeFilter {
+    Point,
+    Box,
+    Triangle,
+    CatmullRom,
+    Lanczos3,
+}
+
+impl ResizeFilter {
+    /// The radius (in source pixels, before scaling) beyond which the kernel is
+    /// zero. `Point` has no meaningful support and returns `0.0`.
+    fn support(self) -> f64 {
+        match self {
+            Self::Point => 0.0,
+            Self::Box => 0.5,
+            Self::Triangle => 1.0,
+            Self::CatmullRom => 2.0,
+            Self::Lanczos3 => 3.0,
+        }
+    }
+
+    /// Evaluate the reconstruction kernel at distance `x` (in source pixels).
+    fn weight(self, x: f64) -> f64 {
+        let x = x.abs();
+        match self {
+            // Point is handled separately and never sampled as a kernel.
+            Self::Point => {
+                if x < 0.5 {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
+            Self::Box => {
+                if x <= 0.5 {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
+            Self::Triangle => {
+                if x < 1.0 {
+                    1.0 - x
+                } else {
+                    0.0
+                }
+            }
+            Self::CatmullRom => {
+                // Catmull-Rom cubic (B = 0, C = 0.5).
+                if x < 1.0 {
+                    1.5 * x * x * x - 2.5 * x * x + 1.0
+                } else if x < 2.0 {
+                    -0.5 * x * x * x + 2.5 * x * x - 4.0 * x + 2.0
+                } else {
+                    0.0
+                }
+            }
+            Self::Lanczos3 => {
+                if x < 1e-9 {
+                    1.0
+                } else if x < 3.0 {
+                    let px = std::f64::consts::PI * x;
+                    let px3 = px / 3.0;
+                    (px.sin() / px) * (px3.sin() / px3)
+                } else {
+                    0.0
+                }
+            }
+        }
+    }
+}
+
 /// Error returned when a resize geometry string cannot be parsed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GeometryError {
@@ -1248,6 +1472,158 @@ fn threshold_u8(value: u8) -> u8 {
     } else {
         255
     }
+}
+
+/// Round half-up to the nearest integer and clamp to `0..=255`.
+fn round_clamp_u8(value: f64) -> u8 {
+    let rounded = (value + 0.5).floor();
+    if rounded <= 0.0 {
+        0
+    } else if rounded >= 255.0 {
+        255
+    } else {
+        rounded as u8
+    }
+}
+
+/// Round half-up to the nearest integer and clamp to `0..=65535`.
+fn round_clamp_u16(value: f64) -> u16 {
+    let rounded = (value + 0.5).floor();
+    if rounded <= 0.0 {
+        0
+    } else if rounded >= 65535.0 {
+        65535
+    } else {
+        rounded as u16
+    }
+}
+
+/// One output sample's contributing source indices and their normalized
+/// weights along a single axis.
+struct AxisContribution {
+    start: usize,
+    weights: Vec<f64>,
+}
+
+/// Precompute, for every output position along one axis, the contributing
+/// source pixel indices and their normalized kernel weights.
+///
+/// Follows the standard separable-resampling convention: when downscaling
+/// (`scale < 1`) the kernel support is widened by `1/scale` so the filter
+/// averages the correct source neighborhood; when upscaling the unit-support
+/// kernel is used directly. Weights are normalized to sum to 1 so flat regions
+/// are preserved exactly.
+fn axis_contributions(
+    source_len: usize,
+    target_len: usize,
+    filter: ResizeFilter,
+) -> Vec<AxisContribution> {
+    let scale = target_len as f64 / source_len as f64;
+    let filter_scale = if scale < 1.0 { 1.0 / scale } else { 1.0 };
+    let support = filter.support() * filter_scale;
+    let mut contributions = Vec::with_capacity(target_len);
+
+    for out in 0..target_len {
+        // Center of this output pixel mapped back into source coordinates.
+        let center = (out as f64 + 0.5) / scale - 0.5;
+        let left = (center - support).ceil();
+        let right = (center + support).floor();
+        let start = left.max(0.0) as usize;
+        let end = (right.min((source_len - 1) as f64)).max(0.0) as usize;
+
+        let mut weights = Vec::with_capacity(end - start + 1);
+        let mut total = 0.0;
+        for src in start..=end {
+            let weight = filter.weight((src as f64 - center) / filter_scale);
+            weights.push(weight);
+            total += weight;
+        }
+        if total != 0.0 {
+            for weight in &mut weights {
+                *weight /= total;
+            }
+        }
+        contributions.push(AxisContribution { start, weights });
+    }
+    contributions
+}
+
+/// Separable two-pass resample of an interleaved plane of `channels` samples.
+///
+/// `samples` is row-major and `channels`-interleaved, with length
+/// `source_width * source_height * channels`. Returns the resampled buffer at
+/// the target dimensions in the same interleaved layout, in unrounded
+/// floating-point form.
+fn resample_planes(
+    samples: &[f64],
+    source_width: usize,
+    source_height: usize,
+    target_width: usize,
+    target_height: usize,
+    channels: usize,
+    filter: ResizeFilter,
+) -> Result<Vec<f64>, ImageError> {
+    // Horizontal pass: source_width -> target_width, height unchanged.
+    let horizontal = axis_contributions(source_width, target_width, filter);
+    let intermediate_len = target_width
+        .checked_mul(source_height)
+        .and_then(|value| value.checked_mul(channels))
+        .ok_or(ImageError::LengthOverflow)?;
+    let mut intermediate = try_vec_with_capacity_f64(intermediate_len)?;
+    for y in 0..source_height {
+        let row_offset = y * source_width * channels;
+        for contribution in &horizontal {
+            for channel in 0..channels {
+                let mut acc = 0.0;
+                for (index, weight) in contribution.weights.iter().enumerate() {
+                    let src = row_offset + (contribution.start + index) * channels + channel;
+                    acc += samples[src] * weight;
+                }
+                intermediate.push(acc);
+            }
+        }
+    }
+
+    // Vertical pass: source_height -> target_height, width unchanged.
+    let vertical = axis_contributions(source_height, target_height, filter);
+    let output_len = target_width
+        .checked_mul(target_height)
+        .and_then(|value| value.checked_mul(channels))
+        .ok_or(ImageError::LengthOverflow)?;
+    let mut output = try_vec_with_capacity_f64(output_len)?;
+    for contribution in &vertical {
+        for x in 0..target_width {
+            for channel in 0..channels {
+                let mut acc = 0.0;
+                for (index, weight) in contribution.weights.iter().enumerate() {
+                    let src =
+                        ((contribution.start + index) * target_width + x) * channels + channel;
+                    acc += intermediate[src] * weight;
+                }
+                output.push(acc);
+            }
+        }
+    }
+    Ok(output)
+}
+
+/// Bounded, fallible `Vec<f64>` reservation mirroring [`try_vec_with_capacity`].
+fn try_vec_with_capacity_f64(capacity: usize) -> Result<Vec<f64>, ImageError> {
+    // Guard the working-space allocation against the same byte budget as pixel
+    // buffers so hostile dimensions cannot drive unbounded memory use.
+    let bytes = capacity
+        .checked_mul(std::mem::size_of::<f64>())
+        .ok_or(ImageError::LengthOverflow)?;
+    if bytes > MAX_PIXEL_BYTES {
+        return Err(ImageError::ImageTooLarge {
+            required: bytes,
+            limit: MAX_PIXEL_BYTES,
+        });
+    }
+    let mut out = Vec::new();
+    out.try_reserve_exact(capacity)
+        .map_err(|_| ImageError::AllocationFailed { requested: bytes })?;
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -1452,6 +1828,163 @@ mod tests {
         let image = Image::new(3, 1, PixelFormat::Gray8, vec![0x10, 0x80, 0xf0]).unwrap();
         let resized = image.resize_nearest(2, 1).unwrap();
         assert_eq!(resized.pixels(), &[0x10, 0xf0]);
+    }
+
+    #[test]
+    fn resize_filtered_point_matches_resize_nearest_byte_for_byte() {
+        let image = Image::new(
+            3,
+            2,
+            PixelFormat::Rgb8,
+            vec![
+                1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+            ],
+        )
+        .unwrap();
+        for (w, h) in [(2, 1), (5, 4), (1, 1), (7, 3)] {
+            let nearest = image.resize_nearest(w, h).unwrap();
+            let point = image.resize_filtered(w, h, ResizeFilter::Point).unwrap();
+            assert_eq!(point.pixels(), nearest.pixels(), "{w}x{h}");
+            assert_eq!(point.pixel_format(), nearest.pixel_format());
+        }
+    }
+
+    #[test]
+    fn resize_filtered_preserves_dimensions_and_format() {
+        let image = Image::new(4, 4, PixelFormat::Rgba8, vec![128; 64]).unwrap();
+        for filter in [
+            ResizeFilter::Box,
+            ResizeFilter::Triangle,
+            ResizeFilter::CatmullRom,
+            ResizeFilter::Lanczos3,
+        ] {
+            let resized = image.resize_filtered(2, 3, filter).unwrap();
+            assert_eq!(resized.width(), 2);
+            assert_eq!(resized.height(), 3);
+            assert_eq!(resized.pixel_format(), PixelFormat::Rgba8);
+        }
+    }
+
+    #[test]
+    fn resize_filtered_preserves_flat_color() {
+        // A uniform image must resample to the same uniform value under every
+        // kernel because normalized weights sum to one.
+        let image = Image::new(5, 5, PixelFormat::Rgb8, vec![73; 75]).unwrap();
+        for filter in [
+            ResizeFilter::Box,
+            ResizeFilter::Triangle,
+            ResizeFilter::CatmullRom,
+            ResizeFilter::Lanczos3,
+        ] {
+            let down = image.resize_filtered(2, 2, filter).unwrap();
+            assert!(down.pixels().iter().all(|&value| value == 73), "{filter:?}");
+            let up = image.resize_filtered(9, 9, filter).unwrap();
+            assert!(up.pixels().iter().all(|&value| value == 73), "{filter:?}");
+        }
+    }
+
+    #[test]
+    fn resize_filtered_box_downscale_averages_pixels() {
+        // 2x1 row halved horizontally: box filter averages both source pixels.
+        let image = Image::new(2, 1, PixelFormat::Gray8, vec![0, 200]).unwrap();
+        let resized = image.resize_filtered(1, 1, ResizeFilter::Box).unwrap();
+        // round_half_up((0 + 200) / 2) = 100.
+        assert_eq!(resized.pixels(), &[100]);
+    }
+
+    #[test]
+    fn resize_filtered_triangle_upscale_is_monotonic() {
+        let image = Image::new(2, 1, PixelFormat::Gray8, vec![0, 255]).unwrap();
+        let resized = image.resize_filtered(5, 1, ResizeFilter::Triangle).unwrap();
+        let pixels = resized.pixels();
+        assert_eq!(pixels.len(), 5);
+        for window in pixels.windows(2) {
+            assert!(window[1] >= window[0], "expected non-decreasing ramp");
+        }
+        assert_eq!(pixels[0], 0);
+        assert_eq!(pixels[4], 255);
+    }
+
+    #[test]
+    fn resize_filtered_is_byte_deterministic() {
+        let image = Image::new(
+            6,
+            5,
+            PixelFormat::Rgb8,
+            (0..90).map(|value| (value * 7 % 256) as u8).collect(),
+        )
+        .unwrap();
+        for filter in [
+            ResizeFilter::Box,
+            ResizeFilter::Triangle,
+            ResizeFilter::CatmullRom,
+            ResizeFilter::Lanczos3,
+        ] {
+            let first = image.resize_filtered(3, 4, filter).unwrap();
+            let second = image.resize_filtered(3, 4, filter).unwrap();
+            assert_eq!(first.pixels(), second.pixels(), "{filter:?}");
+        }
+    }
+
+    #[test]
+    fn resize_filtered_16bit_preserves_format_and_endianness() {
+        let image = Image::new(2, 1, PixelFormat::Gray16Be, vec![0x00, 0x00, 0xff, 0xff]).unwrap();
+        let resized = image.resize_filtered(1, 1, ResizeFilter::Box).unwrap();
+        assert_eq!(resized.pixel_format(), PixelFormat::Gray16Be);
+        // round_half_up((0 + 65535) / 2) = 32768 -> 0x8000 big-endian.
+        assert_eq!(resized.pixels(), &[0x80, 0x00]);
+    }
+
+    #[test]
+    fn resize_filtered_bilevel_rethresholds_output() {
+        let image = Image::new(4, 1, PixelFormat::Bilevel, vec![0, 0, 255, 255]).unwrap();
+        let resized = image.resize_filtered(2, 1, ResizeFilter::Triangle).unwrap();
+        assert_eq!(resized.pixel_format(), PixelFormat::Bilevel);
+        for &value in resized.pixels() {
+            assert!(
+                value == 0 || value == 255,
+                "bilevel output must be 0 or 255"
+            );
+        }
+    }
+
+    #[test]
+    fn resize_filtered_same_dimensions_returns_clone() {
+        let image = Image::new(3, 2, PixelFormat::Rgb8, (0..18).collect()).unwrap();
+        let resized = image.resize_filtered(3, 2, ResizeFilter::Lanczos3).unwrap();
+        assert_eq!(resized.pixels(), image.pixels());
+    }
+
+    #[test]
+    fn resize_filtered_rejects_invalid_and_oversized_dimensions() {
+        let image = Image::new(2, 2, PixelFormat::Rgb8, vec![0; 12]).unwrap();
+        assert_eq!(
+            image.resize_filtered(0, 1, ResizeFilter::Lanczos3),
+            Err(ImageError::InvalidDimensions)
+        );
+        assert!(matches!(
+            image.resize_filtered(u32::MAX, u32::MAX, ResizeFilter::Lanczos3),
+            Err(ImageError::LengthOverflow | ImageError::ImageTooLarge { .. })
+        ));
+    }
+
+    #[test]
+    fn resize_filtered_fit_uses_fitted_dimensions() {
+        let image = Image::new(4, 2, PixelFormat::Rgb8, vec![20; 24]).unwrap();
+        let resized = image
+            .resize_filtered_fit(2, 2, ResizeFilter::Triangle)
+            .unwrap();
+        assert_eq!(resized.width(), 2);
+        assert_eq!(resized.height(), 1);
+        assert!(resized.pixels().iter().all(|&value| value == 20));
+    }
+
+    #[test]
+    fn resize_filter_lanczos3_weight_is_unit_at_origin_and_zero_at_integers() {
+        assert!((ResizeFilter::Lanczos3.weight(0.0) - 1.0).abs() < 1e-9);
+        assert!(ResizeFilter::Lanczos3.weight(1.0).abs() < 1e-9);
+        assert!(ResizeFilter::Lanczos3.weight(2.0).abs() < 1e-9);
+        assert_eq!(ResizeFilter::Lanczos3.weight(3.5), 0.0);
     }
 
     #[test]

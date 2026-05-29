@@ -3,10 +3,12 @@ use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use imx_core::{compare_rgba8, Format, Identify, ImageError, ResizeGeometry, MAX_PIXEL_BYTES};
+use imx_core::{
+    compare_rgba8, Format, Identify, ImageError, ResizeFilter, ResizeGeometry, MAX_PIXEL_BYTES,
+};
 
 mod completions;
 
@@ -21,9 +23,53 @@ fn auto_orient() -> bool {
     AUTO_ORIENT.load(Ordering::Relaxed)
 }
 
+/// Selected resampling filter for `resize`/`resize-fit`, encoded as the
+/// discriminant in [`filter_from_code`]. Defaults to Lanczos3 (code 4) per the
+/// product decision; `--filter point` selects the byte-exact nearest path.
+/// Read by [`resize`], [`resize_fit`], and the resize pipeline ops.
+static RESIZE_FILTER: AtomicU8 = AtomicU8::new(4);
+
+fn filter_code(filter: ResizeFilter) -> u8 {
+    match filter {
+        ResizeFilter::Point => 0,
+        ResizeFilter::Box => 1,
+        ResizeFilter::Triangle => 2,
+        ResizeFilter::CatmullRom => 3,
+        ResizeFilter::Lanczos3 => 4,
+    }
+}
+
+fn filter_from_code(code: u8) -> ResizeFilter {
+    match code {
+        0 => ResizeFilter::Point,
+        1 => ResizeFilter::Box,
+        2 => ResizeFilter::Triangle,
+        3 => ResizeFilter::CatmullRom,
+        _ => ResizeFilter::Lanczos3,
+    }
+}
+
+fn resize_filter() -> ResizeFilter {
+    filter_from_code(RESIZE_FILTER.load(Ordering::Relaxed))
+}
+
+/// Parse a `--filter` value into a [`ResizeFilter`].
+fn parse_resize_filter(value: &str) -> Result<ResizeFilter, String> {
+    match value {
+        "point" => Ok(ResizeFilter::Point),
+        "box" => Ok(ResizeFilter::Box),
+        "triangle" => Ok(ResizeFilter::Triangle),
+        "catmull-rom" => Ok(ResizeFilter::CatmullRom),
+        "lanczos3" => Ok(ResizeFilter::Lanczos3),
+        other => Err(format!(
+            "invalid --filter value: {other}; expected one of point, box, triangle, catmull-rom, lanczos3"
+        )),
+    }
+}
+
 fn usage() -> ! {
     eprintln!(
-        "usage:\n  imx --help\n  imx --version\n  imx [--no-auto-orient] identify [--frame <N>] [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.tif|input.tiff|input.webp|FORMAT:->\n  imx [--no-auto-orient] identify --json [--frame <N>] [FORMAT:]<input|FORMAT:->\n  imx [--no-auto-orient] report --json [--frame <N>] [FORMAT:]<input|FORMAT:->\n  imx [--no-auto-orient] compare [--metric <ae|mae|psnr>] [FORMAT:]<a|FORMAT:-> [FORMAT:]<b>\n  imx [--no-auto-orient] resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx [--no-auto-orient] resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx [--no-auto-orient] crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] flip [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] flop [FORMAT:]<input> [FORMAT:]<output>\n  imx pipeline [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:-> --op <op> [--op <op> ...]\n  imx [--no-auto-orient] batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx completions <bash|zsh|fish>\n  imx self-test\n  imx [--no-auto-orient] [--frame <N>] [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported formats: bmp (.bmp), farbfeld (.ff, .farbfeld), gif (.gif), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm), tiff (.tif, .tiff), webp (.webp)\nsupported prefixes: BMP:, FARBFELD:, GIF:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, TIFF:, WEBP:\nframe selection: --frame <N> (0-based, default 0) selects which frame to decode; animated GIF/WEBP can be enumerated via report --json (\"frames\" field) and a single frame extracted; non-animated inputs accept only --frame 0\nsupported orientation: EXIF/TIFF Orientation is auto-applied on decode for JPEG and TIFF so images are upright; pass --no-auto-orient to keep raw stored pixels and dimensions\nstdin/stdout: use - as a path with a FORMAT: prefix (e.g. PNG:-); --quality applies only to JPEG output"
+        "usage:\n  imx --help\n  imx --version\n  imx [--no-auto-orient] identify [--frame <N>] [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.tif|input.tiff|input.webp|FORMAT:->\n  imx [--no-auto-orient] identify --json [--frame <N>] [FORMAT:]<input|FORMAT:->\n  imx [--no-auto-orient] report --json [--frame <N>] [FORMAT:]<input|FORMAT:->\n  imx [--no-auto-orient] compare [--metric <ae|mae|psnr>] [FORMAT:]<a|FORMAT:-> [FORMAT:]<b>\n  imx [--no-auto-orient] [--filter <point|box|triangle|catmull-rom|lanczos3>] resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx [--no-auto-orient] [--filter <point|box|triangle|catmull-rom|lanczos3>] resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx [--no-auto-orient] crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] flip [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] flop [FORMAT:]<input> [FORMAT:]<output>\n  imx pipeline [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:-> --op <op> [--op <op> ...]\n  imx [--no-auto-orient] batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx completions <bash|zsh|fish>\n  imx self-test\n  imx [--no-auto-orient] [--frame <N>] [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported formats: bmp (.bmp), farbfeld (.ff, .farbfeld), gif (.gif), jpeg (.jpg, .jpeg), qoi (.qoi), pbm (.pbm), pgm (.pgm), png (.png), ppm (.ppm), tiff (.tif, .tiff), webp (.webp)\nsupported prefixes: BMP:, FARBFELD:, GIF:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, TIFF:, WEBP:\nframe selection: --frame <N> (0-based, default 0) selects which frame to decode; animated GIF/WEBP can be enumerated via report --json (\"frames\" field) and a single frame extracted; non-animated inputs accept only --frame 0\nsupported orientation: EXIF/TIFF Orientation is auto-applied on decode for JPEG and TIFF so images are upright; pass --no-auto-orient to keep raw stored pixels and dimensions\nstdin/stdout: use - as a path with a FORMAT: prefix (e.g. PNG:-); --quality applies only to JPEG output"
     );
     process::exit(2);
 }
@@ -54,10 +100,11 @@ fn fail_image_operation(
 
 fn main() {
     let args = strip_auto_orient_flag(env::args().collect::<Vec<_>>());
+    let args = strip_resize_filter_flag(args);
     match args.as_slice() {
         [_, flag] if flag == "--help" || flag == "-h" || flag == "help" => {
             println!(
-                "IMX Developer Preview\n\nusage:\n  imx [--no-auto-orient] identify [--frame <N>] [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.tif|input.tiff|input.webp|FORMAT:->\n  imx [--no-auto-orient] identify --json [--frame <N>] [FORMAT:]<input|FORMAT:->\n  imx [--no-auto-orient] report --json [--frame <N>] [FORMAT:]<input|FORMAT:->\n  imx [--no-auto-orient] compare [--metric <ae|mae|psnr>] [FORMAT:]<a|FORMAT:-> [FORMAT:]<b>\n  imx [--no-auto-orient] resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx [--no-auto-orient] resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx [--no-auto-orient] crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] flip [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] flop [FORMAT:]<input> [FORMAT:]<output>\n  imx pipeline [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:-> --op <op> [--op <op> ...]\n  imx [--no-auto-orient] batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx completions <bash|zsh|fish>\n  imx self-test\n  imx [--no-auto-orient] [--frame <N>] [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported transcodes: BMP/FARBFELD/GIF/JPEG/QOI/PBM/PGM/PNG/PPM/TIFF/WEBP, including deterministic same-format rewrites except lossy JPEG re-encoding; WEBP output is lossless; GIF output is a single still frame with a deterministic palette of at most 256 colors\nsupported frame selection: --frame <N> (0-based, default 0) selects which frame to decode for identify, report --json, and the single-input transcode; animated GIF/WEBP frames are composited (GIF disposal Keep/Background/Previous honored) so frame N is the displayed canvas; non-animated inputs accept only --frame 0 and reject any N>0\nsupported orientation: EXIF/TIFF Orientation (values 1-8) is auto-applied on decode for JPEG and TIFF so portrait photos come out upright; rotated orientations (5-8) swap reported width and height; pass --no-auto-orient to disable and keep the raw stored pixels and dimensions; missing or malformed orientation metadata is treated as orientation 1 (no-op)\nsupported streaming: read input from stdin and/or write output to stdout via - with a FORMAT: prefix (e.g. PNG:-); only image bytes go to stdout\nsupported JPEG quality: --quality <1..=100> on the single transcode and batch-convert when the output format is JPEG (default 90); rejected for non-JPEG output\nsupported identify JSON: deterministic schema_version/format/width/height/channels/depth over existing identify metadata\nsupported report JSON: single-input supported/unsupported status with stable diagnostic_code values; adds a \"frames\" count (animated GIF/WEBP frame count, 1 otherwise) and uses schema_version 2\nsupported compare: decode two inputs and diff them deterministically; differing dimensions or channels print a single differ: line and exit 1, matching images normalize to RGBA8 and report differing-pixel count, peak per-channel difference (AE), and mean absolute error (MAE); identical inputs print identical and exit 0, otherwise exit 1; --metric <ae|mae|psnr> prints only that single value (psnr is inf for identical inputs); usage errors exit 2\nsupported resize: nearest-neighbor exact dimensions (<width>x<height>), single-axis aspect-preserving (<width>x or x<height>), and uniform percent (<percent>%) geometries, plus aspect-preserving fit (resize-fit) for existing supported formats\nsupported geometry: bounds-checked crop (<width>x<height>+<x>+<y>), clockwise rotate (90/180/270), vertical flip, and horizontal flop, all format-preserving\nsupported pipeline: imx pipeline chains ordered --op values in a single decode/encode pass; supported ops are resize:<geometry>, resize-fit:<width>x<height>, crop:<width>x<height>+<x>+<y>, rotate:<90|180|270>, flip, and flop; ops apply left-to-right so order matters and at least one --op is required; output is byte-deterministic and equivalent to running the same ops as sequential subcommands\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, optional --quality for JPEG output, no overwrite or collision renaming\nsupported completions: imx completions <bash|zsh|fish> prints a shell completion script to stdout; a roff man page is bundled at man/imx.1\nsupported self-test: offline install confidence check for identify/transcode/resize/resize-fit/batch-convert across supported formats\nsupported prefixes: BMP:, FARBFELD:, GIF:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, TIFF:, WEBP:\nunsupported: GIF/WEBP animation OUTPUT (encode) unsupported; only frame extraction on decode, recursive directory walking, arbitrary-angle rotation, delegates, color management, and formats beyond BMP/FARBFELD/GIF/JPEG/QOI/PBM/PGM/PNG/PPM/TIFF/WEBP"
+                "IMX Developer Preview\n\nusage:\n  imx [--no-auto-orient] identify [--frame <N>] [FORMAT:]<input.bmp|input.ff|input.farbfeld|input.gif|input.jpg|input.jpeg|input.qoi|input.pbm|input.pgm|input.png|input.ppm|input.tif|input.tiff|input.webp|FORMAT:->\n  imx [--no-auto-orient] identify --json [--frame <N>] [FORMAT:]<input|FORMAT:->\n  imx [--no-auto-orient] report --json [--frame <N>] [FORMAT:]<input|FORMAT:->\n  imx [--no-auto-orient] compare [--metric <ae|mae|psnr>] [FORMAT:]<a|FORMAT:-> [FORMAT:]<b>\n  imx [--no-auto-orient] [--filter <point|box|triangle|catmull-rom|lanczos3>] resize <width>x<height>|<width>x|x<height>|<percent>% [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx [--no-auto-orient] [--filter <point|box|triangle|catmull-rom|lanczos3>] resize-fit <width>x<height> [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n  imx [--no-auto-orient] crop <width>x<height>+<x>+<y> [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] rotate <90|180|270> [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] flip [FORMAT:]<input> [FORMAT:]<output>\n  imx [--no-auto-orient] flop [FORMAT:]<input> [FORMAT:]<output>\n  imx pipeline [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:-> --op <op> [--op <op> ...]\n  imx [--no-auto-orient] batch-convert --to <FORMAT> --output-dir <dir> [--resize <width>x<height>|--resize-fit <width>x<height>] [--quality <1..=100>] [FORMAT:]<input>...\n  imx completions <bash|zsh|fish>\n  imx self-test\n  imx [--no-auto-orient] [--frame <N>] [--quality <1..=100>] [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:->\n\nsupported transcodes: BMP/FARBFELD/GIF/JPEG/QOI/PBM/PGM/PNG/PPM/TIFF/WEBP, including deterministic same-format rewrites except lossy JPEG re-encoding; WEBP output is lossless; GIF output is a single still frame with a deterministic palette of at most 256 colors\nsupported frame selection: --frame <N> (0-based, default 0) selects which frame to decode for identify, report --json, and the single-input transcode; animated GIF/WEBP frames are composited (GIF disposal Keep/Background/Previous honored) so frame N is the displayed canvas; non-animated inputs accept only --frame 0 and reject any N>0\nsupported orientation: EXIF/TIFF Orientation (values 1-8) is auto-applied on decode for JPEG and TIFF so portrait photos come out upright; rotated orientations (5-8) swap reported width and height; pass --no-auto-orient to disable and keep the raw stored pixels and dimensions; missing or malformed orientation metadata is treated as orientation 1 (no-op)\nsupported streaming: read input from stdin and/or write output to stdout via - with a FORMAT: prefix (e.g. PNG:-); only image bytes go to stdout\nsupported JPEG quality: --quality <1..=100> on the single transcode and batch-convert when the output format is JPEG (default 90); rejected for non-JPEG output\nsupported identify JSON: deterministic schema_version/format/width/height/channels/depth over existing identify metadata\nsupported report JSON: single-input supported/unsupported status with stable diagnostic_code values; adds a \"frames\" count (animated GIF/WEBP frame count, 1 otherwise) and uses schema_version 2\nsupported compare: decode two inputs and diff them deterministically; differing dimensions or channels print a single differ: line and exit 1, matching images normalize to RGBA8 and report differing-pixel count, peak per-channel difference (AE), and mean absolute error (MAE); identical inputs print identical and exit 0, otherwise exit 1; --metric <ae|mae|psnr> prints only that single value (psnr is inf for identical inputs); usage errors exit 2\nsupported resize: exact dimensions (<width>x<height>), single-axis aspect-preserving (<width>x or x<height>), and uniform percent (<percent>%) geometries, plus aspect-preserving fit (resize-fit) for existing supported formats; --filter <point|box|triangle|catmull-rom|lanczos3> selects the resampling kernel (default lanczos3, a high-quality windowed-sinc filter), and --filter point is byte-exact center-sampled nearest-neighbor\nsupported geometry: bounds-checked crop (<width>x<height>+<x>+<y>), clockwise rotate (90/180/270), vertical flip, and horizontal flop, all format-preserving\nsupported pipeline: imx pipeline chains ordered --op values in a single decode/encode pass; supported ops are resize:<geometry>, resize-fit:<width>x<height>, crop:<width>x<height>+<x>+<y>, rotate:<90|180|270>, flip, and flop; ops apply left-to-right so order matters and at least one --op is required; output is byte-deterministic and equivalent to running the same ops as sequential subcommands\nsupported batch conversion: explicit output format, existing output directory, shell-expanded input paths, optional --quality for JPEG output, no overwrite or collision renaming\nsupported completions: imx completions <bash|zsh|fish> prints a shell completion script to stdout; a roff man page is bundled at man/imx.1\nsupported self-test: offline install confidence check for identify/transcode/resize/resize-fit/batch-convert across supported formats\nsupported prefixes: BMP:, FARBFELD:, GIF:, JPEG:, QOI:, PBM:, PGM:, PNG:, PPM:, TIFF:, WEBP:\nunsupported: GIF/WEBP animation OUTPUT (encode) unsupported; only frame extraction on decode, recursive directory walking, arbitrary-angle rotation, delegates, color management, and formats beyond BMP/FARBFELD/GIF/JPEG/QOI/PBM/PGM/PNG/PPM/TIFF/WEBP"
             );
             process::exit(0);
         }
@@ -178,6 +225,31 @@ fn strip_auto_orient_flag(args: Vec<String>) -> Vec<String> {
         .filter(|(index, arg)| *index == 0 || arg != "--no-auto-orient")
         .map(|(_, arg)| arg)
         .collect()
+}
+
+/// Remove a single `--filter <name>` pair from the argument vector, recording
+/// the selected resampling filter in [`RESIZE_FILTER`].
+///
+/// Like `--no-auto-orient`, `--filter` is global and position-independent so the
+/// positional subcommand matching in [`main`] stays unchanged; it only affects
+/// the `resize` and `resize-fit` paths, which read [`resize_filter`]. The
+/// default (when absent) is Lanczos3. A missing or invalid value is a usage
+/// error. The program name (`args[0]`) is always preserved.
+fn strip_resize_filter_flag(args: Vec<String>) -> Vec<String> {
+    let mut out = Vec::with_capacity(args.len());
+    let mut iter = args.into_iter().enumerate();
+    while let Some((index, arg)) = iter.next() {
+        if index != 0 && arg == "--filter" {
+            let Some((_, value)) = iter.next() else {
+                fail_usage("--filter requires a value: <point|box|triangle|catmull-rom|lanczos3>");
+            };
+            let filter = parse_resize_filter(&value).unwrap_or_else(|err| fail_usage(err));
+            RESIZE_FILTER.store(filter_code(filter), Ordering::Relaxed);
+        } else {
+            out.push(arg);
+        }
+    }
+    out
 }
 
 #[derive(Clone, Debug)]
@@ -947,9 +1019,11 @@ fn resize(dimensions: &str, input_path: &str, output_path: &str) -> ! {
         .unwrap_or_else(|err| {
             fail_image_operation(input_format, "resize", "input", &input_path, err)
         });
-    let image = image.resize_nearest(width, height).unwrap_or_else(|err| {
-        fail_image_operation(input_format, "resize", "input", &input_path, err)
-    });
+    let image = image
+        .resize_filtered(width, height, resize_filter())
+        .unwrap_or_else(|err| {
+            fail_image_operation(input_format, "resize", "input", &input_path, err)
+        });
     let output = encode_image(output_format, &image).unwrap_or_else(|err| {
         fail_image_operation(output_format, "encode", "output", &output_path, err)
     });
@@ -971,7 +1045,7 @@ fn resize_fit(dimensions: &str, input_path: &str, output_path: &str) -> ! {
         fail_image_operation(input_format, "decode", "input", &input_path, err)
     });
     let image = image
-        .resize_nearest_fit(dimensions.width, dimensions.height)
+        .resize_filtered_fit(dimensions.width, dimensions.height, resize_filter())
         .unwrap_or_else(|err| {
             fail_image_operation(input_format, "resize-fit", "input", &input_path, err)
         });
@@ -1111,10 +1185,10 @@ impl Op {
         match self {
             Op::Resize(geometry) => {
                 let (width, height) = geometry.resolve(image.width(), image.height())?;
-                image.resize_nearest(width, height)
+                image.resize_filtered(width, height, resize_filter())
             }
             Op::ResizeFit(dimensions) => {
-                image.resize_nearest_fit(dimensions.width, dimensions.height)
+                image.resize_filtered_fit(dimensions.width, dimensions.height, resize_filter())
             }
             Op::Crop(geometry) => {
                 image.crop(geometry.x, geometry.y, geometry.width, geometry.height)
@@ -1259,12 +1333,12 @@ fn batch_convert(args: &[String]) -> ! {
         });
         let image = match options.transform {
             Some(BatchTransform::Resize(dimensions)) => image
-                .resize_nearest(dimensions.width, dimensions.height)
+                .resize_filtered(dimensions.width, dimensions.height, resize_filter())
                 .unwrap_or_else(|err| {
                     fail_image_operation(input_format, "resize", "input", &plan.input_path, err)
                 }),
             Some(BatchTransform::ResizeFit(dimensions)) => image
-                .resize_nearest_fit(dimensions.width, dimensions.height)
+                .resize_filtered_fit(dimensions.width, dimensions.height, resize_filter())
                 .unwrap_or_else(|err| {
                     fail_image_operation(input_format, "resize-fit", "input", &plan.input_path, err)
                 }),

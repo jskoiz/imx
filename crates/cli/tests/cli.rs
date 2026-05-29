@@ -1182,6 +1182,8 @@ fn resize_uses_center_sampled_nearest_neighbor_pixels() {
 
     let output = Command::new(imx())
         .args([
+            "--filter",
+            "point",
             "resize",
             "2x1",
             prefixed("PPM", &input).as_str(),
@@ -1450,6 +1452,8 @@ fn resize_fit_uses_fitted_dimensions_then_center_sampled_pixels() {
 
     let output = Command::new(imx())
         .args([
+            "--filter",
+            "point",
             "resize-fit",
             "2x2",
             prefixed("PPM", &input).as_str(),
@@ -1467,6 +1471,121 @@ fn resize_fit_uses_fitted_dimensions_then_center_sampled_pixels() {
     assert_eq!(resized.height(), 1);
     assert_eq!(resized.pixel_format(), PixelFormat::Rgb8);
     assert_eq!(resized.pixels(), &[255, 0, 0, 0, 0, 255]);
+}
+
+#[test]
+fn resize_default_filter_is_not_nearest_neighbor() {
+    // The default filter is lanczos3, so a downscale of a sharp edge must
+    // differ from the byte-exact nearest-neighbor (--filter point) output.
+    let dir = temp_dir("resize_default_filter");
+    let input = dir.join("input.ppm");
+    let mut pixels = Vec::with_capacity(8 * 3);
+    for x in 0..8u32 {
+        let value = if x < 4 { 0 } else { 255 };
+        pixels.extend_from_slice(&[value, value, value]);
+    }
+    let image = Image::new(8, 1, PixelFormat::Rgb8, pixels).unwrap();
+    fs::write(&input, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
+
+    let default_out = dir.join("default.ppm");
+    let point_out = dir.join("point.ppm");
+    assert!(Command::new(imx())
+        .args([
+            "resize",
+            "4x1",
+            prefixed("PPM", &input).as_str(),
+            prefixed("PPM", &default_out).as_str(),
+        ])
+        .status()
+        .unwrap()
+        .success());
+    assert!(Command::new(imx())
+        .args([
+            "--filter",
+            "point",
+            "resize",
+            "4x1",
+            prefixed("PPM", &input).as_str(),
+            prefixed("PPM", &point_out).as_str(),
+        ])
+        .status()
+        .unwrap()
+        .success());
+
+    let default_pixels = imx_codec_pnm::decode_ppm(&fs::read(&default_out).unwrap())
+        .unwrap()
+        .into_pixels();
+    let point_pixels = imx_codec_pnm::decode_ppm(&fs::read(&point_out).unwrap())
+        .unwrap()
+        .into_pixels();
+    assert_ne!(
+        default_pixels, point_pixels,
+        "default lanczos3 resize must differ from nearest-neighbor on a sharp edge"
+    );
+}
+
+#[test]
+fn resize_filter_is_byte_deterministic() {
+    let dir = temp_dir("resize_filter_determinism");
+    let input = dir.join("input.ppm");
+    let mut pixels = Vec::with_capacity(16 * 16 * 3);
+    for y in 0..16u32 {
+        for x in 0..16u32 {
+            pixels.push((x * 13 + y * 7) as u8);
+            pixels.push((x * 3 + y * 17) as u8);
+            pixels.push((x * 11 + y * 5) as u8);
+        }
+    }
+    let image = Image::new(16, 16, PixelFormat::Rgb8, pixels).unwrap();
+    fs::write(&input, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
+
+    for filter in ["box", "triangle", "catmull-rom", "lanczos3"] {
+        let first = dir.join(format!("{filter}-1.ppm"));
+        let second = dir.join(format!("{filter}-2.ppm"));
+        for out in [&first, &second] {
+            assert!(Command::new(imx())
+                .args([
+                    "--filter",
+                    filter,
+                    "resize",
+                    "7x9",
+                    prefixed("PPM", &input).as_str(),
+                    prefixed("PPM", out).as_str(),
+                ])
+                .status()
+                .unwrap()
+                .success());
+        }
+        assert_eq!(
+            fs::read(&first).unwrap(),
+            fs::read(&second).unwrap(),
+            "filter {filter} must be byte-deterministic"
+        );
+    }
+}
+
+#[test]
+fn resize_rejects_invalid_filter_name() {
+    let dir = temp_dir("resize_invalid_filter");
+    let input = dir.join("input.ppm");
+    let output_path = dir.join("output.ppm");
+    let image = Image::new(2, 2, PixelFormat::Rgb8, vec![0; 12]).unwrap();
+    fs::write(&input, imx_codec_pnm::encode_ppm(&image).unwrap()).unwrap();
+
+    let output = Command::new(imx())
+        .args([
+            "--filter",
+            "bicubic",
+            "resize",
+            "1x1",
+            prefixed("PPM", &input).as_str(),
+            prefixed("PPM", &output_path).as_str(),
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("invalid --filter value"));
+    assert!(!output_path.exists());
 }
 
 #[test]
@@ -2668,8 +2787,12 @@ fn help_and_version_are_available() {
             assert!(stdout.contains("imx [--no-auto-orient] report --json"));
             assert!(stdout.contains("supported identify JSON"));
             assert!(stdout.contains("stable diagnostic_code"));
-            assert!(stdout.contains("imx [--no-auto-orient] resize <width>x<height>"));
-            assert!(stdout.contains("imx [--no-auto-orient] resize-fit <width>x<height>"));
+            assert!(stdout.contains(
+                "imx [--no-auto-orient] [--filter <point|box|triangle|catmull-rom|lanczos3>] resize <width>x<height>"
+            ));
+            assert!(stdout.contains(
+                "imx [--no-auto-orient] [--filter <point|box|triangle|catmull-rom|lanczos3>] resize-fit <width>x<height>"
+            ));
             assert!(stdout
                 .contains("imx [--no-auto-orient] batch-convert --to <FORMAT> --output-dir <dir>"));
             assert!(stdout.contains("imx [--no-auto-orient] compare [--metric <ae|mae|psnr>]"));
@@ -2687,9 +2810,12 @@ fn help_and_version_are_available() {
             assert!(stdout.contains("--no-auto-orient"));
             assert!(stdout.contains("EXIF/TIFF Orientation"));
             assert!(stdout.contains("offline install confidence check"));
-            assert!(stdout.contains("nearest-neighbor exact dimensions (<width>x<height>)"));
+            assert!(stdout.contains("exact dimensions (<width>x<height>)"));
             assert!(stdout.contains("<width>x or x<height>"));
             assert!(stdout.contains("uniform percent (<percent>%)"));
+            assert!(stdout.contains("--filter <point|box|triangle|catmull-rom|lanczos3>"));
+            assert!(stdout.contains("default lanczos3"));
+            assert!(stdout.contains("byte-exact center-sampled nearest-neighbor"));
             assert!(stdout.contains("no overwrite or collision renaming"));
             assert!(stdout.contains(".bmp"));
             assert!(stdout.contains(".farbfeld"));

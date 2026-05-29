@@ -1556,6 +1556,8 @@ fn standalone_resize_matches_imagemagick_point_resize_for_decoded_pixels() {
     let imx_resize = run_magick(
         &standalone,
         &[
+            "--filter".to_string(),
+            "point".to_string(),
             "resize".to_string(),
             "5x3".to_string(),
             format!("PPM:{}", input.display()),
@@ -1635,6 +1637,8 @@ fn standalone_resize_fit_matches_imagemagick_point_resize_for_decoded_pixels() {
     let imx_resize = run_magick(
         &standalone,
         &[
+            "--filter".to_string(),
+            "point".to_string(),
             "resize-fit".to_string(),
             "5x5".to_string(),
             format!("PPM:{}", input.display()),
@@ -1713,6 +1717,8 @@ fn assert_resize_geometry_matches_oracle(label: &str, imx_geometry: &str, oracle
     let imx_resize = run_magick(
         &standalone,
         &[
+            "--filter".to_string(),
+            "point".to_string(),
             "resize".to_string(),
             imx_geometry.to_string(),
             format!("PPM:{}", input.display()),
@@ -1768,6 +1774,136 @@ fn assert_resize_geometry_matches_oracle(label: &str, imx_geometry: &str, oracle
     assert_eq!(fs::read(imx_rgb).unwrap(), fs::read(oracle_rgb).unwrap());
 }
 
+/// Compare an `imx --filter <name> resize` against ImageMagick's matching
+/// `-filter <Magick>` resize, asserting the decoded RGB pixels stay within the
+/// documented per-filter tolerance.
+///
+/// Matching ImageMagick byte-for-byte on non-Point kernels is impractical:
+/// ImageMagick performs filtering in a linear-light, EWA/cylindrical pipeline
+/// with its own edge handling and quantum rounding, while `imx` uses a
+/// deterministic separable two-pass resampler in the gamma-encoded sample space
+/// with round-half-up quantization. We therefore assert a bounded max-abs-diff
+/// and mean-absolute-error rather than exact equality. The tolerances below are
+/// generous enough to absorb those pipeline differences while still catching
+/// gross kernel or orientation bugs.
+fn assert_filter_matches_oracle(
+    label: &str,
+    imx_filter: &str,
+    magick_filter: &str,
+    max_abs_diff: u8,
+    max_mae: f64,
+) {
+    let Some(magick) = require_or_skip(magick_command(), "ImageMagick oracle") else {
+        return;
+    };
+    let Some(standalone) = require_or_skip(standalone_imx_command(), "standalone imx binary")
+    else {
+        return;
+    };
+    let dir = temp_dir(&format!("resize_filter_{label}"));
+    let input = dir.join("source.ppm");
+    let imx_ppm = dir.join("imx.ppm");
+    let oracle_ppm = dir.join("oracle.ppm");
+    let imx_rgb = dir.join("imx.rgb");
+    let oracle_rgb = dir.join("oracle.rgb");
+    fs::write(
+        &input,
+        imx_codec_pnm::encode_ppm(&rgb8_gradient(64, 48)).unwrap(),
+    )
+    .unwrap();
+
+    let imx_resize = run_magick(
+        &standalone,
+        &[
+            "--filter".to_string(),
+            imx_filter.to_string(),
+            "resize".to_string(),
+            "32x24".to_string(),
+            format!("PPM:{}", input.display()),
+            format!("PPM:{}", imx_ppm.display()),
+        ],
+    );
+    assert!(
+        imx_resize.status.success(),
+        "standalone {imx_filter} resize failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&imx_resize.stdout),
+        String::from_utf8_lossy(&imx_resize.stderr)
+    );
+
+    let oracle_resize = run_magick(
+        &magick,
+        &[
+            format!("PPM:{}", input.display()),
+            "-filter".to_string(),
+            magick_filter.to_string(),
+            "-resize".to_string(),
+            "32x24!".to_string(),
+            format!("PPM:{}", oracle_ppm.display()),
+        ],
+    );
+    if !assert_success_or_skip(&oracle_resize, "ImageMagick filtered resize") {
+        return;
+    }
+
+    let imx_decode = run_magick(
+        &magick,
+        &[
+            format!("PPM:{}", imx_ppm.display()),
+            "-depth".to_string(),
+            "8".to_string(),
+            format!("RGB:{}", imx_rgb.display()),
+        ],
+    );
+    let oracle_decode = run_magick(
+        &magick,
+        &[
+            format!("PPM:{}", oracle_ppm.display()),
+            "-depth".to_string(),
+            "8".to_string(),
+            format!("RGB:{}", oracle_rgb.display()),
+        ],
+    );
+    if !assert_success_or_skip(&imx_decode, "ImageMagick decode IMX filtered PPM")
+        || !assert_success_or_skip(&oracle_decode, "ImageMagick decode oracle filtered PPM")
+    {
+        return;
+    }
+
+    let imx_bytes = fs::read(imx_rgb).unwrap();
+    let oracle_bytes = fs::read(oracle_rgb).unwrap();
+    assert_eq!(
+        imx_bytes.len(),
+        oracle_bytes.len(),
+        "{label}: resized buffers must have equal length"
+    );
+    let metrics = raw_metrics(&imx_bytes, &oracle_bytes);
+    assert!(
+        metrics.max_abs_diff <= max_abs_diff && metrics.mae <= max_mae,
+        "{label}: filtered resize exceeded oracle tolerance \
+         (max_abs_diff <= {max_abs_diff}, mae <= {max_mae}): {metrics:?}"
+    );
+}
+
+#[test]
+fn standalone_box_resize_matches_imagemagick_within_tolerance() {
+    assert_filter_matches_oracle("box", "box", "Box", 24, 4.0);
+}
+
+#[test]
+fn standalone_triangle_resize_matches_imagemagick_within_tolerance() {
+    assert_filter_matches_oracle("triangle", "triangle", "Triangle", 24, 4.0);
+}
+
+#[test]
+fn standalone_catmull_rom_resize_matches_imagemagick_within_tolerance() {
+    assert_filter_matches_oracle("catmull_rom", "catmull-rom", "Catrom", 32, 5.0);
+}
+
+#[test]
+fn standalone_lanczos3_resize_matches_imagemagick_within_tolerance() {
+    assert_filter_matches_oracle("lanczos3", "lanczos3", "Lanczos", 32, 5.0);
+}
+
 #[test]
 fn standalone_resize_percent_matches_imagemagick_decoded_pixels() {
     assert_resize_geometry_matches_oracle("percent", "50%", "50%");
@@ -1809,6 +1945,8 @@ fn standalone_batch_convert_resize_fit_matches_imagemagick_decoded_pixels() {
     let imx_batch = run_magick(
         &standalone,
         &[
+            "--filter".to_string(),
+            "point".to_string(),
             "batch-convert".to_string(),
             "--to".to_string(),
             "PNG".to_string(),
@@ -1917,6 +2055,8 @@ fn standalone_bmp_transcode_resize_and_batch_match_imagemagick_decoded_pixels() 
     let imx_resize = run_magick(
         &standalone,
         &[
+            "--filter".to_string(),
+            "point".to_string(),
             "resize".to_string(),
             "5x3".to_string(),
             format!("BMP:{}", input.display()),
@@ -1947,6 +2087,8 @@ fn standalone_bmp_transcode_resize_and_batch_match_imagemagick_decoded_pixels() 
     let imx_batch_result = run_magick(
         &standalone,
         &[
+            "--filter".to_string(),
+            "point".to_string(),
             "batch-convert".to_string(),
             "--to".to_string(),
             "BMP".to_string(),
