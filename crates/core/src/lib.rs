@@ -116,12 +116,22 @@ impl PixelFormat {
     }
 }
 
+/// A decoded raster image plus an optional embedded ICC color profile.
+///
+/// `icc_profile`, when present, is the raw bytes of the source container's
+/// embedded ICC profile (PNG `iCCP`, JPEG `APP2 ICC_PROFILE`, TIFF tag 34675).
+/// It describes how the stored pixel values map to color and is preserved
+/// verbatim across geometry transforms (which never change the encoding), but
+/// is intentionally dropped by the pixel-format conversions
+/// (`to_rgba8`/`to_gray8`/...), since those re-encode the samples into a
+/// different representation that the source profile no longer describes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Image {
     width: u32,
     height: u32,
     pixel_format: PixelFormat,
     pixels: Vec<u8>,
+    icc_profile: Option<Vec<u8>>,
 }
 
 impl Image {
@@ -144,7 +154,38 @@ impl Image {
             height,
             pixel_format,
             pixels,
+            icc_profile: None,
         })
+    }
+
+    /// Attach (or clear) the embedded ICC color profile, consuming and
+    /// returning `self` so it can chain after [`Image::new`].
+    ///
+    /// Passing `None` clears any existing profile. The bytes are stored
+    /// verbatim and are never parsed or validated by `imx-core`.
+    pub fn with_icc(mut self, icc: Option<Vec<u8>>) -> Self {
+        self.icc_profile = icc;
+        self
+    }
+
+    /// The raw embedded ICC color profile, if any.
+    pub fn icc(&self) -> Option<&[u8]> {
+        self.icc_profile.as_deref()
+    }
+
+    /// Rebuild a geometry-transformed image, carrying the source ICC profile
+    /// forward. A geometry transform (resize/crop/rotate/flip) does not change
+    /// the pixel encoding, so the embedded profile stays valid and is preserved;
+    /// every geometry method routes through here instead of calling
+    /// [`Image::new`] directly (which would drop the profile).
+    fn rebuild(
+        &self,
+        width: u32,
+        height: u32,
+        pixel_format: PixelFormat,
+        pixels: Vec<u8>,
+    ) -> Result<Self, ImageError> {
+        Ok(Self::new(width, height, pixel_format, pixels)?.with_icc(self.icc_profile.clone()))
     }
 
     pub fn width(&self) -> u32 {
@@ -200,7 +241,7 @@ impl Image {
             }
         }
 
-        Self::new(width, height, self.pixel_format, out)
+        self.rebuild(width, height, self.pixel_format, out)
     }
 
     pub fn resize_nearest_fit(&self, width: u32, height: u32) -> Result<Self, ImageError> {
@@ -247,7 +288,7 @@ impl Image {
             out.extend_from_slice(&self.pixels[row_start..row_start + row_bytes]);
         }
 
-        Self::new(width, height, self.pixel_format, out)
+        self.rebuild(width, height, self.pixel_format, out)
     }
 
     pub fn rotate_90(&self) -> Result<Self, ImageError> {
@@ -261,7 +302,7 @@ impl Image {
                 out.extend_from_slice(&self.pixels[source_offset..source_offset + bytes_per_pixel]);
             }
         }
-        Self::new(self.height, self.width, self.pixel_format, out)
+        self.rebuild(self.height, self.width, self.pixel_format, out)
     }
 
     pub fn rotate_180(&self) -> Result<Self, ImageError> {
@@ -271,7 +312,7 @@ impl Image {
         for pixel in self.pixels.chunks_exact(bytes_per_pixel).rev() {
             out.extend_from_slice(pixel);
         }
-        Self::new(self.width, self.height, self.pixel_format, out)
+        self.rebuild(self.width, self.height, self.pixel_format, out)
     }
 
     pub fn rotate_270(&self) -> Result<Self, ImageError> {
@@ -285,7 +326,7 @@ impl Image {
                 out.extend_from_slice(&self.pixels[source_offset..source_offset + bytes_per_pixel]);
             }
         }
-        Self::new(self.height, self.width, self.pixel_format, out)
+        self.rebuild(self.height, self.width, self.pixel_format, out)
     }
 
     pub fn flip_vertical(&self) -> Result<Self, ImageError> {
@@ -297,7 +338,7 @@ impl Image {
             let row_start = y as usize * source_stride;
             out.extend_from_slice(&self.pixels[row_start..row_start + source_stride]);
         }
-        Self::new(self.width, self.height, self.pixel_format, out)
+        self.rebuild(self.width, self.height, self.pixel_format, out)
     }
 
     pub fn flop_horizontal(&self) -> Result<Self, ImageError> {
@@ -312,7 +353,7 @@ impl Image {
                 out.extend_from_slice(pixel);
             }
         }
-        Self::new(self.width, self.height, self.pixel_format, out)
+        self.rebuild(self.width, self.height, self.pixel_format, out)
     }
 
     pub fn to_rgba16be(&self) -> Result<Self, ImageError> {
@@ -1253,6 +1294,80 @@ fn threshold_u8(value: u8) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn new_defaults_icc_to_none_and_with_icc_round_trips() {
+        let image = Image::new(1, 1, PixelFormat::Gray8, vec![0x42]).unwrap();
+        assert_eq!(image.icc(), None);
+
+        let profile = vec![1, 2, 3, 4];
+        let tagged = image.clone().with_icc(Some(profile.clone()));
+        assert_eq!(tagged.icc(), Some(profile.as_slice()));
+
+        // Clearing the profile yields None again.
+        assert_eq!(tagged.with_icc(None).icc(), None);
+    }
+
+    #[test]
+    fn icc_profile_participates_in_equality() {
+        let base = Image::new(1, 1, PixelFormat::Gray8, vec![0x42]).unwrap();
+        let with_a = base.clone().with_icc(Some(vec![1, 2, 3]));
+        let with_b = base.clone().with_icc(Some(vec![4, 5, 6]));
+        assert_ne!(base, with_a);
+        assert_ne!(with_a, with_b);
+        assert_eq!(with_a, base.with_icc(Some(vec![1, 2, 3])));
+    }
+
+    #[test]
+    fn geometry_transforms_preserve_icc_profile() {
+        let profile = vec![0xde, 0xad, 0xbe, 0xef];
+        let image = Image::new(2, 1, PixelFormat::Rgb8, vec![1, 2, 3, 4, 5, 6])
+            .unwrap()
+            .with_icc(Some(profile.clone()));
+
+        assert_eq!(
+            image.resize_nearest(4, 2).unwrap().icc(),
+            Some(profile.as_slice())
+        );
+        assert_eq!(
+            image.resize_nearest_fit(4, 4).unwrap().icc(),
+            Some(profile.as_slice())
+        );
+        assert_eq!(
+            image.crop(0, 0, 1, 1).unwrap().icc(),
+            Some(profile.as_slice())
+        );
+        assert_eq!(image.rotate_90().unwrap().icc(), Some(profile.as_slice()));
+        assert_eq!(image.rotate_180().unwrap().icc(), Some(profile.as_slice()));
+        assert_eq!(image.rotate_270().unwrap().icc(), Some(profile.as_slice()));
+        assert_eq!(
+            image.flip_vertical().unwrap().icc(),
+            Some(profile.as_slice())
+        );
+        assert_eq!(
+            image.flop_horizontal().unwrap().icc(),
+            Some(profile.as_slice())
+        );
+
+        // A resize that is a no-op still preserves the profile.
+        assert_eq!(
+            image.resize_nearest(2, 1).unwrap().icc(),
+            Some(profile.as_slice())
+        );
+    }
+
+    #[test]
+    fn pixel_format_conversions_drop_icc_profile() {
+        let image = Image::new(1, 1, PixelFormat::Rgb8, vec![10, 20, 30])
+            .unwrap()
+            .with_icc(Some(vec![1, 2, 3, 4]));
+        // A real conversion re-encodes the samples, so the source profile is
+        // no longer valid and must be dropped.
+        assert_eq!(image.to_rgba8().unwrap().icc(), None);
+        assert_eq!(image.to_gray8().unwrap().icc(), None);
+        assert_eq!(image.to_rgba16be().unwrap().icc(), None);
+        assert_eq!(image.to_bilevel().unwrap().icc(), None);
+    }
 
     #[test]
     fn rgb8_expands_to_opaque_farbfeld_quantum_values() {

@@ -65,7 +65,10 @@ pub fn decode_with_options(input: &[u8], auto_orient: bool) -> Result<Image, Ima
     let pixels = decoder
         .decode()
         .map_err(|err| jpeg_decode_error("decode", err))?;
-    let image = Image::new(width, height, pixel_format, pixels)?;
+    // The ICC profile is only available after a successful `decode`; it is
+    // reassembled from the APP2 `ICC_PROFILE` segments by the decoder crate.
+    let icc = decoder.icc_profile();
+    let image = Image::new(width, height, pixel_format, pixels)?.with_icc(icc);
     apply_exif_orientation(image, orientation)
 }
 
@@ -88,7 +91,17 @@ pub fn encode_with_quality(image: &Image, quality: u8) -> Result<Vec<u8>, ImageE
     })?;
 
     let mut out = Vec::new();
-    Encoder::new(&mut out, quality)
+    let mut encoder = Encoder::new(&mut out, quality);
+    // Write the embedded ICC profile back as APP2 `ICC_PROFILE` segment(s). The
+    // encoder crate handles the standard 14-byte header and ≤65519-byte
+    // chunking; an over-large profile (>~16 MB, needing ≥255 chunks) is the only
+    // failure mode and surfaces as a normal encode error.
+    if let Some(profile) = image.icc() {
+        encoder
+            .add_icc_profile(profile)
+            .map_err(jpeg_encode_error)?;
+    }
+    encoder
         .encode(encoded.pixels(), width, height, color_type)
         .map_err(jpeg_encode_error)?;
     Ok(out)
@@ -378,6 +391,41 @@ mod tests {
             "format=JPEG width=3 height=4 channels=RGB depth=8"
         );
         assert_eq!(decode(&oriented).unwrap(), expected_oriented(&baseline, 6));
+    }
+
+    #[test]
+    fn round_trips_icc_profile() {
+        // A multi-segment profile (>65519 bytes forces ≥2 APP2 chunks) to
+        // exercise the encoder's chunking and the decoder's reassembly.
+        let profile: Vec<u8> = (0..70_000u32).map(|i| (i % 251) as u8).collect();
+        let image = Image::new(
+            8,
+            8,
+            PixelFormat::Rgb8,
+            (0..8)
+                .flat_map(|y| {
+                    (0..8).flat_map(move |x| {
+                        [
+                            (x * 31 + y * 3) as u8,
+                            (x * 5 + y * 29) as u8,
+                            (x * 17 + y * 11) as u8,
+                        ]
+                    })
+                })
+                .collect(),
+        )
+        .unwrap()
+        .with_icc(Some(profile.clone()));
+        let jpeg = encode(&image).unwrap();
+        let decoded = decode(&jpeg).unwrap();
+        assert_eq!(decoded.icc(), Some(profile.as_slice()));
+    }
+
+    #[test]
+    fn encodes_without_icc_when_absent() {
+        let image = Image::new(2, 1, PixelFormat::Rgb8, vec![255, 0, 0, 0, 0, 255]).unwrap();
+        let jpeg = encode(&image).unwrap();
+        assert_eq!(decode(&jpeg).unwrap().icc(), None);
     }
 
     #[test]

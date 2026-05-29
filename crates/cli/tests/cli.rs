@@ -2668,13 +2668,14 @@ fn help_and_version_are_available() {
             assert!(stdout.contains("imx [--no-auto-orient] report --json"));
             assert!(stdout.contains("supported identify JSON"));
             assert!(stdout.contains("stable diagnostic_code"));
-            assert!(stdout.contains("imx [--no-auto-orient] resize <width>x<height>"));
-            assert!(stdout.contains("imx [--no-auto-orient] resize-fit <width>x<height>"));
-            assert!(stdout
-                .contains("imx [--no-auto-orient] batch-convert --to <FORMAT> --output-dir <dir>"));
+            assert!(stdout.contains("imx [--no-auto-orient] [--strip] resize <width>x<height>"));
+            assert!(stdout.contains("imx [--no-auto-orient] [--strip] resize-fit <width>x<height>"));
+            assert!(stdout.contains(
+                "imx [--no-auto-orient] [--strip] batch-convert --to <FORMAT> --output-dir <dir>"
+            ));
             assert!(stdout.contains("imx [--no-auto-orient] compare [--metric <ae|mae|psnr>]"));
             assert!(stdout.contains(
-                "imx pipeline [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:-> --op <op> [--op <op> ...]"
+                "imx [--strip] pipeline [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:-> --op <op> [--op <op> ...]"
             ));
             assert!(stdout.contains("supported pipeline:"));
             assert!(stdout.contains("ops apply left-to-right"));
@@ -2686,6 +2687,12 @@ fn help_and_version_are_available() {
             assert!(stdout.contains("supported orientation:"));
             assert!(stdout.contains("--no-auto-orient"));
             assert!(stdout.contains("EXIF/TIFF Orientation"));
+            // ICC passthrough documentation and the --strip global flag.
+            assert!(stdout.contains("supported ICC:"));
+            assert!(stdout.contains("--strip"));
+            assert!(stdout.contains("APP2 ICC_PROFILE"));
+            // "color management" is no longer in the unsupported clause.
+            assert!(!stdout.contains("color management"));
             assert!(stdout.contains("offline install confidence check"));
             assert!(stdout.contains("nearest-neighbor exact dimensions (<width>x<height>)"));
             assert!(stdout.contains("<width>x or x<height>"));
@@ -2722,6 +2729,81 @@ fn help_and_version_are_available() {
 
 fn write_png(path: &Path, image: &Image) {
     fs::write(path, imx_codec_png::encode(image).unwrap()).unwrap();
+}
+
+/// A small but non-trivial fake ICC profile blob for round-trip assertions.
+fn fake_icc() -> Vec<u8> {
+    (0..512u32).map(|i| (i % 251) as u8).collect()
+}
+
+#[test]
+fn transcode_preserves_icc_png_to_png_and_png_to_tiff() {
+    let dir = temp_dir("icc_passthrough");
+    let profile = fake_icc();
+    let input = dir.join("in.png");
+    let image = rgb_image(4, 3, [10, 20, 30]).with_icc(Some(profile.clone()));
+    fs::write(&input, imx_codec_png::encode(&image).unwrap()).unwrap();
+
+    // PNG -> PNG keeps the profile.
+    let png_out = dir.join("out.png");
+    let status = Command::new(imx())
+        .args([input.to_str().unwrap(), png_out.to_str().unwrap()])
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let decoded = imx_codec_png::decode(&fs::read(&png_out).unwrap()).unwrap();
+    assert_eq!(decoded.icc(), Some(profile.as_slice()));
+
+    // PNG -> TIFF keeps the profile.
+    let tiff_out = dir.join("out.tiff");
+    let status = Command::new(imx())
+        .args([input.to_str().unwrap(), tiff_out.to_str().unwrap()])
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let decoded = imx_codec_tiff::decode(&fs::read(&tiff_out).unwrap()).unwrap();
+    assert_eq!(decoded.icc(), Some(profile.as_slice()));
+}
+
+#[test]
+fn strip_flag_drops_icc_profile() {
+    let dir = temp_dir("icc_strip");
+    let profile = fake_icc();
+    let input = dir.join("in.png");
+    let image = rgb_image(4, 3, [10, 20, 30]).with_icc(Some(profile));
+    fs::write(&input, imx_codec_png::encode(&image).unwrap()).unwrap();
+
+    let out = dir.join("out.png");
+    let status = Command::new(imx())
+        .args(["--strip", input.to_str().unwrap(), out.to_str().unwrap()])
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let decoded = imx_codec_png::decode(&fs::read(&out).unwrap()).unwrap();
+    assert_eq!(decoded.icc(), None);
+}
+
+#[test]
+fn rotate_preserves_icc_profile() {
+    let dir = temp_dir("icc_rotate");
+    let profile = fake_icc();
+    let input = dir.join("in.png");
+    let image = rgb_image(4, 3, [10, 20, 30]).with_icc(Some(profile.clone()));
+    fs::write(&input, imx_codec_png::encode(&image).unwrap()).unwrap();
+
+    let out = dir.join("out.png");
+    let status = Command::new(imx())
+        .args([
+            "rotate",
+            "90",
+            input.to_str().unwrap(),
+            out.to_str().unwrap(),
+        ])
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let decoded = imx_codec_png::decode(&fs::read(&out).unwrap()).unwrap();
+    assert_eq!(decoded.icc(), Some(profile.as_slice()));
 }
 
 fn rgb_image(width: u32, height: u32, fill: [u8; 3]) -> Image {

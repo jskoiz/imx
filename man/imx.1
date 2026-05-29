@@ -183,6 +183,13 @@ upright, swapping reported width and height for the rotated orientations
 (5\(en8). This global flag keeps the raw stored pixels and dimensions instead.
 Missing or malformed orientation metadata is always treated as orientation 1
 (no-op).
+.TP
+.B \-\-strip
+Drop the embedded ICC color profile before encoding. Embedded ICC profiles are
+otherwise preserved on decode and written back on encode for PNG (iCCP chunk),
+JPEG (APP2 ICC_PROFILE segments), and TIFF (tag 34675); the profile survives
+geometry transforms but is dropped by colorspace conversions. This global flag
+applies to every command that encodes output.
 .SH FORMATS
 Supported formats (read and write):
 .B bmp
@@ -238,7 +245,7 @@ prefix.
 Usage error or unsupported command shape.
 .SH UNSUPPORTED
 GIF as an output target, GIF animation or multi-frame decoding, recursive
-directory walking, arbitrary-angle rotation, delegates, color management, and
+directory walking, arbitrary-angle rotation, delegates, and
 formats beyond BMP, FARBFELD, GIF, JPEG, QOI, PBM, PGM, PNG, PPM, and WEBP.
 .SH EXAMPLES
 .TP
