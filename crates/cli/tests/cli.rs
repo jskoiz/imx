@@ -2796,7 +2796,9 @@ fn help_and_version_are_available() {
             assert!(stdout.contains(
                 "imx [--no-auto-orient] [--strip] batch-convert --to <FORMAT> --output-dir <dir>"
             ));
-            assert!(stdout.contains("--filter <point|box|triangle|catmull-rom|lanczos3> selects the resampling kernel"));
+            assert!(stdout.contains(
+                "--filter <point|box|triangle|catmull-rom|lanczos3> selects the resampling kernel"
+            ));
             assert!(stdout.contains("imx [--no-auto-orient] compare [--metric <ae|mae|psnr>]"));
             assert!(stdout.contains(
                 "imx [--strip] pipeline [FORMAT:]<input|FORMAT:-> [FORMAT:]<output|FORMAT:-> --op <op> [--op <op> ...]"
